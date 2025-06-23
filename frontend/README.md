@@ -1,50 +1,165 @@
-# Welcome to your Expo app 👋
+# LifePattern AI
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A React Native app built with Expo for tracking daily patterns and optimizing life habits. Works on iOS, Android, and Web.
 
-## Get started
+## 🚀 Features
 
-1. Install dependencies
+- **Cross-platform**: iOS, Android, and Web support
+- **Firebase Integration**: Authentication and database
+- **Modern UI**: Clean, responsive design
+- **Expo Router**: File-based routing
+- **TypeScript**: Full type safety
 
+## 📱 Screens
+
+- **Home**: Welcome screen with login/register options
+- **Login**: User authentication
+- **Register**: User registration
+- **Dashboard**: Main app interface with features
+
+## 🛠️ Tech Stack
+
+- **React Native**: 0.79.4
+- **Expo**: 53.0.12
+- **React**: 19.0.0
+- **TypeScript**: 5.8.3
+- **Firebase**: 11.9.1
+- **Expo Router**: 5.1.0
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Node.js (v18 or higher)
+- npm or yarn
+- Expo CLI: `npm install -g @expo/cli`
+- Firebase CLI: `npm install -g firebase-tools`
+
+### Installation
+
+1. **Install dependencies**:
    ```bash
    npm install
    ```
 
-2. Start the app
-
+2. **Start development server**:
    ```bash
-   npx expo start
+   # For mobile (iOS/Android)
+   npm start
+   
+   # For web
+   npm run web
    ```
 
-In the output, you'll find options to open the app in a
+3. **Build for production**:
+   ```bash
+   npm run build:web
+   ```
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## 🔥 Firebase Setup
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+1. **Create Firebase project**:
+   - Go to [Firebase Console](https://console.firebase.google.com/)
+   - Create a new project named "lifepattern-ai"
 
-## Get a fresh project
+2. **Update Firebase config**:
+   - Edit `firebase/config.ts`
+   - Replace placeholder values with your Firebase config
 
-When you're ready, run:
+3. **Deploy to Firebase Hosting**:
+   ```bash
+   npm run deploy
+   ```
 
-```bash
-npm run reset-project
+## 📁 Project Structure
+
+```
+frontend/
+├── app/                    # Expo Router pages
+│   ├── _layout.tsx        # Root layout
+│   ├── index.tsx          # Home page
+│   ├── login.tsx          # Login page
+│   ├── register.tsx       # Register page
+│   └── dashboard.tsx      # Dashboard page
+├── firebase/              # Firebase configuration
+│   └── config.ts          # Firebase setup
+├── assets/                # Images and static files
+├── app.json              # Expo configuration
+├── firebase.json         # Firebase hosting config
+├── package.json          # Dependencies and scripts
+└── README.md             # This file
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## 🎯 Available Scripts
 
-## Learn more
+- `npm start` - Start Expo development server
+- `npm run android` - Start Android development
+- `npm run ios` - Start iOS development
+- `npm run web` - Start web development
+- `npm run build:web` - Build for web production
+- `npm run deploy` - Deploy to Firebase hosting
 
-To learn more about developing your project with Expo, look at the following resources:
+## 🔧 Configuration
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### Firebase Configuration
 
-## Join the community
+Update `firebase/config.ts` with your Firebase project settings:
 
-Join our community of developers creating universal apps.
+```typescript
+const firebaseConfig = {
+  apiKey: "your-api-key",
+  authDomain: "lifepattern-ai.firebaseapp.com",
+  projectId: "lifepattern-ai",
+  storageBucket: "lifepattern-ai.appspot.com",
+  messagingSenderId: "your-sender-id",
+  appId: "your-app-id"
+};
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## 📱 Platform Support
+
+- ✅ **iOS**: Full support with Expo
+- ✅ **Android**: Full support with Expo
+- ✅ **Web**: Full support with Webpack bundling
+
+## 🚀 Deployment
+
+### Web Deployment
+
+1. **Build the app**:
+   ```bash
+   npm run build:web
+   ```
+
+2. **Deploy to Firebase**:
+   ```bash
+   npm run deploy
+   ```
+
+### Mobile Deployment
+
+1. **Build for production**:
+   ```bash
+   eas build --platform all
+   ```
+
+2. **Submit to stores**:
+   ```bash
+   eas submit --platform all
+   ```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test on all platforms
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the MIT License.
+
+## 🆘 Support
+
+For support, email support@lifepattern.ai or create an issue in this repository. 
