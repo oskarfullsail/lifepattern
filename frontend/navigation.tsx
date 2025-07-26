@@ -26,10 +26,11 @@ export default function Navigation() {
           headerStyle: {
             backgroundColor: '#fff',
           },
-          headerTintColor: '#007AFF',
+          headerTintColor: '#4A90E2',
           headerTitleStyle: {
             fontWeight: 'bold',
           },
+          headerShadowVisible: false,
         }}
       >
         <Stack.Screen 
@@ -43,17 +44,26 @@ export default function Navigation() {
         <Stack.Screen 
           name="Login" 
           component={LoginScreen} 
-          options={{ title: 'Login' }} 
+          options={{ 
+            title: 'Sign In',
+            headerBackTitle: 'Back'
+          }} 
         />
         <Stack.Screen 
           name="Register" 
           component={RegisterScreen} 
-          options={{ title: 'Register' }} 
+          options={{ 
+            title: 'Create Account',
+            headerBackTitle: 'Back'
+          }} 
         />
         <Stack.Screen 
           name="Dashboard" 
           component={DashboardScreen} 
-          options={{ title: 'Dashboard' }} 
+          options={{ 
+            title: 'Dashboard',
+            headerShown: false
+          }} 
         />
       </Stack.Navigator>
       <StatusBar style="auto" />
