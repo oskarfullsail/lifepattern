@@ -19,14 +19,23 @@
 # in the templates via {{ site.myvariable }}.
 
 
-title: LifePattern Blog
+title: LifePattern AI
+description: "Your AI-powered lifestyle companion for tracking daily routines and getting personalized insights"
 email: OSanchezChagollan@student.fullsail.edu
 baseurl: "/lifepattern"
 url: "https://oskarfullsail.github.io"
-twitter_username: jekyllrb
-github_username:  jekyll
+twitter_username: 
+github_username: oskarfullsail
 theme: minima
 
+# LifePattern specific settings
+lifepattern:
+  app_url: "https://lifepattern-ai-dc5fe.web.app"
+  features:
+    - "AI-powered routine analysis"
+    - "Privacy-first design"
+    - "Device-bound authentication"
+    - "Cross-platform support"
 
 # Build settings
 
