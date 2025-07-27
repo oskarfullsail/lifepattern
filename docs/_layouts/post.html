@@ -1,0 +1,384 @@
+---
+layout: default
+---
+
+<article class="post">
+  <header class="post-header">
+    <div class="container">
+      <div class="post-meta">
+        <time class="post-date" datetime="{{ page.date | date_to_xmlschema }}">
+          {{ page.date | date: "%B %-d, %Y" }}
+        </time>
+        {%- if page.author -%}
+          <span class="post-author">by {{ page.author }}</span>
+        {%- endif -%}
+      </div>
+      
+      <h1 class="post-title">{{ page.title }}</h1>
+      
+      {%- if page.categories -%}
+        <div class="post-categories">
+          {%- for category in page.categories -%}
+            <span class="category-tag">{{ category }}</span>
+          {%- endfor -%}
+        </div>
+      {%- endif -%}
+      
+      {%- if page.tags -%}
+        <div class="post-tags">
+          {%- for tag in page.tags -%}
+            <span class="tag">{{ tag }}</span>
+          {%- endfor -%}
+        </div>
+      {%- endif -%}
+    </div>
+  </header>
+
+  <div class="post-content">
+    <div class="container">
+      <div class="content-wrapper">
+        <div class="main-content">
+          {{ content }}
+        </div>
+        
+        <div class="sidebar">
+          <div class="widget">
+            <h3>Share This Post</h3>
+            <div class="share-buttons">
+              <a href="https://twitter.com/intent/tweet?text={{ page.title | url_encode }}&url={{ site.url }}{{ page.url | url_encode }}" target="_blank" class="share-btn twitter">
+                Twitter
+              </a>
+              <a href="https://www.linkedin.com/sharing/share-offsite/?url={{ site.url }}{{ page.url | url_encode }}" target="_blank" class="share-btn linkedin">
+                LinkedIn
+              </a>
+            </div>
+          </div>
+          
+          <div class="widget">
+            <h3>Recent Posts</h3>
+            <ul class="recent-posts">
+              {%- for post in site.posts limit:5 -%}
+                {%- if post.url != page.url -%}
+                  <li>
+                    <a href="{{ post.url | relative_url }}">{{ post.title }}</a>
+                    <small>{{ post.date | date: "%b %-d, %Y" }}</small>
+                  </li>
+                {%- endif -%}
+              {%- endfor -%}
+            </ul>
+          </div>
+          
+          <div class="widget">
+            <h3>Try LifePattern AI</h3>
+            <p>Experience the privacy-first lifestyle tracking app.</p>
+            <a href="https://lifepattern-ai-dc5fe.web.app" class="btn btn-primary">Launch App</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="post-footer">
+    <div class="container">
+      <div class="post-navigation">
+        {%- if page.previous -%}
+          <a href="{{ page.previous.url | relative_url }}" class="prev-post">
+            ← {{ page.previous.title }}
+          </a>
+        {%- endif -%}
+        
+        {%- if page.next -%}
+          <a href="{{ page.next.url | relative_url }}" class="next-post">
+            {{ page.next.title }} →
+          </a>
+        {%- endif -%}
+      </div>
+      
+      <div class="back-to-blog">
+        <a href="/lifepattern/" class="btn btn-secondary">← Back to Blog</a>
+      </div>
+    </div>
+  </footer>
+</article>
+
+<style>
+.post {
+  background: #f8f9fa;
+  min-height: 100vh;
+}
+
+.post-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 4rem 0;
+  text-align: center;
+}
+
+.post-title {
+  font-size: 2.5rem;
+  margin: 1rem 0;
+  line-height: 1.2;
+}
+
+.post-meta {
+  font-size: 1rem;
+  opacity: 0.9;
+  margin-bottom: 1rem;
+}
+
+.post-author {
+  margin-left: 1rem;
+}
+
+.post-categories, .post-tags {
+  margin: 1rem 0;
+}
+
+.category-tag, .tag {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
+  font-size: 0.8rem;
+  margin: 0.25rem;
+}
+
+.post-content {
+  padding: 3rem 0;
+}
+
+.content-wrapper {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 3rem;
+  align-items: start;
+}
+
+.main-content {
+  background: white;
+  border-radius: 0.75rem;
+  padding: 2rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.main-content h1, .main-content h2, .main-content h3 {
+  color: #2c3e50;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+.main-content h1 {
+  font-size: 2rem;
+}
+
+.main-content h2 {
+  font-size: 1.5rem;
+}
+
+.main-content h3 {
+  font-size: 1.25rem;
+}
+
+.main-content p {
+  line-height: 1.7;
+  margin-bottom: 1.5rem;
+  color: #555;
+}
+
+.main-content ul, .main-content ol {
+  margin-bottom: 1.5rem;
+  padding-left: 2rem;
+}
+
+.main-content li {
+  margin-bottom: 0.5rem;
+  line-height: 1.6;
+}
+
+.main-content blockquote {
+  border-left: 4px solid #4A90E2;
+  padding-left: 1rem;
+  margin: 2rem 0;
+  font-style: italic;
+  color: #666;
+}
+
+.main-content code {
+  background: #f0f0f0;
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.25rem;
+  font-family: 'Courier New', monospace;
+}
+
+.main-content pre {
+  background: #2c3e50;
+  color: white;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  margin: 1.5rem 0;
+}
+
+.main-content pre code {
+  background: none;
+  padding: 0;
+  color: white;
+}
+
+.sidebar {
+  position: sticky;
+  top: 2rem;
+  height: fit-content;
+}
+
+.widget {
+  background: white;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.widget h3 {
+  margin: 0 0 1rem 0;
+  color: #2c3e50;
+  font-size: 1.2rem;
+}
+
+.share-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.share-btn {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+  text-decoration: none;
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.share-btn.twitter {
+  background: #1DA1F2;
+}
+
+.share-btn.linkedin {
+  background: #0077B5;
+}
+
+.recent-posts {
+  list-style: none;
+  padding: 0;
+}
+
+.recent-posts li {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #eee;
+}
+
+.recent-posts li:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.recent-posts a {
+  color: #4A90E2;
+  text-decoration: none;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.recent-posts small {
+  color: #666;
+  font-size: 0.8rem;
+}
+
+.btn {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.btn-primary {
+  background: #4A90E2;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #357ABD;
+  transform: translateY(-2px);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: #4A90E2;
+  border: 2px solid #4A90E2;
+}
+
+.btn-secondary:hover {
+  background: #4A90E2;
+  color: white;
+}
+
+.post-footer {
+  background: white;
+  padding: 2rem 0;
+  border-top: 1px solid #eee;
+}
+
+.post-navigation {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+}
+
+.prev-post, .next-post {
+  color: #4A90E2;
+  text-decoration: none;
+  font-weight: 600;
+  max-width: 45%;
+}
+
+.prev-post:hover, .next-post:hover {
+  text-decoration: underline;
+}
+
+.back-to-blog {
+  text-align: center;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+@media (max-width: 768px) {
+  .content-wrapper {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+  
+  .post-title {
+    font-size: 2rem;
+  }
+  
+  .post-navigation {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .prev-post, .next-post {
+    max-width: 100%;
+  }
+}
+</style> 
