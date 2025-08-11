@@ -17,5 +17,21 @@ services:
         value: production
       - key: CORS_ORIGIN
         value: https://lifepattern-ai-dc5fe.web.app
+      - key: AI_SERVICE_URL
+        value: https://lifepattern-ai-service.onrender.com
+    healthCheckPath: /health
+    autoDeploy: true
+
+  - type: web
+    name: lifepattern-ai-service
+    env: docker
+    plan: free
+    dockerfilePath: ./ai-service/Dockerfile
+    dockerContext: .
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: ENVIRONMENT
+        value: production
     healthCheckPath: /health
     autoDeploy: true 

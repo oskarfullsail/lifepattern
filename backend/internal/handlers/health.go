@@ -39,11 +39,12 @@ func (h *HealthHandler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 		aiStatus = "unhealthy"
 	}
 
-	// Determine overall status
+	// Determine overall status - only database is required
 	overallStatus := "healthy"
-	if dbStatus == "unhealthy" || aiStatus == "unhealthy" {
+	if dbStatus == "unhealthy" {
 		overallStatus = "unhealthy"
 	}
+	// AI service is optional - doesn't affect overall health
 
 	response := map[string]interface{}{
 		"status":     overallStatus,
