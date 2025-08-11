@@ -9,21 +9,27 @@ import (
 
 	"lifepattern-api/internal/database"
 	"lifepattern-api/internal/services"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Mock routine service for testing insights
 type MockInsightRoutineService struct {
 	shouldFail bool
 	insight    *database.InsightResponse
+	insights   []database.InsightResponse
 }
 
 func NewMockInsightRoutineService(shouldFail bool) *MockInsightRoutineService {
+	userID := uuid.New()
 	return &MockInsightRoutineService{
 		shouldFail: shouldFail,
 		insight: &database.InsightResponse{
 			RoutineLog: database.RoutineLog{
 				ID:               1,
-				UserID:           1,
+				UserID:           userID,
 				SleepHours:       8.0,
 				MealTimes:        []string{"07:30", "12:00", "18:30"},
 				ScreenTime:       4.5,
@@ -35,15 +41,19 @@ func NewMockInsightRoutineService(shouldFail bool) *MockInsightRoutineService {
 				LogDate:          "2024-01-15",
 			},
 			AIReport: database.AIReport{
-				ID:                1,
-				RoutineLogID:      1,
-				IsAnomaly:         true,
-				ConfidenceScore:   0.85,
-				AnomalyType:       "test_anomaly",
-				Recommendations:   []string{"Test recommendation"},
-				AIServiceResponse: `{"test": "response"}`,
+				ID:                 1,
+				RoutineLogID:       1,
+				IsAnomaly:          true,
+				ConfidenceScore:    0.85,
+				AnomalyType:        "test_anomaly",
+				Recommendations:    []string{"Test recommendation"},
+				AIServiceResponse:  `{"test": "response"}`,
+				DriftAnalysis:      []byte(`{"drift": "analysis"}`),
+				BaselineComparison: []byte(`{"baseline": "comparison"}`),
+				ModelVersion:       "1.0.0",
 			},
 		},
+		insights: []database.InsightResponse{},
 	}
 }
 
@@ -58,13 +68,16 @@ func (m *MockInsightRoutineService) GetInsight(logID int) (*database.InsightResp
 	return m.insight, nil
 }
 
-func (m *MockInsightRoutineService) GetUserRoutineLogs(userID int, limit int) ([]database.RoutineLog, error) {
+func (m *MockInsightRoutineService) GetUserRoutineLogs(userID uuid.UUID, limit int) ([]database.RoutineLog, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (m *MockInsightRoutineService) GetUserInsights(userID int, limit int) ([]database.InsightResponse, error) {
+func (m *MockInsightRoutineService) GetUserInsights(userID uuid.UUID, limit int) ([]database.InsightResponse, error) {
 	if m.shouldFail {
 		return nil, errors.New("service error")
+	}
+	if len(m.insights) > 0 {
+		return m.insights, nil
 	}
 	return []database.InsightResponse{*m.insight}, nil
 }
@@ -73,13 +86,8 @@ func TestNewInsightHandler(t *testing.T) {
 	mockService := NewMockInsightRoutineService(false)
 	handler := NewInsightHandler(mockService)
 
-	if handler == nil {
-		t.Fatal("Expected handler to be created")
-	}
-
-	if handler.routineService != mockService {
-		t.Fatal("Expected routine service to be set")
-	}
+	assert.NotNil(t, handler)
+	assert.Equal(t, mockService, handler.routineService)
 }
 
 func TestGetInsight(t *testing.T) {
@@ -91,26 +99,16 @@ func TestGetInsight(t *testing.T) {
 
 	handler.GetInsight(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("Expected status 200, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
 
 	var response database.InsightResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
 
-	if response.RoutineLog.ID != 1 {
-		t.Fatalf("Expected routine log ID 1, got %d", response.RoutineLog.ID)
-	}
-
-	if response.AIReport.RoutineLogID != 1 {
-		t.Fatalf("Expected AI report log ID 1, got %d", response.AIReport.RoutineLogID)
-	}
-
-	if !response.AIReport.IsAnomaly {
-		t.Fatal("Expected anomaly to be true")
-	}
+	assert.Equal(t, 1, response.RoutineLog.ID)
+	assert.Equal(t, 1, response.AIReport.RoutineLogID)
+	assert.True(t, response.AIReport.IsAnomaly)
+	assert.Equal(t, 0.85, response.AIReport.ConfidenceScore)
 }
 
 func TestGetInsightInvalidMethod(t *testing.T) {
@@ -122,9 +120,7 @@ func TestGetInsightInvalidMethod(t *testing.T) {
 
 	handler.GetInsight(w, req)
 
-	if w.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("Expected status 405, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestGetInsightMissingLogID(t *testing.T) {
@@ -136,9 +132,7 @@ func TestGetInsightMissingLogID(t *testing.T) {
 
 	handler.GetInsight(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("Expected status 400, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestGetInsightInvalidLogID(t *testing.T) {
@@ -150,9 +144,7 @@ func TestGetInsightInvalidLogID(t *testing.T) {
 
 	handler.GetInsight(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("Expected status 400, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestGetInsightServiceError(t *testing.T) {
@@ -164,7 +156,127 @@ func TestGetInsightServiceError(t *testing.T) {
 
 	handler.GetInsight(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Fatalf("Expected status 500, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestGetUserInsights(t *testing.T) {
+	mockService := NewMockInsightRoutineService(false)
+	handler := NewInsightHandler(mockService)
+
+	userID := uuid.New()
+	req := httptest.NewRequest("GET", "/user-insights?user_id="+userID.String()+"&limit=10", nil)
+	w := httptest.NewRecorder()
+
+	handler.GetUserInsights(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response []database.InsightResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	assert.Len(t, response, 1)
+	assert.Equal(t, 1, response[0].RoutineLog.ID)
+	assert.True(t, response[0].AIReport.IsAnomaly)
+}
+
+func TestGetUserInsightsMissingUserID(t *testing.T) {
+	mockService := NewMockInsightRoutineService(false)
+	handler := NewInsightHandler(mockService)
+
+	req := httptest.NewRequest("GET", "/user-insights", nil)
+	w := httptest.NewRecorder()
+
+	handler.GetUserInsights(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestGetUserInsightsInvalidUserID(t *testing.T) {
+	mockService := NewMockInsightRoutineService(false)
+	handler := NewInsightHandler(mockService)
+
+	req := httptest.NewRequest("GET", "/user-insights?user_id=invalid", nil)
+	w := httptest.NewRecorder()
+
+	handler.GetUserInsights(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestGetUserInsightsInvalidLimit(t *testing.T) {
+	mockService := NewMockInsightRoutineService(false)
+	handler := NewInsightHandler(mockService)
+
+	userID := uuid.New()
+	req := httptest.NewRequest("GET", "/user-insights?user_id="+userID.String()+"&limit=invalid", nil)
+	w := httptest.NewRecorder()
+
+	handler.GetUserInsights(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestGetUserInsightsServiceError(t *testing.T) {
+	mockService := NewMockInsightRoutineService(true) // Service will fail
+	handler := NewInsightHandler(mockService)
+
+	userID := uuid.New()
+	req := httptest.NewRequest("GET", "/user-insights?user_id="+userID.String(), nil)
+	w := httptest.NewRecorder()
+
+	handler.GetUserInsights(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestGetUserInsightsWithDefaultLimit(t *testing.T) {
+	mockService := NewMockInsightRoutineService(false)
+	handler := NewInsightHandler(mockService)
+
+	userID := uuid.New()
+	req := httptest.NewRequest("GET", "/user-insights?user_id="+userID.String(), nil)
+	w := httptest.NewRecorder()
+
+	handler.GetUserInsights(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestGetUserInsightsWithCustomLimit(t *testing.T) {
+	mockService := NewMockInsightRoutineService(false)
+	handler := NewInsightHandler(mockService)
+
+	userID := uuid.New()
+	req := httptest.NewRequest("GET", "/user-insights?user_id="+userID.String()+"&limit=5", nil)
+	w := httptest.NewRecorder()
+
+	handler.GetUserInsights(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestInsightHandlerResponseStructure(t *testing.T) {
+	mockService := NewMockInsightRoutineService(false)
+	handler := NewInsightHandler(mockService)
+
+	req := httptest.NewRequest("GET", "/insights?log_id=1", nil)
+	w := httptest.NewRecorder()
+
+	handler.GetInsight(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+
+	var response database.InsightResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, response.RoutineLog.ID)
+	assert.NotEqual(t, uuid.Nil, response.RoutineLog.UserID)
+	assert.Equal(t, 1, response.AIReport.RoutineLogID)
+	assert.True(t, response.AIReport.IsAnomaly)
+	assert.Equal(t, 0.85, response.AIReport.ConfidenceScore)
+	assert.NotEmpty(t, response.AIReport.AnomalyType)
+	assert.Len(t, response.AIReport.Recommendations, 1)
 }

@@ -65,7 +65,7 @@ echo "📝 Testing Backend Routine Log Creation..."
 ROUTINE_RESPONSE=$(curl -s -X POST http://localhost:8080/log \
   -H "Content-Type: application/json" \
   -d '{
-    "user_id": 1,
+    "user_id": "test_user_123",
     "sleep_hours": 7.5,
     "meal_times": ["07:30", "12:00", "18:30"],
     "screen_time": 4.5,

@@ -34,7 +34,7 @@ export default function HomeScreen({ navigation }: Props) {
       const isAuthenticated = await userManager.isAuthenticated();
       if (isAuthenticated) {
         // User is authenticated, navigate to dashboard
-        navigation.replace('Dashboard');
+        navigation.replace('UserDashboard');
       } else {
         // User is not authenticated, show onboarding
         setIsLoading(false);
@@ -76,11 +76,11 @@ export default function HomeScreen({ navigation }: Props) {
     }
   ];
 
-  const handleGetStarted = () => {
-    navigation.navigate('Login');
+  const handleNewUserRegistration = () => {
+    navigation.navigate('EnhancedRegister');
   };
 
-  const handleSkip = () => {
+  const handleReturningUserLogin = () => {
     navigation.navigate('Login');
   };
 
@@ -142,18 +142,23 @@ export default function HomeScreen({ navigation }: Props) {
 
         {/* Action Buttons */}
         <View style={styles.buttonContainer}>
+          <Text style={styles.buttonSectionTitle}>Get Started</Text>
+          <Text style={styles.buttonSectionSubtitle}>
+            Choose your path to start using LifePattern
+          </Text>
+          
           <TouchableOpacity 
             style={styles.primaryButton} 
-            onPress={handleGetStarted}
+            onPress={handleNewUserRegistration}
           >
-            <Text style={styles.primaryButtonText}>Get Started</Text>
+            <Text style={styles.primaryButtonText}>🆕 Create New Account</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
             style={styles.secondaryButton} 
-            onPress={handleSkip}
+            onPress={handleReturningUserLogin}
           >
-            <Text style={styles.secondaryButtonText}>Skip Introduction</Text>
+            <Text style={styles.secondaryButtonText}>🔑 I'm a Returning User</Text>
           </TouchableOpacity>
         </View>
 
@@ -275,13 +280,26 @@ const styles = StyleSheet.create({
   buttonContainer: {
     marginBottom: 20,
   },
+  buttonSectionTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  buttonSectionSubtitle: {
+    fontSize: 16,
+    color: '#7f8c8d',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
   primaryButton: {
-    backgroundColor: '#4A90E2',
+    backgroundColor: '#28a745',
     borderRadius: 12,
-    padding: 16,
+    padding: 18,
     alignItems: 'center',
-    marginBottom: 12,
-    shadowColor: '#4A90E2',
+    marginBottom: 16,
+    shadowColor: '#28a745',
     shadowOffset: {
       width: 0,
       height: 4,
@@ -296,16 +314,23 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   secondaryButton: {
-    backgroundColor: 'transparent',
+    backgroundColor: '#007AFF',
     borderRadius: 12,
-    padding: 16,
+    padding: 18,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ddd',
+    shadowColor: '#007AFF',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
   },
   secondaryButtonText: {
-    color: '#666',
-    fontSize: 16,
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
   privacyNotice: {
     paddingHorizontal: 20,

@@ -10,7 +10,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/migrations:/docker-entrypoint-initdb.d
@@ -56,6 +56,18 @@ services:
       - HOST=0.0.0.0
       - DATABASE_URL=postgres://postgres:password@postgres:5432/lifepattern?sslmode=disable
       - AI_SERVICE_URL=http://ai-service:8000
+      - JWT_SECRET_KEY=your-super-secret-jwt-key-change-in-production
+      - JWT_ISSUER=lifepattern
+      - JWT_AUDIENCE=lifepattern-users
+      - JWT_ACCESS_TOKEN_EXPIRY=15m
+      - JWT_REFRESH_TOKEN_EXPIRY=720h
+      - WEBAUTHN_RP_ID=localhost
+      - WEBAUTHN_RP_NAME=LifePattern
+      - WEBAUTHN_RP_ORIGIN=http://localhost:8080
+      - CHALLENGE_EXPIRY=5m
+      - LINK_TOKEN_EXPIRY=10m
+      - DEBUG=true
+      - LOG_LEVEL=info
     volumes:
       - backend_logs:/app/logs
     restart: unless-stopped

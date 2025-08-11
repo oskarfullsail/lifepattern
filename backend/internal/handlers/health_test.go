@@ -6,9 +6,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"lifepattern-api/internal/database"
 	"lifepattern-api/internal/services"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Mock repository for testing health
@@ -20,6 +25,43 @@ func NewMockHealthRepository(shouldFail bool) *MockHealthRepository {
 	return &MockHealthRepository{
 		shouldFail: shouldFail,
 	}
+}
+
+// Repository interface methods
+func (m *MockHealthRepository) CreateUser(user database.User) error {
+	return errors.New("not implemented")
+}
+
+func (m *MockHealthRepository) GetUser(userID uuid.UUID) (*database.User, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *MockHealthRepository) SaveCredential(credData map[string]interface{}) error {
+	return errors.New("not implemented")
+}
+
+func (m *MockHealthRepository) GetUserCredentials(userID uuid.UUID) ([]database.Credential, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *MockHealthRepository) SaveSession(session database.Session) error {
+	return errors.New("not implemented")
+}
+
+func (m *MockHealthRepository) GetUserSessions(userID uuid.UUID) ([]database.Session, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *MockHealthRepository) RevokeSession(sessionID uuid.UUID) error {
+	return errors.New("not implemented")
+}
+
+func (m *MockHealthRepository) SaveMobileChallenge(challenge database.MobileChallenge) error {
+	return errors.New("not implemented")
+}
+
+func (m *MockHealthRepository) GetMobileChallenge(challengeID uuid.UUID) (*database.MobileChallenge, error) {
+	return nil, errors.New("not implemented")
 }
 
 func (m *MockHealthRepository) SaveRoutineLog(log database.RoutineLog) (int, error) {
@@ -34,7 +76,7 @@ func (m *MockHealthRepository) GetRoutineLogWithAIReport(logID int) (*database.I
 	return nil, errors.New("not implemented")
 }
 
-func (m *MockHealthRepository) GetRoutineLogsByUser(userID int, limit int) ([]database.RoutineLog, error) {
+func (m *MockHealthRepository) GetRoutineLogsByUser(userID uuid.UUID, limit int) ([]database.RoutineLog, error) {
 	return nil, errors.New("not implemented")
 }
 
@@ -47,6 +89,23 @@ func (m *MockHealthRepository) Ping() error {
 
 func (m *MockHealthRepository) Close() error {
 	return nil
+}
+
+// Link token methods
+func (m *MockHealthRepository) SaveLinkToken(linkToken database.LinkToken) error {
+	return errors.New("not implemented")
+}
+
+func (m *MockHealthRepository) GetLinkTokens() ([]database.LinkToken, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *MockHealthRepository) GetUserLinkTokens(userID uuid.UUID) ([]database.LinkToken, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *MockHealthRepository) UpdateLinkToken(linkToken database.LinkToken) error {
+	return errors.New("not implemented")
 }
 
 // Mock AI service for testing health
@@ -64,6 +123,10 @@ func (m *MockHealthAIService) AnalyzeRoutine(routineLog database.RoutineLog) (*s
 	return nil, errors.New("not implemented")
 }
 
+func (m *MockHealthAIService) AnalyzeRoutineWithHistory(routineLog database.RoutineLog, historicalData []database.RoutineLog) (*services.AIServiceResponse, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (m *MockHealthAIService) CheckHealth() error {
 	if m.shouldFail {
 		return errors.New("AI service health check failed")
@@ -76,17 +139,9 @@ func TestNewHealthHandler(t *testing.T) {
 	mockAI := NewMockHealthAIService(false)
 	handler := NewHealthHandler(mockRepo, mockAI)
 
-	if handler == nil {
-		t.Fatal("Expected handler to be created")
-	}
-
-	if handler.repo != mockRepo {
-		t.Fatal("Expected repository to be set")
-	}
-
-	if handler.aiService != mockAI {
-		t.Fatal("Expected AI service to be set")
-	}
+	assert.NotNil(t, handler)
+	assert.Equal(t, mockRepo, handler.repo)
+	assert.Equal(t, mockAI, handler.aiService)
 }
 
 func TestHealthCheck(t *testing.T) {
@@ -99,30 +154,22 @@ func TestHealthCheck(t *testing.T) {
 
 	handler.HealthCheck(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("Expected status 200, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
 
 	var response map[string]interface{}
-	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
 
-	if response["status"] != "healthy" {
-		t.Fatalf("Expected status 'healthy', got %v", response["status"])
-	}
+	assert.Equal(t, "healthy", response["status"])
+	assert.Equal(t, "healthy", response["database"])
+	assert.Equal(t, "healthy", response["ai_service"])
+	assert.NotEmpty(t, response["timestamp"])
 
-	if response["database"] != "healthy" {
-		t.Fatalf("Expected database 'healthy', got %v", response["database"])
-	}
-
-	if response["ai_service"] != "healthy" {
-		t.Fatalf("Expected ai_service 'healthy', got %v", response["ai_service"])
-	}
-
-	if response["timestamp"] == "" {
-		t.Fatal("Expected timestamp to be set")
-	}
+	// Verify timestamp format
+	timestamp, ok := response["timestamp"].(string)
+	assert.True(t, ok)
+	_, err = time.Parse(time.RFC3339, timestamp)
+	assert.NoError(t, err)
 }
 
 func TestHealthCheckInvalidMethod(t *testing.T) {
@@ -135,9 +182,7 @@ func TestHealthCheckInvalidMethod(t *testing.T) {
 
 	handler.HealthCheck(w, req)
 
-	if w.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("Expected status 405, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
 }
 
 func TestHealthCheckDatabaseFailure(t *testing.T) {
@@ -150,26 +195,16 @@ func TestHealthCheckDatabaseFailure(t *testing.T) {
 
 	handler.HealthCheck(w, req)
 
-	if w.Code != http.StatusServiceUnavailable {
-		t.Fatalf("Expected status 503, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 
 	var response map[string]interface{}
-	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
 
-	if response["status"] != "unhealthy" {
-		t.Fatalf("Expected status 'unhealthy', got %v", response["status"])
-	}
-
-	if response["database"] != "unhealthy" {
-		t.Fatalf("Expected database 'unhealthy', got %v", response["database"])
-	}
-
-	if response["ai_service"] != "healthy" {
-		t.Fatalf("Expected ai_service 'healthy', got %v", response["ai_service"])
-	}
+	assert.Equal(t, "unhealthy", response["status"])
+	assert.Equal(t, "unhealthy", response["database"])
+	assert.Equal(t, "healthy", response["ai_service"])
+	assert.NotEmpty(t, response["timestamp"])
 }
 
 func TestHealthCheckAIServiceFailure(t *testing.T) {
@@ -182,26 +217,16 @@ func TestHealthCheckAIServiceFailure(t *testing.T) {
 
 	handler.HealthCheck(w, req)
 
-	if w.Code != http.StatusServiceUnavailable {
-		t.Fatalf("Expected status 503, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 
 	var response map[string]interface{}
-	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
 
-	if response["status"] != "unhealthy" {
-		t.Fatalf("Expected status 'unhealthy', got %v", response["status"])
-	}
-
-	if response["database"] != "healthy" {
-		t.Fatalf("Expected database 'healthy', got %v", response["database"])
-	}
-
-	if response["ai_service"] != "unhealthy" {
-		t.Fatalf("Expected ai_service 'unhealthy', got %v", response["ai_service"])
-	}
+	assert.Equal(t, "unhealthy", response["status"])
+	assert.Equal(t, "healthy", response["database"])
+	assert.Equal(t, "unhealthy", response["ai_service"])
+	assert.NotEmpty(t, response["timestamp"])
 }
 
 func TestHealthCheckBothFailures(t *testing.T) {
@@ -214,24 +239,105 @@ func TestHealthCheckBothFailures(t *testing.T) {
 
 	handler.HealthCheck(w, req)
 
-	if w.Code != http.StatusServiceUnavailable {
-		t.Fatalf("Expected status 503, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 
 	var response map[string]interface{}
-	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	assert.Equal(t, "unhealthy", response["status"])
+	assert.Equal(t, "unhealthy", response["database"])
+	assert.Equal(t, "unhealthy", response["ai_service"])
+	assert.NotEmpty(t, response["timestamp"])
+}
+
+func TestHealthCheckResponseStructure(t *testing.T) {
+	mockRepo := NewMockHealthRepository(false)
+	mockAI := NewMockHealthAIService(false)
+	handler := NewHealthHandler(mockRepo, mockAI)
+
+	req := httptest.NewRequest("GET", "/health", nil)
+	w := httptest.NewRecorder()
+
+	handler.HealthCheck(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	// Check all required fields
+	requiredFields := []string{"status", "database", "ai_service", "timestamp"}
+	for _, field := range requiredFields {
+		assert.Contains(t, response, field)
+		assert.NotNil(t, response[field])
 	}
 
-	if response["status"] != "unhealthy" {
-		t.Fatalf("Expected status 'unhealthy', got %v", response["status"])
-	}
+	// Check status values are valid
+	status, ok := response["status"].(string)
+	assert.True(t, ok)
+	assert.Contains(t, []string{"healthy", "unhealthy"}, status)
 
-	if response["database"] != "unhealthy" {
-		t.Fatalf("Expected database 'unhealthy', got %v", response["database"])
-	}
+	database, ok := response["database"].(string)
+	assert.True(t, ok)
+	assert.Contains(t, []string{"healthy", "unhealthy"}, database)
 
-	if response["ai_service"] != "unhealthy" {
-		t.Fatalf("Expected ai_service 'unhealthy', got %v", response["ai_service"])
-	}
+	aiService, ok := response["ai_service"].(string)
+	assert.True(t, ok)
+	assert.Contains(t, []string{"healthy", "unhealthy"}, aiService)
+}
+
+func TestHealthCheckTimestampFormat(t *testing.T) {
+	mockRepo := NewMockHealthRepository(false)
+	mockAI := NewMockHealthAIService(false)
+	handler := NewHealthHandler(mockRepo, mockAI)
+
+	req := httptest.NewRequest("GET", "/health", nil)
+	w := httptest.NewRecorder()
+
+	handler.HealthCheck(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	timestamp, ok := response["timestamp"].(string)
+	assert.True(t, ok)
+
+	// Parse timestamp to ensure it's valid RFC3339 format
+	parsedTime, err := time.Parse(time.RFC3339, timestamp)
+	assert.NoError(t, err)
+	assert.NotZero(t, parsedTime)
+
+	// Ensure timestamp is recent (within last minute)
+	now := time.Now()
+	diff := now.Sub(parsedTime)
+	assert.Less(t, diff, time.Minute)
+	assert.Greater(t, diff, -time.Minute)
+}
+
+func TestHealthCheckEdgeCases(t *testing.T) {
+	// Test with PUT method
+	mockRepo := NewMockHealthRepository(false)
+	mockAI := NewMockHealthAIService(false)
+	handler := NewHealthHandler(mockRepo, mockAI)
+
+	req := httptest.NewRequest("PUT", "/health", nil)
+	w := httptest.NewRecorder()
+
+	handler.HealthCheck(w, req)
+
+	assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+
+	// Test with DELETE method
+	req = httptest.NewRequest("DELETE", "/health", nil)
+	w = httptest.NewRecorder()
+
+	handler.HealthCheck(w, req)
+
+	assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
 }

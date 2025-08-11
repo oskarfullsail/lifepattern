@@ -88,7 +88,32 @@ docker-build:
 
 docker-run:
 	@echo "Running Docker container..."
-	docker run -p 8080:8080 --env-file .env lifepattern-backend
+	docker run -p 8080:8080 --env-file env.docker lifepattern-backend
+
+docker-compose-up:
+	@echo "Starting all services with Docker Compose..."
+	docker-compose up -d
+
+docker-compose-down:
+	@echo "Stopping all services..."
+	docker-compose down
+
+docker-compose-logs:
+	@echo "Showing logs..."
+	docker-compose logs -f
+
+docker-compose-restart:
+	@echo "Restarting all services..."
+	docker-compose restart
+
+# Cross-device linking test commands
+test-cross-device:
+	@echo "Testing cross-device linking functionality..."
+	go test ./test -run "TestCrossDeviceLinking" -v
+
+test-all-docker:
+	@echo "Running all tests in Docker environment..."
+	docker-compose exec backend go test ./... -v
 
 # Database commands
 db-migrate:

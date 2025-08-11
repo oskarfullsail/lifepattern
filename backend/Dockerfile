@@ -1,5 +1,5 @@
 # Multi-stage build for Go backend
-FROM golang:1.21-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 # Install git and ca-certificates (needed for go mod download)
 RUN apk add --no-cache git ca-certificates
@@ -37,6 +37,7 @@ COPY --from=builder /app/main .
 
 # Copy any additional files if needed
 COPY --from=builder /app/migrations ./migrations
+COPY --from=builder /app/CROSS_DEVICE_LINKING.md ./CROSS_DEVICE_LINKING.md
 
 # Change ownership to non-root user
 RUN chown -R appuser:appgroup /app

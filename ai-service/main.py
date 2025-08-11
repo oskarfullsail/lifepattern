@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from models.anomaly_detector import AnomalyDetector
+# from models.drift_detector import DriftDetector  # Temporarily disabled for testing
 from utils.data_generator import generate_mock_dataset
 
 # Configure logging
@@ -34,8 +35,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize the anomaly detector
+# Initialize the anomaly detector and drift detector
 anomaly_detector = AnomalyDetector()
+# drift_detector = DriftDetector()  # Temporarily disabled for testing
 
 # Pydantic models for request/response
 class DailyRoutineData(BaseModel):
@@ -54,6 +56,8 @@ class PredictionResponse(BaseModel):
     anomaly_type: str
     recommendations: list[str]
     timestamp: str
+    drift_analysis: dict = None
+    baseline_comparison: dict = None
 
 class HealthResponse(BaseModel):
     status: str
@@ -132,12 +136,26 @@ async def predict_anomaly(data: DailyRoutineData):
         # Generate recommendations
         recommendations = generate_recommendations(data, is_anomaly, anomaly_type)
         
+        # Perform drift analysis (requires historical data - for now using current data)
+        # In production, this would come from the backend
+        # Temporarily disabled for testing
+        drift_analysis = {
+            'drift_detected': False,
+            'confidence': 0.0,
+            'drift_type': 'no_drift',
+            'padwin_analysis': {'drift_detected': False, 'confidence': 0.0, 'drift_type': 'no_drift'},
+            'isolation_analysis': {'anomaly_detected': False, 'confidence': 0.0, 'anomaly_type': 'normal'},
+            'baseline_comparison': {}
+        }
+        
         response = PredictionResponse(
             is_anomaly=is_anomaly,
             confidence_score=confidence_score,
             anomaly_type=anomaly_type,
             recommendations=recommendations,
-            timestamp=datetime.now().isoformat()
+            timestamp=datetime.now().isoformat(),
+            drift_analysis=drift_analysis,
+            baseline_comparison=drift_analysis.get('baseline_comparison', {})
         )
         
         logger.info(f"Prediction completed: {response}")

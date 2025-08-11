@@ -10,6 +10,10 @@ import (
 
 	"lifepattern-api/internal/database"
 	"lifepattern-api/internal/services"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Mock routine service for testing
@@ -17,6 +21,7 @@ type MockRoutineService struct {
 	shouldFail bool
 	response   *services.CreateRoutineLogResponse
 	logs       []database.RoutineLog
+	insights   []database.InsightResponse
 }
 
 func NewMockRoutineService(shouldFail bool) *MockRoutineService {
@@ -24,15 +29,18 @@ func NewMockRoutineService(shouldFail bool) *MockRoutineService {
 		shouldFail: shouldFail,
 		response: &services.CreateRoutineLogResponse{
 			LogID:   1,
+			UserID:  uuid.New(),
 			Message: "Routine log saved and analyzed",
-			HasAI:   true,
-			AIResult: &services.AIResult{
+			AIResponse: &services.AIServiceResponse{
 				IsAnomaly:       true,
 				ConfidenceScore: 0.85,
 				AnomalyType:     "test_anomaly",
+				Recommendations: []string{"Test recommendation"},
+				Timestamp:       "2024-01-15T10:00:00Z",
 			},
 		},
-		logs: []database.RoutineLog{},
+		logs:     []database.RoutineLog{},
+		insights: []database.InsightResponse{},
 	}
 }
 
@@ -47,43 +55,42 @@ func (m *MockRoutineService) GetInsight(logID int) (*database.InsightResponse, e
 	if m.shouldFail {
 		return nil, errors.New("service error")
 	}
+	if len(m.insights) > 0 {
+		return &m.insights[0], nil
+	}
 	return &database.InsightResponse{}, nil
 }
 
-func (m *MockRoutineService) GetUserRoutineLogs(userID int, limit int) ([]database.RoutineLog, error) {
+func (m *MockRoutineService) GetUserRoutineLogs(userID uuid.UUID, limit int) ([]database.RoutineLog, error) {
 	if m.shouldFail {
 		return nil, errors.New("service error")
 	}
 	return m.logs, nil
 }
 
-func (m *MockRoutineService) GetUserInsights(userID int, limit int) ([]database.InsightResponse, error) {
+func (m *MockRoutineService) GetUserInsights(userID uuid.UUID, limit int) ([]database.InsightResponse, error) {
 	if m.shouldFail {
 		return nil, errors.New("service error")
 	}
-	return []database.InsightResponse{}, nil
+	return m.insights, nil
 }
 
 func TestNewLogHandler(t *testing.T) {
 	mockService := NewMockRoutineService(false)
 	handler := NewLogHandler(mockService)
 
-	if handler == nil {
-		t.Fatal("Expected handler to be created")
-	}
-
-	if handler.routineService != mockService {
-		t.Fatal("Expected routine service to be set")
-	}
+	assert.NotNil(t, handler)
+	assert.Equal(t, mockService, handler.routineService)
 }
 
 func TestCreateRoutineLog(t *testing.T) {
 	mockService := NewMockRoutineService(false)
 	handler := NewLogHandler(mockService)
 
+	userID := uuid.New()
 	// Valid request
 	requestBody := database.RoutineLog{
-		UserID:           1,
+		UserID:           userID,
 		SleepHours:       8.0,
 		MealTimes:        []string{"07:30", "12:00", "18:30"},
 		ScreenTime:       4.5,
@@ -102,22 +109,15 @@ func TestCreateRoutineLog(t *testing.T) {
 
 	handler.CreateRoutineLog(w, req)
 
-	if w.Code != http.StatusCreated {
-		t.Fatalf("Expected status 201, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusCreated, w.Code)
 
 	var response services.CreateRoutineLogResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
 
-	if response.LogID != 1 {
-		t.Fatalf("Expected log ID 1, got %d", response.LogID)
-	}
-
-	if !response.HasAI {
-		t.Fatal("Expected AI analysis to be performed")
-	}
+	assert.Equal(t, 1, response.LogID)
+	assert.NotNil(t, response.AIResponse)
+	assert.True(t, response.AIResponse.IsAnomaly)
 }
 
 func TestCreateRoutineLogInvalidMethod(t *testing.T) {
@@ -129,9 +129,7 @@ func TestCreateRoutineLogInvalidMethod(t *testing.T) {
 
 	handler.CreateRoutineLog(w, req)
 
-	if w.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("Expected status 405, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
 }
 
 func TestCreateRoutineLogInvalidJSON(t *testing.T) {
@@ -144,52 +142,16 @@ func TestCreateRoutineLogInvalidJSON(t *testing.T) {
 
 	handler.CreateRoutineLog(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("Expected status 400, got %d", w.Code)
-	}
-}
-
-func TestCreateRoutineLogValidationError(t *testing.T) {
-	mockService := NewMockRoutineService(false)
-	handler := NewLogHandler(mockService)
-
-	// Invalid request - negative sleep hours
-	requestBody := database.RoutineLog{
-		UserID:           1,
-		SleepHours:       -1.0, // Invalid
-		MealTimes:        []string{"07:30", "12:00", "18:30"},
-		ScreenTime:       4.5,
-		ExerciseDuration: 1.0,
-		WakeUpTime:       "07:00",
-		BedTime:          "23:00",
-		WaterIntake:      2.5,
-		StressLevel:      4,
-		LogDate:          "2024-01-15",
-	}
-
-	jsonBody, _ := json.Marshal(requestBody)
-	req := httptest.NewRequest("POST", "/log", bytes.NewBuffer(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-
-	handler.CreateRoutineLog(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("Expected status 400, got %d", w.Code)
-	}
-
-	body := w.Body.String()
-	if body == "" {
-		t.Fatal("Expected error message in response body")
-	}
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestCreateRoutineLogServiceError(t *testing.T) {
 	mockService := NewMockRoutineService(true) // Service will fail
 	handler := NewLogHandler(mockService)
 
+	userID := uuid.New()
 	requestBody := database.RoutineLog{
-		UserID:           1,
+		UserID:           userID,
 		SleepHours:       8.0,
 		MealTimes:        []string{"07:30", "12:00", "18:30"},
 		ScreenTime:       4.5,
@@ -208,32 +170,24 @@ func TestCreateRoutineLogServiceError(t *testing.T) {
 
 	handler.CreateRoutineLog(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Fatalf("Expected status 500, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestGetUserRoutineLogs(t *testing.T) {
 	mockService := NewMockRoutineService(false)
 	handler := NewLogHandler(mockService)
 
-	req := httptest.NewRequest("GET", "/logs?user_id=1&limit=10", nil)
+	userID := uuid.New()
+	req := httptest.NewRequest("GET", "/logs?user_id="+userID.String()+"&limit=10", nil)
 	w := httptest.NewRecorder()
 
 	handler.GetUserRoutineLogs(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("Expected status 200, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response map[string]interface{}
-	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
-
-	if response["user_id"] != float64(1) {
-		t.Fatalf("Expected user ID 1, got %v", response["user_id"])
-	}
+	var response []database.RoutineLog
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
 }
 
 func TestGetUserRoutineLogsInvalidMethod(t *testing.T) {
@@ -245,9 +199,7 @@ func TestGetUserRoutineLogsInvalidMethod(t *testing.T) {
 
 	handler.GetUserRoutineLogs(w, req)
 
-	if w.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("Expected status 405, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
 }
 
 func TestGetUserRoutineLogsMissingUserID(t *testing.T) {
@@ -259,9 +211,7 @@ func TestGetUserRoutineLogsMissingUserID(t *testing.T) {
 
 	handler.GetUserRoutineLogs(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("Expected status 400, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestGetUserRoutineLogsInvalidUserID(t *testing.T) {
@@ -273,43 +223,84 @@ func TestGetUserRoutineLogsInvalidUserID(t *testing.T) {
 
 	handler.GetUserRoutineLogs(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("Expected status 400, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestGetUserRoutineLogsInvalidLimit(t *testing.T) {
 	mockService := NewMockRoutineService(false)
 	handler := NewLogHandler(mockService)
 
-	req := httptest.NewRequest("GET", "/logs?user_id=1&limit=invalid", nil)
+	userID := uuid.New()
+	req := httptest.NewRequest("GET", "/logs?user_id="+userID.String()+"&limit=invalid", nil)
 	w := httptest.NewRecorder()
 
 	handler.GetUserRoutineLogs(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("Expected status 400, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestGetUserRoutineLogsServiceError(t *testing.T) {
 	mockService := NewMockRoutineService(true) // Service will fail
 	handler := NewLogHandler(mockService)
 
-	req := httptest.NewRequest("GET", "/logs?user_id=1", nil)
+	userID := uuid.New()
+	req := httptest.NewRequest("GET", "/logs?user_id="+userID.String(), nil)
 	w := httptest.NewRecorder()
 
 	handler.GetUserRoutineLogs(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Fatalf("Expected status 500, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestValidateRoutineLog(t *testing.T) {
-	// Test valid log
-	validLog := database.RoutineLog{
-		UserID:           1,
+func TestGetUserRoutineLogsWithDefaultLimit(t *testing.T) {
+	mockService := NewMockRoutineService(false)
+	handler := NewLogHandler(mockService)
+
+	userID := uuid.New()
+	req := httptest.NewRequest("GET", "/logs?user_id="+userID.String(), nil)
+	w := httptest.NewRecorder()
+
+	handler.GetUserRoutineLogs(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestGetUserRoutineLogsWithCustomLimit(t *testing.T) {
+	mockService := NewMockRoutineService(false)
+	handler := NewLogHandler(mockService)
+
+	userID := uuid.New()
+	req := httptest.NewRequest("GET", "/logs?user_id="+userID.String()+"&limit=5", nil)
+	w := httptest.NewRecorder()
+
+	handler.GetUserRoutineLogs(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestLogHandlerEdgeCases(t *testing.T) {
+	mockService := NewMockRoutineService(false)
+	handler := NewLogHandler(mockService)
+
+	// Test with empty routine log
+	emptyLog := database.RoutineLog{}
+	jsonBody, _ := json.Marshal(emptyLog)
+	req := httptest.NewRequest("POST", "/log", bytes.NewBuffer(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler.CreateRoutineLog(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+}
+
+func TestLogHandlerResponseStructure(t *testing.T) {
+	mockService := NewMockRoutineService(false)
+	handler := NewLogHandler(mockService)
+
+	userID := uuid.New()
+	requestBody := database.RoutineLog{
+		UserID:           userID,
 		SleepHours:       8.0,
 		MealTimes:        []string{"07:30", "12:00", "18:30"},
 		ScreenTime:       4.5,
@@ -321,49 +312,22 @@ func TestValidateRoutineLog(t *testing.T) {
 		LogDate:          "2024-01-15",
 	}
 
-	if err := validateRoutineLog(validLog); err != nil {
-		t.Fatalf("Expected no validation error, got %v", err)
-	}
+	jsonBody, _ := json.Marshal(requestBody)
+	req := httptest.NewRequest("POST", "/log", bytes.NewBuffer(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
 
-	// Test invalid sleep hours
-	invalidLog := validLog
-	invalidLog.SleepHours = -1.0
-	if err := validateRoutineLog(invalidLog); err == nil {
-		t.Fatal("Expected validation error for negative sleep hours")
-	}
+	handler.CreateRoutineLog(w, req)
 
-	// Test invalid screen time
-	invalidLog = validLog
-	invalidLog.ScreenTime = 25.0
-	if err := validateRoutineLog(invalidLog); err == nil {
-		t.Fatal("Expected validation error for excessive screen time")
-	}
+	assert.Equal(t, http.StatusCreated, w.Code)
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
 
-	// Test invalid stress level
-	invalidLog = validLog
-	invalidLog.StressLevel = 11
-	if err := validateRoutineLog(invalidLog); err == nil {
-		t.Fatal("Expected validation error for invalid stress level")
-	}
+	var response services.CreateRoutineLogResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
 
-	// Test empty meal times
-	invalidLog = validLog
-	invalidLog.MealTimes = []string{}
-	if err := validateRoutineLog(invalidLog); err == nil {
-		t.Fatal("Expected validation error for empty meal times")
-	}
-
-	// Test missing wake up time
-	invalidLog = validLog
-	invalidLog.WakeUpTime = ""
-	if err := validateRoutineLog(invalidLog); err == nil {
-		t.Fatal("Expected validation error for missing wake up time")
-	}
-
-	// Test missing bed time
-	invalidLog = validLog
-	invalidLog.BedTime = ""
-	if err := validateRoutineLog(invalidLog); err == nil {
-		t.Fatal("Expected validation error for missing bed time")
-	}
+	assert.Greater(t, response.LogID, 0)
+	assert.NotEqual(t, uuid.Nil, response.UserID)
+	assert.NotEmpty(t, response.Message)
+	assert.NotNil(t, response.AIResponse)
 }

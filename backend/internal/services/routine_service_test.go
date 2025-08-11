@@ -6,6 +6,10 @@ import (
 	"time"
 
 	"lifepattern-api/internal/database"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Mock repository for testing
@@ -52,7 +56,7 @@ func (m *MockRepository) GetRoutineLogWithAIReport(logID int) (*database.Insight
 	}, nil
 }
 
-func (m *MockRepository) GetRoutineLogsByUser(userID int, limit int) ([]database.RoutineLog, error) {
+func (m *MockRepository) GetRoutineLogsByUser(userID uuid.UUID, limit int) ([]database.RoutineLog, error) {
 	var logs []database.RoutineLog
 	count := 0
 	for _, log := range m.routineLogs {
@@ -64,11 +68,65 @@ func (m *MockRepository) GetRoutineLogsByUser(userID int, limit int) ([]database
 	return logs, nil
 }
 
+// Mock repository interface methods
+func (m *MockRepository) CreateUser(user database.User) error {
+	return nil
+}
+
+func (m *MockRepository) GetUser(userID uuid.UUID) (*database.User, error) {
+	return &database.User{ID: userID}, nil
+}
+
+func (m *MockRepository) SaveCredential(credData map[string]interface{}) error {
+	return nil
+}
+
+func (m *MockRepository) GetUserCredentials(userID uuid.UUID) ([]database.Credential, error) {
+	return nil, nil
+}
+
+func (m *MockRepository) SaveSession(session database.Session) error {
+	return nil
+}
+
+func (m *MockRepository) GetUserSessions(userID uuid.UUID) ([]database.Session, error) {
+	return nil, nil
+}
+
+func (m *MockRepository) RevokeSession(sessionID uuid.UUID) error {
+	return nil
+}
+
+func (m *MockRepository) SaveMobileChallenge(challenge database.MobileChallenge) error {
+	return nil
+}
+
+func (m *MockRepository) GetMobileChallenge(challengeID uuid.UUID) (*database.MobileChallenge, error) {
+	return nil, nil
+}
+
 func (m *MockRepository) Ping() error {
 	return nil
 }
 
 func (m *MockRepository) Close() error {
+	return nil
+}
+
+// Link token methods
+func (m *MockRepository) SaveLinkToken(linkToken database.LinkToken) error {
+	return nil
+}
+
+func (m *MockRepository) GetLinkTokens() ([]database.LinkToken, error) {
+	return nil, nil
+}
+
+func (m *MockRepository) GetUserLinkTokens(userID uuid.UUID) ([]database.LinkToken, error) {
+	return nil, nil
+}
+
+func (m *MockRepository) UpdateLinkToken(linkToken database.LinkToken) error {
 	return nil
 }
 
@@ -98,6 +156,13 @@ func (m *MockAIService) AnalyzeRoutine(routineLog database.RoutineLog) (*AIServi
 	return m.response, nil
 }
 
+func (m *MockAIService) AnalyzeRoutineWithHistory(routineLog database.RoutineLog, historicalData []database.RoutineLog) (*AIServiceResponse, error) {
+	if m.shouldFail {
+		return nil, errors.New("AI service error")
+	}
+	return m.response, nil
+}
+
 func (m *MockAIService) CheckHealth() error {
 	if m.shouldFail {
 		return errors.New("AI service unhealthy")
@@ -110,17 +175,9 @@ func TestNewRoutineService(t *testing.T) {
 	mockAI := NewMockAIService(false)
 
 	service := NewRoutineService(mockRepo, mockAI)
-	if service == nil {
-		t.Fatal("Expected service to be created")
-	}
-
-	if service.repo != mockRepo {
-		t.Fatal("Expected repository to be set")
-	}
-
-	if service.aiService != mockAI {
-		t.Fatal("Expected AI service to be set")
-	}
+	assert.NotNil(t, service)
+	assert.Equal(t, mockRepo, service.repo)
+	assert.Equal(t, mockAI, service.aiService)
 }
 
 func TestCreateRoutineLog(t *testing.T) {
@@ -128,8 +185,9 @@ func TestCreateRoutineLog(t *testing.T) {
 	mockAI := NewMockAIService(false)
 	service := NewRoutineService(mockRepo, mockAI)
 
+	userID := uuid.New()
 	routineLog := database.RoutineLog{
-		UserID:           1,
+		UserID:           userID,
 		SleepHours:       8.0,
 		MealTimes:        []string{"07:30", "12:00", "18:30"},
 		ScreenTime:       4.5,
@@ -142,29 +200,11 @@ func TestCreateRoutineLog(t *testing.T) {
 	}
 
 	response, err := service.CreateRoutineLog(routineLog)
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
-
-	if response == nil {
-		t.Fatal("Expected response, got nil")
-	}
-
-	if response.LogID <= 0 {
-		t.Fatalf("Expected positive log ID, got %d", response.LogID)
-	}
-
-	if !response.HasAI {
-		t.Fatal("Expected AI analysis to be performed")
-	}
-
-	if response.AIResult == nil {
-		t.Fatal("Expected AI result, got nil")
-	}
-
-	if !response.AIResult.IsAnomaly {
-		t.Fatal("Expected anomaly to be true")
-	}
+	require.NoError(t, err)
+	assert.NotNil(t, response)
+	assert.Greater(t, response.LogID, 0)
+	assert.Equal(t, userID, response.UserID)
+	assert.NotEmpty(t, response.Message)
 }
 
 func TestCreateRoutineLogWithDefaultValues(t *testing.T) {
@@ -185,23 +225,13 @@ func TestCreateRoutineLogWithDefaultValues(t *testing.T) {
 	}
 
 	response, err := service.CreateRoutineLog(routineLog)
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
-
-	if response.LogID <= 0 {
-		t.Fatalf("Expected positive log ID, got %d", response.LogID)
-	}
+	require.NoError(t, err)
+	assert.Greater(t, response.LogID, 0)
 
 	// Check that default values were set
 	savedLog := mockRepo.routineLogs[response.LogID]
-	if savedLog.UserID != 1 {
-		t.Fatalf("Expected default user ID 1, got %d", savedLog.UserID)
-	}
-
-	if savedLog.LogDate == "" {
-		t.Fatal("Expected log date to be set")
-	}
+	assert.NotEqual(t, uuid.Nil, savedLog.UserID)
+	assert.NotEmpty(t, savedLog.LogDate)
 }
 
 func TestCreateRoutineLogWithAIFailure(t *testing.T) {
@@ -209,8 +239,9 @@ func TestCreateRoutineLogWithAIFailure(t *testing.T) {
 	mockAI := NewMockAIService(true) // AI service will fail
 	service := NewRoutineService(mockRepo, mockAI)
 
+	userID := uuid.New()
 	routineLog := database.RoutineLog{
-		UserID:           1,
+		UserID:           userID,
 		SleepHours:       8.0,
 		MealTimes:        []string{"07:30", "12:00", "18:30"},
 		ScreenTime:       4.5,
@@ -223,21 +254,9 @@ func TestCreateRoutineLogWithAIFailure(t *testing.T) {
 	}
 
 	response, err := service.CreateRoutineLog(routineLog)
-	if err != nil {
-		t.Fatalf("Expected no error (AI failure should be handled gracefully), got %v", err)
-	}
-
-	if response == nil {
-		t.Fatal("Expected response, got nil")
-	}
-
-	if response.HasAI {
-		t.Fatal("Expected AI analysis to be marked as failed")
-	}
-
-	if response.AIResult != nil {
-		t.Fatal("Expected no AI result when AI service fails")
-	}
+	require.NoError(t, err) // AI failure should be handled gracefully
+	assert.NotNil(t, response)
+	assert.Greater(t, response.LogID, 0)
 }
 
 func TestGetInsight(t *testing.T) {
@@ -245,10 +264,11 @@ func TestGetInsight(t *testing.T) {
 	mockAI := NewMockAIService(false)
 	service := NewRoutineService(mockRepo, mockAI)
 
+	userID := uuid.New()
 	// Create a routine log and AI report in the mock repository
 	routineLog := database.RoutineLog{
 		ID:               1,
-		UserID:           1,
+		UserID:           userID,
 		SleepHours:       8.0,
 		MealTimes:        []string{"07:30", "12:00", "18:30"},
 		ScreenTime:       4.5,
@@ -261,34 +281,26 @@ func TestGetInsight(t *testing.T) {
 	}
 
 	aiReport := database.AIReport{
-		ID:                1,
-		RoutineLogID:      1,
-		IsAnomaly:         true,
-		ConfidenceScore:   0.85,
-		AnomalyType:       "test_anomaly",
-		Recommendations:   []string{"Test recommendation"},
-		AIServiceResponse: `{"test": "response"}`,
+		ID:                 1,
+		RoutineLogID:       1,
+		IsAnomaly:          true,
+		ConfidenceScore:    0.85,
+		AnomalyType:        "test_anomaly",
+		Recommendations:    []string{"Test recommendation"},
+		AIServiceResponse:  `{"test": "response"}`,
+		DriftAnalysis:      []byte(`{"drift": "analysis"}`),
+		BaselineComparison: []byte(`{"baseline": "comparison"}`),
+		ModelVersion:       "1.0.0",
 	}
 
 	mockRepo.routineLogs[1] = routineLog
 	mockRepo.aiReports[1] = aiReport
 
 	insight, err := service.GetInsight(1)
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
-
-	if insight == nil {
-		t.Fatal("Expected insight, got nil")
-	}
-
-	if insight.RoutineLog.ID != 1 {
-		t.Fatalf("Expected routine log ID 1, got %d", insight.RoutineLog.ID)
-	}
-
-	if insight.AIReport.RoutineLogID != 1 {
-		t.Fatalf("Expected AI report log ID 1, got %d", insight.AIReport.RoutineLogID)
-	}
+	require.NoError(t, err)
+	assert.NotNil(t, insight)
+	assert.Equal(t, 1, insight.RoutineLog.ID)
+	assert.Equal(t, 1, insight.AIReport.RoutineLogID)
 }
 
 func TestGetInsightNotFound(t *testing.T) {
@@ -297,9 +309,7 @@ func TestGetInsightNotFound(t *testing.T) {
 	service := NewRoutineService(mockRepo, mockAI)
 
 	_, err := service.GetInsight(999)
-	if err == nil {
-		t.Fatal("Expected error for non-existent insight")
-	}
+	assert.Error(t, err)
 }
 
 func TestGetUserRoutineLogs(t *testing.T) {
@@ -307,11 +317,12 @@ func TestGetUserRoutineLogs(t *testing.T) {
 	mockAI := NewMockAIService(false)
 	service := NewRoutineService(mockRepo, mockAI)
 
-	// Create multiple logs for user 1
+	userID := uuid.New()
+	// Create multiple logs for user
 	for i := 0; i < 3; i++ {
 		routineLog := database.RoutineLog{
 			ID:               i + 1,
-			UserID:           1,
+			UserID:           userID,
 			SleepHours:       8.0 + float64(i),
 			MealTimes:        []string{"07:30", "12:00", "18:30"},
 			ScreenTime:       4.5,
@@ -325,10 +336,11 @@ func TestGetUserRoutineLogs(t *testing.T) {
 		mockRepo.routineLogs[i+1] = routineLog
 	}
 
-	// Create one log for user 2
+	// Create one log for different user
+	otherUserID := uuid.New()
 	routineLog := database.RoutineLog{
 		ID:               4,
-		UserID:           2,
+		UserID:           otherUserID,
 		SleepHours:       7.0,
 		MealTimes:        []string{"08:00", "13:00", "19:00"},
 		ScreenTime:       5.0,
@@ -341,20 +353,13 @@ func TestGetUserRoutineLogs(t *testing.T) {
 	}
 	mockRepo.routineLogs[4] = routineLog
 
-	logs, err := service.GetUserRoutineLogs(1, 10)
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
+	logs, err := service.GetUserRoutineLogs(userID, 10)
+	require.NoError(t, err)
+	assert.Len(t, logs, 3)
 
-	if len(logs) != 3 {
-		t.Fatalf("Expected 3 logs for user 1, got %d", len(logs))
-	}
-
-	// Verify all logs belong to user 1
+	// Verify all logs belong to user
 	for _, log := range logs {
-		if log.UserID != 1 {
-			t.Fatalf("Expected user ID 1, got %d", log.UserID)
-		}
+		assert.Equal(t, userID, log.UserID)
 	}
 }
 
@@ -363,11 +368,12 @@ func TestGetUserRoutineLogsWithLimit(t *testing.T) {
 	mockAI := NewMockAIService(false)
 	service := NewRoutineService(mockRepo, mockAI)
 
-	// Create multiple logs for user 1
+	userID := uuid.New()
+	// Create multiple logs for user
 	for i := 0; i < 5; i++ {
 		routineLog := database.RoutineLog{
 			ID:               i + 1,
-			UserID:           1,
+			UserID:           userID,
 			SleepHours:       8.0,
 			MealTimes:        []string{"07:30", "12:00", "18:30"},
 			ScreenTime:       4.5,
@@ -381,12 +387,173 @@ func TestGetUserRoutineLogsWithLimit(t *testing.T) {
 		mockRepo.routineLogs[i+1] = routineLog
 	}
 
-	logs, err := service.GetUserRoutineLogs(1, 3)
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
+	logs, err := service.GetUserRoutineLogs(userID, 3)
+	require.NoError(t, err)
+	assert.Len(t, logs, 3)
+}
+
+func TestGetUserInsights(t *testing.T) {
+	mockRepo := NewMockRepository()
+	mockAI := NewMockAIService(false)
+	service := NewRoutineService(mockRepo, mockAI)
+
+	userID := uuid.New()
+	// Create multiple logs with AI reports for user
+	for i := 0; i < 3; i++ {
+		logID := i + 1
+		routineLog := database.RoutineLog{
+			ID:               logID,
+			UserID:           userID,
+			SleepHours:       8.0 + float64(i),
+			MealTimes:        []string{"07:30", "12:00", "18:30"},
+			ScreenTime:       4.5,
+			ExerciseDuration: 1.0,
+			WakeUpTime:       "07:00",
+			BedTime:          "23:00",
+			WaterIntake:      2.5,
+			StressLevel:      4,
+			LogDate:          "2024-01-15",
+		}
+
+		aiReport := database.AIReport{
+			ID:                 logID,
+			RoutineLogID:       logID,
+			IsAnomaly:          true,
+			ConfidenceScore:    0.85 + float64(i)*0.05,
+			AnomalyType:        "test_anomaly",
+			Recommendations:    []string{"Test recommendation"},
+			AIServiceResponse:  `{"test": "response"}`,
+			DriftAnalysis:      []byte(`{"drift": "analysis"}`),
+			BaselineComparison: []byte(`{"baseline": "comparison"}`),
+			ModelVersion:       "1.0.0",
+		}
+
+		mockRepo.routineLogs[logID] = routineLog
+		mockRepo.aiReports[logID] = aiReport
 	}
 
-	if len(logs) != 3 {
-		t.Fatalf("Expected 3 logs with limit, got %d", len(logs))
+	insights, err := service.GetUserInsights(userID, 10)
+	require.NoError(t, err)
+	assert.Len(t, insights, 3)
+
+	// Verify all insights belong to user
+	for _, insight := range insights {
+		assert.Equal(t, userID, insight.RoutineLog.UserID)
+		assert.NotNil(t, insight.AIReport)
 	}
+}
+
+func TestGetUserInsightsWithLimit(t *testing.T) {
+	mockRepo := NewMockRepository()
+	mockAI := NewMockAIService(false)
+	service := NewRoutineService(mockRepo, mockAI)
+
+	userID := uuid.New()
+	// Create multiple logs with AI reports for user
+	for i := 0; i < 5; i++ {
+		logID := i + 1
+		routineLog := database.RoutineLog{
+			ID:               logID,
+			UserID:           userID,
+			SleepHours:       8.0,
+			MealTimes:        []string{"07:30", "12:00", "18:30"},
+			ScreenTime:       4.5,
+			ExerciseDuration: 1.0,
+			WakeUpTime:       "07:00",
+			BedTime:          "23:00",
+			WaterIntake:      2.5,
+			StressLevel:      4,
+			LogDate:          "2024-01-15",
+		}
+
+		aiReport := database.AIReport{
+			ID:                 logID,
+			RoutineLogID:       logID,
+			IsAnomaly:          true,
+			ConfidenceScore:    0.85,
+			AnomalyType:        "test_anomaly",
+			Recommendations:    []string{"Test recommendation"},
+			AIServiceResponse:  `{"test": "response"}`,
+			DriftAnalysis:      []byte(`{"drift": "analysis"}`),
+			BaselineComparison: []byte(`{"baseline": "comparison"}`),
+			ModelVersion:       "1.0.0",
+		}
+
+		mockRepo.routineLogs[logID] = routineLog
+		mockRepo.aiReports[logID] = aiReport
+	}
+
+	insights, err := service.GetUserInsights(userID, 3)
+	require.NoError(t, err)
+	assert.Len(t, insights, 3)
+}
+
+func TestCreateRoutineLogResponseStructure(t *testing.T) {
+	response := CreateRoutineLogResponse{
+		LogID:      123,
+		UserID:     uuid.New(),
+		AIResponse: &AIServiceResponse{IsAnomaly: true},
+		Message:    "Routine log created successfully",
+	}
+
+	assert.Greater(t, response.LogID, 0)
+	assert.NotEqual(t, uuid.Nil, response.UserID)
+	assert.NotNil(t, response.AIResponse)
+	assert.NotEmpty(t, response.Message)
+}
+
+func TestRoutineServiceEdgeCases(t *testing.T) {
+	mockRepo := NewMockRepository()
+	mockAI := NewMockAIService(false)
+	service := NewRoutineService(mockRepo, mockAI)
+
+	// Test with empty routine log
+	emptyLog := database.RoutineLog{}
+	response, err := service.CreateRoutineLog(emptyLog)
+	require.NoError(t, err)
+	assert.NotNil(t, response)
+
+	// Test with zero values
+	zeroLog := database.RoutineLog{
+		UserID:           uuid.New(),
+		SleepHours:       0.0,
+		ScreenTime:       0.0,
+		ExerciseDuration: 0.0,
+		WaterIntake:      0.0,
+		StressLevel:      0,
+		MealTimes:        []string{},
+		WakeUpTime:       "",
+		BedTime:          "",
+		LogDate:          "",
+	}
+
+	response, err = service.CreateRoutineLog(zeroLog)
+	require.NoError(t, err)
+	assert.NotNil(t, response)
+}
+
+func TestRoutineServiceErrorHandling(t *testing.T) {
+	mockRepo := NewMockRepository()
+	mockAI := NewMockAIService(true) // AI service will fail
+	service := NewRoutineService(mockRepo, mockAI)
+
+	userID := uuid.New()
+	routineLog := database.RoutineLog{
+		UserID:           userID,
+		SleepHours:       8.0,
+		MealTimes:        []string{"07:30", "12:00", "18:30"},
+		ScreenTime:       4.5,
+		ExerciseDuration: 1.0,
+		WakeUpTime:       "07:00",
+		BedTime:          "23:00",
+		WaterIntake:      2.5,
+		StressLevel:      4,
+		LogDate:          "2024-01-15",
+	}
+
+	// Should not fail even if AI service fails
+	response, err := service.CreateRoutineLog(routineLog)
+	require.NoError(t, err)
+	assert.NotNil(t, response)
+	assert.Greater(t, response.LogID, 0)
 }

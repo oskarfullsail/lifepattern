@@ -44,7 +44,7 @@ export default function Login({ navigation }: Props) {
       // Check if user is already authenticated
       const isAuthenticated = await userManager.isAuthenticated();
       if (isAuthenticated) {
-        navigation.replace('Dashboard');
+        navigation.replace('UserDashboard');
         return;
       }
       
@@ -68,7 +68,7 @@ export default function Login({ navigation }: Props) {
       
       if (success) {
         Alert.alert('Success', 'Welcome back!', [
-          { text: 'OK', onPress: () => navigation.replace('Dashboard') }
+          { text: 'OK', onPress: () => navigation.replace('UserDashboard') }
         ]);
       } else {
         Alert.alert('Error', 'Invalid username or passphrase. Please try again.');
@@ -147,8 +147,8 @@ export default function Login({ navigation }: Props) {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       <View style={styles.header}>
-        <Text style={styles.title}>Welcome to LifePattern</Text>
-        <Text style={styles.subtitle}>Your AI-powered lifestyle companion</Text>
+        <Text style={styles.title}>Welcome Back</Text>
+        <Text style={styles.subtitle}>Sign in to your LifePattern account</Text>
       </View>
 
       <View style={styles.formContainer}>
@@ -158,7 +158,7 @@ export default function Login({ navigation }: Props) {
             <Text style={styles.usernameText}>{userCredentials.username}</Text>
           </View>
         ) : (
-          <Text style={styles.formTitle}>Sign In</Text>
+          <Text style={styles.formTitle}>Returning User Sign In</Text>
         )}
 
         <View style={styles.inputGroup}>

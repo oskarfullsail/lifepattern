@@ -12,6 +12,8 @@ import (
 	"lifepattern-api/internal/database"
 	"lifepattern-api/internal/handlers"
 	"lifepattern-api/internal/services"
+
+	"github.com/google/uuid"
 )
 
 // IntegrationTestSetup holds test dependencies
@@ -32,10 +34,7 @@ func setupIntegrationTest(t *testing.T) *IntegrationTestSetup {
 	}
 
 	// Initialize repository
-	repo, err := database.NewRepository(testDBURL)
-	if err != nil {
-		t.Fatalf("Failed to initialize test database: %v", err)
-	}
+	repo := database.NewRepository(TestDB)
 
 	// Initialize AI service (use mock URL for testing)
 	aiService := services.NewAIService("http://localhost:9999") // Invalid URL for testing
@@ -69,8 +68,9 @@ func TestIntegrationCreateAndRetrieveRoutineLog(t *testing.T) {
 	defer setup.cleanup()
 
 	// Create routine log
+	userID := uuid.New()
 	routineLog := database.RoutineLog{
-		UserID:           1,
+		UserID:           userID,
 		SleepHours:       8.0,
 		MealTimes:        []string{"07:30", "12:00", "18:30"},
 		ScreenTime:       4.5,
@@ -93,7 +93,7 @@ func TestIntegrationCreateAndRetrieveRoutineLog(t *testing.T) {
 	}
 
 	// Test retrieving routine log
-	logs, err := setup.routineService.GetUserRoutineLogs(1, 10)
+	logs, err := setup.routineService.GetUserRoutineLogs(userID, 10)
 	if err != nil {
 		t.Fatalf("Failed to retrieve routine logs: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestIntegrationCreateAndRetrieveRoutineLog(t *testing.T) {
 	// Verify the log was saved correctly
 	found := false
 	for _, log := range logs {
-		if log.UserID == 1 && log.SleepHours == 8.0 {
+		if log.UserID == userID && log.SleepHours == 8.0 {
 			found = true
 			break
 		}
@@ -131,8 +131,9 @@ func TestIntegrationHTTPEndpoints(t *testing.T) {
 	}
 
 	// Test creating routine log via HTTP
+	testUserID := uuid.New()
 	routineLog := database.RoutineLog{
-		UserID:           1,
+		UserID:           testUserID,
 		SleepHours:       7.5,
 		MealTimes:        []string{"08:00", "13:00", "19:00"},
 		ScreenTime:       5.0,
@@ -189,8 +190,9 @@ func TestIntegrationValidation(t *testing.T) {
 	defer setup.cleanup()
 
 	// Test invalid routine log
+	invalidUserID := uuid.New()
 	invalidLog := database.RoutineLog{
-		UserID:           1,
+		UserID:           invalidUserID,
 		SleepHours:       -1.0, // Invalid
 		MealTimes:        []string{"07:30", "12:00", "18:30"},
 		ScreenTime:       4.5,

@@ -4,9 +4,9 @@
 
 -- Users table
 CREATE TABLE IF NOT EXISTS users (
-    id SERIAL PRIMARY KEY,
+    id VARCHAR(255) PRIMARY KEY, -- Changed to string for privacy-focused IDs
     username VARCHAR(50) UNIQUE NOT NULL,
-    email VARCHAR(100) UNIQUE NOT NULL,
+    device_id VARCHAR(255) NOT NULL, -- Device identifier for cross-platform use
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- Routine logs table
 CREATE TABLE IF NOT EXISTS routine_logs (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    user_id VARCHAR(255) REFERENCES users(id) ON DELETE CASCADE,
     sleep_hours DECIMAL(3,1) NOT NULL CHECK (sleep_hours >= 0 AND sleep_hours <= 24),
     meal_times JSONB NOT NULL, -- Array of meal timestamps ["07:30", "12:00", "18:30"]
     screen_time DECIMAL(3,1) NOT NULL CHECK (screen_time >= 0 AND screen_time <= 24),
@@ -37,6 +37,9 @@ CREATE TABLE IF NOT EXISTS ai_reports (
     anomaly_type VARCHAR(50) NOT NULL,
     recommendations JSONB NOT NULL, -- Array of recommendation strings
     ai_service_response JSONB NOT NULL, -- Full response from AI service
+    drift_analysis JSONB, -- Enhanced drift detection results
+    baseline_comparison JSONB, -- User baseline comparison data
+    model_version VARCHAR(50), -- AI model version for auditability
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -65,6 +68,6 @@ CREATE TRIGGER update_users_updated_at
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Sample data insertion (for testing)
-INSERT INTO users (username, email) VALUES 
-    ('testuser', 'test@example.com')
+INSERT INTO users (id, username, device_id) VALUES 
+    ('test_user_123', 'testuser', 'device_123')
 ON CONFLICT (username) DO NOTHING; 

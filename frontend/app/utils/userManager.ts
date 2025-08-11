@@ -208,32 +208,41 @@ export class UserManager {
 
       // Create new user session
       const deviceId = await generateDeviceId();
-      const userId = generateUserId(deviceId);
       const username = generateUsername();
       const passphrase = generatePassphrase();
       
+      // Import the register API function
+      const { register } = await import('../api/endpoint');
+      
+      // Register with backend
+      const response = await register({
+        username,
+        passphrase,
+        device_label: `${Platform.OS} Device`
+      });
+      
       const newSession: UserSession = {
-        userId,
+        userId: response.user_id,
         deviceId,
         username,
         createdAt: new Date().toISOString(),
         lastLogin: new Date().toISOString(),
         isFirstLogin: true,
-        isAuthenticated: false,
+        isAuthenticated: true,
       };
 
       // Store session securely
       await secureStorage.setItemAsync('userSession', JSON.stringify(newSession));
       
       // Store credentials securely
-      const salt = generateSalt();
-      const hashedPassphrase = await hashPassphrase(passphrase, salt);
       await secureStorage.setItemAsync('userCredentials', JSON.stringify({
         username,
-        hashedPassphrase,
-        salt,
         passphrase, // Store original for retrieval
       }));
+      
+      // Store tokens
+      await secureStorage.setItemAsync('accessToken', response.access_token);
+      await secureStorage.setItemAsync('refreshToken', response.refresh_token);
       
       this.currentSession = newSession;
 
@@ -284,25 +293,29 @@ export class UserManager {
   // Authenticate user with credentials
   async authenticateUser(username: string, passphrase: string): Promise<boolean> {
     try {
-      const credentialsData = await secureStorage.getItemAsync('userCredentials');
-      if (!credentialsData) {
-        return false;
-      }
-
-      const credentials = JSON.parse(credentialsData);
-      const hashedInput = await hashPassphrase(passphrase, credentials.salt);
+      // Import the login API function
+      const { login } = await import('../api/endpoint');
       
-      if (credentials.username === username && credentials.hashedPassphrase === hashedInput) {
-        // Update session to authenticated
-        if (this.currentSession) {
-          this.currentSession.isAuthenticated = true;
-          this.currentSession.lastLogin = new Date().toISOString();
-          await secureStorage.setItemAsync('userSession', JSON.stringify(this.currentSession));
-        }
-        return true;
+      // Call the backend login API
+      const response = await login({
+        username,
+        passphrase,
+        device_label: `${Platform.OS} Device`
+      });
+      
+      // Store the tokens
+      await secureStorage.setItemAsync('accessToken', response.access_token);
+      await secureStorage.setItemAsync('refreshToken', response.refresh_token);
+      
+      // Update session to authenticated
+      if (this.currentSession) {
+        this.currentSession.isAuthenticated = true;
+        this.currentSession.lastLogin = new Date().toISOString();
+        this.currentSession.userId = response.user_id;
+        await secureStorage.setItemAsync('userSession', JSON.stringify(this.currentSession));
       }
       
-      return false;
+      return true;
     } catch (error) {
       console.error('Error authenticating user:', error);
       return false;
@@ -379,6 +392,12 @@ export class UserManager {
   // Get device ID
   async getDeviceId(): Promise<string> {
     return await generateDeviceId();
+  }
+
+  // Store tokens from backend
+  async storeTokens(accessToken: string, refreshToken: string): Promise<void> {
+    await secureStorage.setItemAsync('accessToken', accessToken);
+    await secureStorage.setItemAsync('refreshToken', refreshToken);
   }
 }
 

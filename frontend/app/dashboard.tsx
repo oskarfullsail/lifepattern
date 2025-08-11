@@ -22,6 +22,7 @@ import {
   type CreateRoutineLogResponse,
   type InsightResponse
 } from './api/endpoint';
+import { testBackendConnection } from './api/client';
 import userManager, { UserSession } from './utils/userManager';
 
 type DashboardScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Dashboard'>;
@@ -50,6 +51,7 @@ export default function Dashboard({ navigation }: Props) {
   const [userSession, setUserSession] = useState<UserSession | null>(null);
   const [latestInsight, setLatestInsight] = useState<CreateRoutineLogResponse['ai_result'] | null>(null);
   const [recentLogs, setRecentLogs] = useState<RoutineLogPayload[]>([]);
+  const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'connected' | 'failed'>('unknown');
 
   const moodTags = [
     { label: "😊 Productive", value: "productive" },
@@ -66,6 +68,19 @@ export default function Dashboard({ navigation }: Props) {
   const initializeApp = async () => {
     try {
       setIsLoading(true);
+      
+      // Test backend connection first
+      const connectionResult = await testBackendConnection();
+      setConnectionStatus(connectionResult.success ? 'connected' : 'failed');
+      
+      if (!connectionResult.success) {
+        console.error('Backend connection failed:', connectionResult.error);
+        Alert.alert(
+          'Connection Error', 
+          'Cannot connect to backend. Make sure Docker is running:\n\ndocker-compose up -d',
+          [{ text: 'OK' }]
+        );
+      }
       
       // Initialize user session
       const session = await userManager.initializeUser();
@@ -232,6 +247,15 @@ export default function Dashboard({ navigation }: Props) {
         <View>
           <Text style={styles.greeting}>Good {new Date().getHours() < 12 ? 'Morning' : new Date().getHours() < 17 ? 'Afternoon' : 'Evening'}!</Text>
           <Text style={styles.username}>{userSession?.username || 'User'}</Text>
+          <View style={[
+            styles.connectionBadge,
+            connectionStatus === 'connected' && styles.connectedBadge,
+            connectionStatus === 'failed' && styles.failedBadge
+          ]}>
+            <Text style={styles.connectionBadgeText}>
+              {connectionStatus === 'connected' ? '🔗' : connectionStatus === 'failed' ? '❌' : '⏳'}
+            </Text>
+          </View>
         </View>
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutText}>Logout</Text>
@@ -472,6 +496,34 @@ export default function Dashboard({ navigation }: Props) {
         </View>
       </Modal>
 
+      {/* New Features Section */}
+      <View style={styles.featuresContainer}>
+        <Text style={styles.sectionTitle}>🔗 Device & Account Features</Text>
+        
+        <View style={styles.featuresGrid}>
+          <TouchableOpacity 
+            style={styles.featureCard}
+            onPress={() => navigation.navigate('CrossDeviceLinking')}
+          >
+            <Text style={styles.featureIcon}>🔗</Text>
+            <Text style={styles.featureTitle}>Cross-Device Linking</Text>
+            <Text style={styles.featureDescription}>
+              Link your account across multiple devices
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.featureCard}
+            onPress={() => navigation.navigate('DeviceManagement')}
+          >
+            <Text style={styles.featureIcon}>📱</Text>
+            <Text style={styles.featureTitle}>Device Management</Text>
+            <Text style={styles.featureDescription}>
+              Manage devices and sync watch data
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
     </ScrollView>
   );
@@ -838,6 +890,61 @@ const styles = StyleSheet.create({
   settingValue: {
     fontSize: 16,
     color: '#666',
+  },
+  featuresContainer: {
+    padding: 20,
+  },
+  featuresGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 12,
+  },
+  featureCard: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  featureIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  featureTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  featureDescription: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 16,
+  },
+  connectionBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  connectedBadge: {
+    backgroundColor: '#d4edda',
+  },
+  failedBadge: {
+    backgroundColor: '#f8d7da',
+  },
+  connectionBadgeText: {
+    fontSize: 10,
   },
 
 }); 
