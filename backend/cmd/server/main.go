@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"lifepattern-api/internal/auth"
 	"lifepattern-api/internal/config"
@@ -32,11 +33,23 @@ func main() {
 	}
 	defer db.Close()
 
-	// Test database connection
-	if err := db.Ping(); err != nil {
-		log.Fatalf("Failed to ping database: %v", err)
+	// Test database connection with retry logic
+	maxRetries := 5
+	for i := 0; i < maxRetries; i++ {
+		if err := db.Ping(); err != nil {
+			log.Printf("⚠️ Database connection attempt %d/%d failed: %v", i+1, maxRetries, err)
+			if i == maxRetries-1 {
+				log.Printf("❌ Failed to connect to database after %d attempts. Please check your DATABASE_URL environment variable.", maxRetries)
+				log.Printf("💡 Make sure you have created a PostgreSQL database in Render and set the DATABASE_URL environment variable.")
+				os.Exit(1)
+			}
+			// Wait before retrying
+			time.Sleep(2 * time.Second)
+		} else {
+			log.Println("✅ Connected to database")
+			break
+		}
 	}
-	log.Println("✅ Connected to database")
 
 	// Create repository
 	repo := database.NewRepository(db)
