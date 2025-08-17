@@ -154,6 +154,17 @@ export default function UserDashboard({ navigation }: Props) {
     navigation.navigate('Settings');
   };
 
+  const handleLogout = async () => {
+    try {
+      await userManager.logout();
+      Alert.alert('Logged Out', 'You have been logged out.');
+      navigation.navigate('Login'); // Navigate to login screen after logout
+    } catch (error) {
+      console.error('Error logging out:', error);
+      Alert.alert('Error', 'Failed to log out.');
+    }
+  };
+
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -301,10 +312,19 @@ export default function UserDashboard({ navigation }: Props) {
         </View>
       </View>
 
-      {/* Settings */}
+      {/* Settings Section */}
       <View style={styles.settingsSection}>
+        <Text style={styles.sectionTitle}>Settings</Text>
+        
         <TouchableOpacity style={styles.settingsButton} onPress={handleSettings}>
-          <Text style={styles.settingsButtonText}>⚙️ Settings</Text>
+          <Text style={styles.settingsButtonText}>⚙️ App Settings</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[styles.settingsButton, { marginTop: 12, backgroundColor: '#ff6b6b' }]} 
+          onPress={handleLogout}
+        >
+          <Text style={[styles.settingsButtonText, { color: '#fff' }]}>🚪 Logout</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>

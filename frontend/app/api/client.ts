@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
 import { currentConfig } from '../config/environment';
+import userManager from '../utils/userManager';
 
 // Determine the correct backend URL based on the environment and platform
 const getBackendUrl = () => {
@@ -46,8 +47,19 @@ const apiClient = axios.create({
 
 // Enhanced error handling and logging
 apiClient.interceptors.request.use(
-  (config) => {
+  async (config) => {
     console.log(`📤 API Request: ${config.method?.toUpperCase()} ${config.url}`);
+    
+    // Add access token to requests if available
+    try {
+      const accessToken = await userManager.getAccessToken();
+      if (accessToken) {
+        config.headers.Authorization = `Bearer ${accessToken}`;
+      }
+    } catch (error) {
+      console.log('No access token available for request');
+    }
+    
     return config;
   },
   (error) => {

@@ -293,6 +293,8 @@ export class UserManager {
   // Authenticate user with credentials
   async authenticateUser(username: string, passphrase: string): Promise<boolean> {
     try {
+      console.log('🔐 Authenticating user:', username);
+      
       // Import the login API function
       const { login } = await import('../api/endpoint');
       
@@ -303,21 +305,42 @@ export class UserManager {
         device_label: `${Platform.OS} Device`
       });
       
+      console.log('✅ Login response received:', response);
+      
       // Store the tokens
       await secureStorage.setItemAsync('accessToken', response.access_token);
       await secureStorage.setItemAsync('refreshToken', response.refresh_token);
       
-      // Update session to authenticated
-      if (this.currentSession) {
-        this.currentSession.isAuthenticated = true;
-        this.currentSession.lastLogin = new Date().toISOString();
-        this.currentSession.userId = response.user_id;
-        await secureStorage.setItemAsync('userSession', JSON.stringify(this.currentSession));
+      // Get or create session
+      let session = await this.getCurrentUser();
+      if (!session) {
+        // Create new session if none exists
+        const deviceId = await generateDeviceId();
+        session = {
+          userId: response.user_id,
+          deviceId,
+          username,
+          createdAt: new Date().toISOString(),
+          lastLogin: new Date().toISOString(),
+          isFirstLogin: false,
+          isAuthenticated: true,
+        };
+      } else {
+        // Update existing session
+        session.isAuthenticated = true;
+        session.lastLogin = new Date().toISOString();
+        session.userId = response.user_id;
+        session.username = username;
       }
       
+      // Store updated session
+      await secureStorage.setItemAsync('userSession', JSON.stringify(session));
+      this.currentSession = session;
+      
+      console.log('✅ Authentication successful, session updated');
       return true;
     } catch (error) {
-      console.error('Error authenticating user:', error);
+      console.error('❌ Error authenticating user:', error);
       return false;
     }
   }
@@ -364,8 +387,16 @@ export class UserManager {
 
   // Clear user session (logout)
   async clearSession(): Promise<void> {
-    this.currentSession = null;
-    await secureStorage.deleteItemAsync('userSession');
+    try {
+      console.log('🚪 Logging out user...');
+      this.currentSession = null;
+      await secureStorage.deleteItemAsync('userSession');
+      await secureStorage.deleteItemAsync('accessToken');
+      await secureStorage.deleteItemAsync('refreshToken');
+      console.log('✅ Logout successful');
+    } catch (error) {
+      console.error('❌ Error during logout:', error);
+    }
   }
 
   // Get user ID for API calls
@@ -385,8 +416,33 @@ export class UserManager {
 
   // Check if user is authenticated
   async isAuthenticated(): Promise<boolean> {
-    const user = await this.getCurrentUser();
-    return user?.isAuthenticated || false;
+    try {
+      // Check if we have a current session
+      const user = await this.getCurrentUser();
+      if (!user) {
+        console.log('❌ No user session found');
+        return false;
+      }
+      
+      // Check if we have access token
+      const accessToken = await secureStorage.getItemAsync('accessToken');
+      if (!accessToken) {
+        console.log('❌ No access token found');
+        return false;
+      }
+      
+      // Check if session is marked as authenticated
+      if (!user.isAuthenticated) {
+        console.log('❌ Session not marked as authenticated');
+        return false;
+      }
+      
+      console.log('✅ User is authenticated');
+      return true;
+    } catch (error) {
+      console.error('❌ Error checking authentication:', error);
+      return false;
+    }
   }
 
   // Get device ID
@@ -398,6 +454,21 @@ export class UserManager {
   async storeTokens(accessToken: string, refreshToken: string): Promise<void> {
     await secureStorage.setItemAsync('accessToken', accessToken);
     await secureStorage.setItemAsync('refreshToken', refreshToken);
+  }
+
+  // Logout user
+  async logout(): Promise<void> {
+    await this.clearSession();
+  }
+
+  // Get access token for API calls
+  async getAccessToken(): Promise<string | null> {
+    try {
+      return await secureStorage.getItemAsync('accessToken');
+    } catch (error) {
+      console.error('Error getting access token:', error);
+      return null;
+    }
   }
 }
 

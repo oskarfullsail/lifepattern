@@ -34,22 +34,30 @@ export default function Login({ navigation }: Props) {
     try {
       setIsInitializing(true);
       
+      console.log('🔄 Initializing login screen...');
+      
       // Check if user already has credentials
       const credentials = await userManager.getUserCredentials();
       if (credentials) {
+        console.log('📝 Found stored credentials for:', credentials.username);
         setUserCredentials(credentials);
         setUsername(credentials.username);
       }
       
       // Check if user is already authenticated
       const isAuthenticated = await userManager.isAuthenticated();
+      console.log('🔐 Authentication status:', isAuthenticated);
+      
       if (isAuthenticated) {
+        console.log('✅ User already authenticated, redirecting to dashboard');
         navigation.replace('UserDashboard');
         return;
       }
       
+      console.log('ℹ️ User not authenticated, showing login form');
+      
     } catch (error) {
-      console.error('Error initializing login:', error);
+      console.error('❌ Error initializing login:', error);
     } finally {
       setIsInitializing(false);
     }
@@ -64,18 +72,21 @@ export default function Login({ navigation }: Props) {
     setIsLoading(true);
 
     try {
+      console.log('🔐 Attempting login with username:', username);
+      
       const success = await userManager.authenticateUser(username.trim(), passphrase.trim());
       
       if (success) {
-        Alert.alert('Success', 'Welcome back!', [
-          { text: 'OK', onPress: () => navigation.replace('UserDashboard') }
-        ]);
+        console.log('✅ Login successful, navigating to UserDashboard');
+        // Navigate directly without showing alert
+        navigation.replace('UserDashboard');
       } else {
+        console.log('❌ Login failed - invalid credentials');
         Alert.alert('Error', 'Invalid username or passphrase. Please try again.');
       }
     } catch (error) {
-      console.error('Login error:', error);
-      Alert.alert('Error', 'Failed to login. Please try again.');
+      console.error('❌ Login error:', error);
+      Alert.alert('Error', 'Failed to login. Please check your connection and try again.');
     } finally {
       setIsLoading(false);
     }
