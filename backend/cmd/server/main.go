@@ -36,8 +36,19 @@ func applyMigrations(db *sql.DB) error {
 		return fmt.Errorf("failed to create migrations table: %v", err)
 	}
 
-	// Apply user_credentials table migration if not already applied
-	userCredentialsMigration := `
+	// Apply complete database schema
+	completeSchema := `
+	-- Enable UUID extension
+	CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+	
+	-- Create users table
+	CREATE TABLE IF NOT EXISTS users (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+		last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+	);
+	
+	-- Create user_credentials table
 	CREATE TABLE IF NOT EXISTS user_credentials (
 		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 		user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -50,16 +61,97 @@ func applyMigrations(db *sql.DB) error {
 		UNIQUE(username)
 	);
 	
+	-- Create webauthn_credentials table
+	CREATE TABLE IF NOT EXISTS webauthn_credentials (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		credential_id BYTEA NOT NULL,
+		public_key BYTEA NOT NULL,
+		attestation_type VARCHAR(255),
+		transport TEXT[],
+		flags INTEGER NOT NULL,
+		authenticator VARCHAR(255),
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+		last_used_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+		UNIQUE(credential_id)
+	);
+	
+	-- Create sessions table
+	CREATE TABLE IF NOT EXISTS sessions (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		cred_id UUID REFERENCES webauthn_credentials(id) ON DELETE SET NULL,
+		refresh_token_hash VARCHAR(255) NOT NULL,
+		device_label VARCHAR(255),
+		ip_fingerprint VARCHAR(255),
+		user_agent TEXT,
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+		expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+		revoked_at TIMESTAMP WITH TIME ZONE,
+		UNIQUE(refresh_token_hash)
+	);
+	
+	-- Create mobile_challenges table
+	CREATE TABLE IF NOT EXISTS mobile_challenges (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		challenge_id VARCHAR(255) NOT NULL,
+		challenge_hash VARCHAR(255) NOT NULL,
+		device_label VARCHAR(255),
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+		expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+		UNIQUE(challenge_id)
+	);
+	
+	-- Create link_tokens table
+	CREATE TABLE IF NOT EXISTS link_tokens (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		token_hash VARCHAR(255) NOT NULL,
+		device_label VARCHAR(255),
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+		expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+		used_at TIMESTAMP WITH TIME ZONE,
+		UNIQUE(token_hash)
+	);
+	
+	-- Create routine_logs table
+	CREATE TABLE IF NOT EXISTS routine_logs (
+		id SERIAL PRIMARY KEY,
+		user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		sleep_hours DECIMAL(3,1),
+		meal_times TEXT[],
+		screen_time INTEGER,
+		exercise_duration INTEGER,
+		wake_up_time TIME,
+		bed_time TIME,
+		water_intake INTEGER,
+		stress_level INTEGER CHECK (stress_level >= 1 AND stress_level <= 10),
+		log_date DATE NOT NULL,
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+		UNIQUE(user_id, log_date)
+	);
+	
+	-- Create indexes
 	CREATE INDEX IF NOT EXISTS idx_user_credentials_username ON user_credentials(username);
 	CREATE INDEX IF NOT EXISTS idx_user_credentials_user_id ON user_credentials(user_id);
+	CREATE INDEX IF NOT EXISTS idx_webauthn_credentials_user_id ON webauthn_credentials(user_id);
+	CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+	CREATE INDEX IF NOT EXISTS idx_sessions_refresh_token_hash ON sessions(refresh_token_hash);
+	CREATE INDEX IF NOT EXISTS idx_mobile_challenges_user_id ON mobile_challenges(user_id);
+	CREATE INDEX IF NOT EXISTS idx_mobile_challenges_challenge_id ON mobile_challenges(challenge_id);
+	CREATE INDEX IF NOT EXISTS idx_link_tokens_user_id ON link_tokens(user_id);
+	CREATE INDEX IF NOT EXISTS idx_link_tokens_token_hash ON link_tokens(token_hash);
+	CREATE INDEX IF NOT EXISTS idx_routine_logs_user_id ON routine_logs(user_id);
+	CREATE INDEX IF NOT EXISTS idx_routine_logs_log_date ON routine_logs(log_date);
 	`
 
-	if _, err := db.Exec(userCredentialsMigration); err != nil {
-		return fmt.Errorf("failed to apply user_credentials migration: %v", err)
+	if _, err := db.Exec(completeSchema); err != nil {
+		return fmt.Errorf("failed to apply complete schema: %v", err)
 	}
 
 	// Record migration as applied
-	_, err := db.Exec("INSERT INTO migrations (filename) VALUES ($1) ON CONFLICT (filename) DO NOTHING", "004_add_user_credentials.sql")
+	_, err := db.Exec("INSERT INTO migrations (filename) VALUES ($1) ON CONFLICT (filename) DO NOTHING", "complete_schema_setup.sql")
 	if err != nil {
 		log.Printf("⚠️ Failed to record migration (this is okay if it already exists): %v", err)
 	}
