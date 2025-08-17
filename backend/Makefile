@@ -60,6 +60,11 @@ setup-db:
 	@echo "createdb lifepattern_test"
 	@echo "psql -d lifepattern_test -f migrations/001_initial_schema.sql"
 
+# Run database migrations
+migrate:
+	@echo "Running database migrations..."
+	go run cmd/migrate/main.go
+
 # Run linter
 lint:
 	@echo "Running linter..."

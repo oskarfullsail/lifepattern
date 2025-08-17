@@ -22,6 +22,51 @@ import (
 	"github.com/gorilla/mux"
 )
 
+// applyMigrations applies database migrations
+func applyMigrations(db *sql.DB) error {
+	// Create migrations table if it doesn't exist
+	createMigrationsTable := `
+	CREATE TABLE IF NOT EXISTS migrations (
+		id SERIAL PRIMARY KEY,
+		filename VARCHAR(255) NOT NULL UNIQUE,
+		applied_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+	);`
+
+	if _, err := db.Exec(createMigrationsTable); err != nil {
+		return fmt.Errorf("failed to create migrations table: %v", err)
+	}
+
+	// Apply user_credentials table migration if not already applied
+	userCredentialsMigration := `
+	CREATE TABLE IF NOT EXISTS user_credentials (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		username VARCHAR(255) NOT NULL,
+		hashed_passphrase VARCHAR(255) NOT NULL,
+		salt VARCHAR(255) NOT NULL,
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+		last_used_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+		UNIQUE(user_id),
+		UNIQUE(username)
+	);
+	
+	CREATE INDEX IF NOT EXISTS idx_user_credentials_username ON user_credentials(username);
+	CREATE INDEX IF NOT EXISTS idx_user_credentials_user_id ON user_credentials(user_id);
+	`
+
+	if _, err := db.Exec(userCredentialsMigration); err != nil {
+		return fmt.Errorf("failed to apply user_credentials migration: %v", err)
+	}
+
+	// Record migration as applied
+	_, err := db.Exec("INSERT INTO migrations (filename) VALUES ($1) ON CONFLICT (filename) DO NOTHING", "004_add_user_credentials.sql")
+	if err != nil {
+		log.Printf("⚠️ Failed to record migration (this is okay if it already exists): %v", err)
+	}
+
+	return nil
+}
+
 func main() {
 	// Load configuration
 	cfg := config.Load()
@@ -50,6 +95,14 @@ func main() {
 			break
 		}
 	}
+
+	// Apply database migrations
+	log.Println("🔄 Applying database migrations...")
+	if err := applyMigrations(db); err != nil {
+		log.Printf("❌ Failed to apply migrations: %v", err)
+		os.Exit(1)
+	}
+	log.Println("✅ Database migrations completed")
 
 	// Create repository
 	repo := database.NewRepository(db)
