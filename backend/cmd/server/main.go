@@ -96,12 +96,9 @@ func applyMigrations(db *sql.DB) error {
 	CREATE TABLE IF NOT EXISTS mobile_challenges (
 		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 		user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-		challenge_id VARCHAR(255) NOT NULL,
-		challenge_hash VARCHAR(255) NOT NULL,
-		device_label VARCHAR(255),
+		challenge VARCHAR(255) NOT NULL,
 		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-		expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-		UNIQUE(challenge_id)
+		expires_at TIMESTAMP WITH TIME ZONE NOT NULL
 	);
 	
 	-- Create link_tokens table
@@ -140,7 +137,6 @@ func applyMigrations(db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 	CREATE INDEX IF NOT EXISTS idx_sessions_refresh_token_hash ON sessions(refresh_hash);
 	CREATE INDEX IF NOT EXISTS idx_mobile_challenges_user_id ON mobile_challenges(user_id);
-	CREATE INDEX IF NOT EXISTS idx_mobile_challenges_challenge_id ON mobile_challenges(challenge_id);
 	CREATE INDEX IF NOT EXISTS idx_link_tokens_user_id ON link_tokens(user_id);
 	CREATE INDEX IF NOT EXISTS idx_link_tokens_token_hash ON link_tokens(token_hash);
 	CREATE INDEX IF NOT EXISTS idx_routine_logs_user_id ON routine_logs(user_id);
