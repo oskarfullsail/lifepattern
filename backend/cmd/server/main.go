@@ -81,14 +81,15 @@ func applyMigrations(db *sql.DB) error {
 		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 		user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 		cred_id UUID REFERENCES webauthn_credentials(id) ON DELETE SET NULL,
-		refresh_token_hash VARCHAR(255) NOT NULL,
+		refresh_hash VARCHAR(255) NOT NULL,
 		device_label VARCHAR(255),
 		ip_fingerprint VARCHAR(255),
-		user_agent TEXT,
+		user_agent_hash VARCHAR(255),
 		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+		last_used_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 		expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
 		revoked_at TIMESTAMP WITH TIME ZONE,
-		UNIQUE(refresh_token_hash)
+		UNIQUE(refresh_hash)
 	);
 	
 	-- Create mobile_challenges table
@@ -137,7 +138,7 @@ func applyMigrations(db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_user_credentials_user_id ON user_credentials(user_id);
 	CREATE INDEX IF NOT EXISTS idx_webauthn_credentials_user_id ON webauthn_credentials(user_id);
 	CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
-	CREATE INDEX IF NOT EXISTS idx_sessions_refresh_token_hash ON sessions(refresh_token_hash);
+	CREATE INDEX IF NOT EXISTS idx_sessions_refresh_token_hash ON sessions(refresh_hash);
 	CREATE INDEX IF NOT EXISTS idx_mobile_challenges_user_id ON mobile_challenges(user_id);
 	CREATE INDEX IF NOT EXISTS idx_mobile_challenges_challenge_id ON mobile_challenges(challenge_id);
 	CREATE INDEX IF NOT EXISTS idx_link_tokens_user_id ON link_tokens(user_id);
