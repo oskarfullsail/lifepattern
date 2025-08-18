@@ -11,14 +11,14 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
-COPY requirements.txt .
+COPY ai-service/requirements.txt .
 
 # Install Python dependencies with increased timeout and retries, and upgrade pip first
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir --timeout=300 --retries=3 -r requirements.txt
 
 # Copy application code
-COPY . .
+COPY ai-service/ .
 
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash app && \
