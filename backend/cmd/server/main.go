@@ -91,6 +91,21 @@ func applyMigrations(db *sql.DB) error {
 		revoked_at TIMESTAMP WITH TIME ZONE,
 		UNIQUE(refresh_hash)
 	);
+
+	-- Add refresh_hash column if it doesn't exist (for existing databases)
+	DO $$
+	BEGIN
+		IF NOT EXISTS (
+			SELECT 1 FROM information_schema.columns 
+			WHERE table_name = 'sessions' AND column_name = 'refresh_hash'
+		) THEN
+			ALTER TABLE sessions ADD COLUMN refresh_hash VARCHAR(255) NOT NULL DEFAULT gen_random_uuid()::text;
+			-- Update existing rows to have unique refresh_hash values
+			UPDATE sessions SET refresh_hash = gen_random_uuid()::text WHERE refresh_hash = gen_random_uuid()::text;
+			-- Add unique constraint
+			ALTER TABLE sessions ADD CONSTRAINT sessions_refresh_hash_unique UNIQUE (refresh_hash);
+		END IF;
+	END $$;
 	
 	-- Create mobile_challenges table
 	CREATE TABLE IF NOT EXISTS mobile_challenges (
@@ -152,7 +167,16 @@ func applyMigrations(db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_user_credentials_user_id ON user_credentials(user_id);
 	CREATE INDEX IF NOT EXISTS idx_webauthn_credentials_user_id ON webauthn_credentials(user_id);
 	CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
-	CREATE INDEX IF NOT EXISTS idx_sessions_refresh_token_hash ON sessions(refresh_hash);
+	-- Create sessions indexes conditionally
+	DO $$
+	BEGIN
+		IF EXISTS (
+			SELECT 1 FROM information_schema.columns 
+			WHERE table_name = 'sessions' AND column_name = 'refresh_hash'
+		) THEN
+			CREATE INDEX IF NOT EXISTS idx_sessions_refresh_token_hash ON sessions(refresh_hash);
+		END IF;
+	END $$;
 	CREATE INDEX IF NOT EXISTS idx_mobile_challenges_user_id ON mobile_challenges(user_id);
 	CREATE INDEX IF NOT EXISTS idx_link_tokens_user_id ON link_tokens(user_id);
 	CREATE INDEX IF NOT EXISTS idx_link_tokens_token_hash ON link_tokens(token_hash);
