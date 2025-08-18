@@ -117,17 +117,34 @@ func applyMigrations(db *sql.DB) error {
 	CREATE TABLE IF NOT EXISTS routine_logs (
 		id SERIAL PRIMARY KEY,
 		user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-		sleep_hours DECIMAL(3,1),
-		meal_times TEXT[],
-		screen_time INTEGER,
-		exercise_duration INTEGER,
-		wake_up_time TIME,
-		bed_time TIME,
-		water_intake INTEGER,
-		stress_level INTEGER CHECK (stress_level >= 1 AND stress_level <= 10),
+		sleep_hours DECIMAL(3,1) NOT NULL CHECK (sleep_hours >= 0 AND sleep_hours <= 24),
+		meal_times JSONB NOT NULL, -- Array of meal time strings
+		screen_time DECIMAL(4,1) NOT NULL CHECK (screen_time >= 0 AND screen_time <= 24),
+		exercise_duration DECIMAL(3,1) NOT NULL CHECK (exercise_duration >= 0 AND exercise_duration <= 24),
+		wake_up_time VARCHAR(5) NOT NULL, -- Format: HH:MM
+		bed_time VARCHAR(5) NOT NULL, -- Format: HH:MM
+		water_intake DECIMAL(3,1) NOT NULL CHECK (water_intake >= 0 AND water_intake <= 20),
+		stress_level INTEGER NOT NULL CHECK (stress_level >= 1 AND stress_level <= 10),
 		log_date DATE NOT NULL,
 		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-		UNIQUE(user_id, log_date)
+		updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+	);
+
+	-- Create ai_reports table
+	CREATE TABLE IF NOT EXISTS ai_reports (
+		id SERIAL PRIMARY KEY,
+		routine_log_id INTEGER NOT NULL REFERENCES routine_logs(id) ON DELETE CASCADE,
+		is_anomaly BOOLEAN NOT NULL,
+		confidence_score DECIMAL(3,3) NOT NULL CHECK (confidence_score >= 0 AND confidence_score <= 1),
+		anomaly_type VARCHAR(50) NOT NULL,
+		recommendations JSONB NOT NULL, -- Array of recommendation strings
+		enhanced_recommendations JSONB DEFAULT '[]'::jsonb, -- Enhanced recommendations
+		behavioral_contexts TEXT[] DEFAULT '{}', -- Behavioral contexts
+		ai_service_response JSONB NOT NULL, -- Full response from AI service
+		drift_analysis JSONB, -- Enhanced drift detection results
+		baseline_comparison JSONB, -- User baseline comparison data
+		model_version VARCHAR(50), -- AI model version for auditability
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 	);
 	
 	-- Create indexes
@@ -140,7 +157,10 @@ func applyMigrations(db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_link_tokens_user_id ON link_tokens(user_id);
 	CREATE INDEX IF NOT EXISTS idx_link_tokens_token_hash ON link_tokens(token_hash);
 	CREATE INDEX IF NOT EXISTS idx_routine_logs_user_id ON routine_logs(user_id);
-	CREATE INDEX IF NOT EXISTS idx_routine_logs_log_date ON routine_logs(log_date);
+	CREATE INDEX IF NOT EXISTS idx_routine_logs_user_date ON routine_logs(user_id, log_date);
+	CREATE INDEX IF NOT EXISTS idx_ai_reports_routine_log_id ON ai_reports(routine_log_id);
+	CREATE INDEX IF NOT EXISTS idx_ai_reports_enhanced_recommendations ON ai_reports USING GIN (enhanced_recommendations);
+	CREATE INDEX IF NOT EXISTS idx_ai_reports_behavioral_contexts ON ai_reports USING GIN (behavioral_contexts);
 	`
 
 	if _, err := db.Exec(completeSchema); err != nil {
