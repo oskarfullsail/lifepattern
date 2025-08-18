@@ -26,8 +26,8 @@ services:
     name: lifepattern-ai-service
     env: docker
     plan: free
-    dockerfilePath: ./ai-service/Dockerfile
-    dockerContext: .
+    dockerfilePath: ./Dockerfile
+    dockerContext: ./ai-service
     envVars:
       - key: PORT
         value: 8000
