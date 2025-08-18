@@ -1,0 +1,85 @@
+========================================
+LifePattern Services - Curl Commands for Testing
+========================================
+
+Your advisor can use these curl commands to test both services.
+Copy and paste each command into a terminal/command prompt.
+
+========================================
+TEST 1: AI Service Health Check
+========================================
+curl -s "https://lifepattern-ai-service.onrender.com/health"
+
+Expected Response: {"status":"healthy","model_loaded":true,"model_accuracy":1.0,"timestamp":"..."}
+
+========================================
+TEST 2: Backend Health Check
+========================================
+curl -s "https://lifepattern-backend.onrender.com/health"
+
+Expected Response: {"status":"healthy","timestamp":"..."}
+
+========================================
+TEST 3: AI Service Enhanced Prediction
+========================================
+curl -X POST "https://lifepattern-ai-service.onrender.com/predict" \
+  -H "Content-Type: application/json" \
+  -d "{\"sleep_hours\": 5.0, \"meal_times\": [\"08:30\", \"13:00\", \"19:30\"], \"screen_time\": 8.0, \"exercise_duration\": 0.3, \"wake_up_time\": \"08:30\", \"bed_time\": \"01:00\", \"water_intake\": 1.5, \"stress_level\": 7}"
+
+Expected Response: JSON with enhanced_recommendations and behavioral_contexts
+
+========================================
+TEST 4: AI Service API Documentation
+========================================
+curl -s "https://lifepattern-ai-service.onrender.com/docs"
+
+Expected Response: HTML documentation page
+
+========================================
+TEST 5: Backend API Endpoints
+========================================
+curl -s "https://lifepattern-backend.onrender.com/api/health"
+
+Expected Response: {"status":"healthy","timestamp":"..."}
+
+========================================
+SERVICE URLs
+========================================
+AI Service: https://lifepattern-ai-service.onrender.com
+Backend: https://lifepattern-backend.onrender.com
+
+Health Checks:
+- AI Health: https://lifepattern-ai-service.onrender.com/health
+- Backend Health: https://lifepattern-backend.onrender.com/health
+
+Documentation:
+- AI Docs: https://lifepattern-ai-service.onrender.com/docs
+
+========================================
+WINDOWS COMMAND PROMPT VERSION
+========================================
+For Windows Command Prompt, use these single-line versions:
+
+TEST 1: AI Service Health Check
+curl -s "https://lifepattern-ai-service.onrender.com/health"
+
+TEST 2: Backend Health Check
+curl -s "https://lifepattern-backend.onrender.com/health"
+
+TEST 3: AI Service Enhanced Prediction
+curl -X POST "https://lifepattern-ai-service.onrender.com/predict" -H "Content-Type: application/json" -d "{\"sleep_hours\": 5.0, \"meal_times\": [\"08:30\", \"13:00\", \"19:30\"], \"screen_time\": 8.0, \"exercise_duration\": 0.3, \"wake_up_time\": \"08:30\", \"bed_time\": \"01:00\", \"water_intake\": 1.5, \"stress_level\": 7}"
+
+TEST 4: AI Service API Documentation
+curl -s "https://lifepattern-ai-service.onrender.com/docs"
+
+TEST 5: Backend API Endpoints
+curl -s "https://lifepattern-backend.onrender.com/api/health"
+
+========================================
+Notes for Advisor
+========================================
+- All commands should return HTTP 200 status
+- Test 3 should show enhanced_recommendations in the response
+- If any test fails, check if the services are deployed and running
+- The AI service includes advanced features like behavioral analysis
+- Both services are deployed on Render cloud platform 
