@@ -13,19 +13,73 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.lifepattern.ai",
+      "buildNumber": "1.0.0",
+      "infoPlist": {
+        "NSHealthShareUsageDescription": "LifePattern needs access to your health data to provide personalized insights and recommendations.",
+        "NSHealthUpdateUsageDescription": "LifePattern needs to update your health data to track your progress and sync with other devices.",
+        "NSLocationWhenInUseUsageDescription": "LifePattern uses location data to provide context-aware recommendations.",
+        "NSMotionUsageDescription": "LifePattern uses motion data to track your activity levels and provide personalized insights.",
+        "NSCameraUsageDescription": "LifePattern uses camera access for QR code scanning during device linking.",
+        "NSMicrophoneUsageDescription": "LifePattern uses microphone access for voice input and health monitoring.",
+        "UIBackgroundModes": [
+          "health-kit",
+          "location",
+          "background-fetch",
+          "remote-notification"
+        ]
+      },
+      "entitlements": {
+        "com.apple.developer.healthkit": true,
+        "com.apple.developer.healthkit.access": [
+          "health-records"
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.lifepattern.ai",
+      "versionCode": 1,
+      "permissions": [
+        "ACTIVITY_RECOGNITION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "RECORD_AUDIO",
+        "WAKE_LOCK",
+        "FOREGROUND_SERVICE",
+        "ACCESS_NETWORK_STATE",
+        "INTERNET",
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED",
+        "DETECT_SCREEN_CAPTURE"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "lifepattern"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "bundler": "webpack",
       "favicon": "./assets/favicon.png"
     },
-    "scheme": "lifepattern-ai"
+    "scheme": "lifepattern-ai",
+    "plugins": []
   }
 }

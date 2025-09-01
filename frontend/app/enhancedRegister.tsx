@@ -53,7 +53,7 @@ export default function EnhancedRegister({ navigation }: Props) {
   
   // Mobile auth state
   const [mobileChallengeId, setMobileChallengeId] = useState<string>('');
-  const [mobileChallenge, setMobileChallenge] = useState<string>('');
+  const [mobileChallengeText, setMobileChallengeText] = useState<string>('');
   const [mobileResponse, setMobileResponse] = useState<string>('');
   
   // New registration state
@@ -228,7 +228,7 @@ export default function EnhancedRegister({ navigation }: Props) {
       });
 
       setMobileChallengeId(response.challenge_id);
-      setMobileChallenge(response.challenge);
+      setMobileChallengeText(response.challenge);
       setCurrentStep('verification');
 
       Alert.alert(
@@ -521,7 +521,7 @@ export default function EnhancedRegister({ navigation }: Props) {
           <View style={styles.verificationCard}>
             <Text style={styles.verificationTitle}>Mobile Challenge</Text>
             <Text style={styles.verificationText}>
-              Challenge: {mobileChallenge}
+              Challenge: {mobileChallengeText}
             </Text>
           </View>
 

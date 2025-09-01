@@ -71,10 +71,17 @@ func (s *RoutineService) CreateRoutineLog(routineLog database.RoutineLog) (*Crea
 			ConfidenceScore:    aiResponse.ConfidenceScore,
 			AnomalyType:        aiResponse.AnomalyType,
 			Recommendations:    aiResponse.Recommendations,
+			BehavioralContexts: aiResponse.BehavioralContexts,
 			AIServiceResponse:  aiResponse.Timestamp,
 			DriftAnalysis:      json.RawMessage("{}"), // Will be populated from aiResponse.DriftAnalysis
 			BaselineComparison: json.RawMessage("{}"), // Will be populated from aiResponse.BaselineComparison
 			ModelVersion:       "1.0.0",
+		}
+
+		// Convert enhanced recommendations to JSON
+		if aiResponse.EnhancedRecommendations != nil {
+			enhancedJSON, _ := json.Marshal(aiResponse.EnhancedRecommendations)
+			aiReport.EnhancedRecommendations = enhancedJSON
 		}
 
 		// Convert drift analysis to JSON

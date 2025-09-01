@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 
@@ -24,26 +25,35 @@ func NewAuthMiddleware(jwtService *auth.JWTService) *AuthMiddleware {
 // RequireAuth middleware that requires valid JWT token
 func (am *AuthMiddleware) RequireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("🔐 Auth middleware processing request: %s %s", r.Method, r.URL.Path)
+		log.Printf("🔐 Auth middleware - Headers: %v", r.Header)
+
 		// Extract token from Authorization header
 		token, err := extractTokenFromHeader(r)
 		if err != nil {
+			log.Printf("❌ Failed to extract token: %v", err)
 			http.Error(w, "Unauthorized: Invalid token format", http.StatusUnauthorized)
 			return
 		}
+		log.Printf("🔐 Auth middleware - Token extracted successfully")
 
 		// Validate the token
 		claims, err := am.jwtService.ValidateAccessToken(token)
 		if err != nil {
+			log.Printf("❌ Failed to validate token: %v", err)
 			http.Error(w, "Unauthorized: Invalid token", http.StatusUnauthorized)
 			return
 		}
 
+		log.Printf("✅ Token validated successfully for user: %s", claims.UserID)
+
 		// Add claims to request context
-		ctx := context.WithValue(r.Context(), "user_id", claims.UserID)
-		ctx = context.WithValue(ctx, "cred_id", claims.CredID)
-		ctx = context.WithValue(ctx, "session_id", claims.SessionID)
+		ctx := context.WithValue(r.Context(), "user_id", claims.UserID.String())
+		ctx = context.WithValue(ctx, "cred_id", claims.CredID.String())
+		ctx = context.WithValue(ctx, "session_id", claims.SessionID.String())
 		ctx = context.WithValue(ctx, "device_label", claims.DeviceLabel)
 
+		log.Printf("🔐 Auth middleware - Context updated, calling next handler")
 		// Call the next handler
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

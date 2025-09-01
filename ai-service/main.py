@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 from typing import Dict, Any, List
 import time # Added for model retraining
+import numpy as np
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
@@ -12,8 +13,7 @@ from pydantic import BaseModel, Field
 from models.anomaly_detector import AnomalyDetector
 from models.behavioral_analyzer import BehavioralAnalyzer, RecommendationType, BehavioralContext
 from utils.content_manager import ContentManager
-# from models.drift_detector_alt import DriftDetectorAlt as DriftDetector
-# from models.drift_detector import DriftDetector
+from models.drift_detector_alt import DriftDetectorAlt as DriftDetector
 from utils.data_generator import generate_mock_dataset
 from config import config
 
@@ -43,7 +43,7 @@ app.add_middleware(
 
 # Initialize the anomaly detector and drift detector
 anomaly_detector = AnomalyDetector()
-# drift_detector = DriftDetector()
+drift_detector = DriftDetector()
 
 # Initialize enhanced behavioral analysis components
 behavioral_analyzer = BehavioralAnalyzer()
@@ -209,12 +209,58 @@ async def predict_anomaly(data: DailyRoutineData):
         historical_data = [current_data_dict] * 30  # Simulate 30 days of similar data
         
         # Perform comprehensive drift analysis
-        # drift_analysis = drift_detector.analyze_routine_drift(
-        #     user_id="demo_user",
-        #     current_data=current_data_dict,
-        #     historical_data=historical_data
-        # )
-        drift_analysis = {"drift_detected": False, "confidence": 0.0, "drift_type": "no_drift"}
+        try:
+            # Calculate baseline if not exists
+            if "demo_user" not in drift_detector.user_baselines:
+                drift_detector.calculate_baseline("demo_user", historical_data)
+            
+            # Detect drift using statistical methods
+            drift_analysis = drift_detector.detect_drift_statistical(
+                user_id="demo_user",
+                recent_data=historical_data[-10:]  # Use last 10 days for recent analysis
+            )
+            
+            # Convert numpy types to Python native types for JSON serialization
+            def convert_numpy_types(obj):
+                if hasattr(obj, 'item'):  # numpy scalar
+                    return obj.item()
+                elif isinstance(obj, dict):
+                    return {k: convert_numpy_types(v) for k, v in obj.items()}
+                elif isinstance(obj, list):
+                    return [convert_numpy_types(v) for v in obj]
+                elif isinstance(obj, (np.bool_, np.integer, np.floating)):
+                    return obj.item()
+                elif isinstance(obj, (np.ndarray,)):
+                    return obj.tolist()
+                return obj
+            
+            # Convert drift analysis to JSON-serializable format
+            drift_analysis = convert_numpy_types(drift_analysis)
+            
+            # Add baseline comparison
+            baseline = drift_detector.user_baselines.get("demo_user", {})
+            baseline_comparison = {
+                'sleep_hours': {
+                    'current': float(current_data_dict['sleep_hours']),
+                    'baseline_mean': float(baseline.get('sleep_hours', {}).get('mean', 0)),
+                    'baseline_std': float(baseline.get('sleep_hours', {}).get('std', 0))
+                },
+                'screen_time': {
+                    'current': float(current_data_dict['screen_time']),
+                    'baseline_mean': float(baseline.get('screen_time', {}).get('mean', 0)),
+                    'baseline_std': float(baseline.get('screen_time', {}).get('std', 0))
+                },
+                'exercise_duration': {
+                    'current': float(current_data_dict['exercise_duration']),
+                    'baseline_mean': float(baseline.get('exercise_duration', {}).get('mean', 0)),
+                    'baseline_std': float(baseline.get('exercise_duration', {}).get('std', 0))
+                }
+            }
+            drift_analysis['baseline_comparison'] = baseline_comparison
+            
+        except Exception as e:
+            logger.warning(f"Drift detection failed: {e}")
+            drift_analysis = {"drift_detected": False, "confidence": 0.0, "drift_type": "error", "error": str(e)}
         
         response = PredictionResponse(
             is_anomaly=is_anomaly,

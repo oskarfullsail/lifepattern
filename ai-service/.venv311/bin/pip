@@ -1,4 +1,4 @@
-#!/Users/oskarsanchez-chagollan/School_Projects/lifepattern/ai-service/.venv311/bin/python3.11
+#!/Users/oskarsanchez-chagollan/School_Projects/lifepattern/ai-service/.venv311/bin/python3.13
 # -*- coding: utf-8 -*-
 import re
 import sys

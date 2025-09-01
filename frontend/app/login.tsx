@@ -12,6 +12,7 @@ import {
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation';
 import userManager, { UserCredentials } from './utils/userManager';
+import { requestPasswordRecovery } from './api/endpoint';
 
 type LoginScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
@@ -135,13 +136,61 @@ export default function Login({ navigation }: Props) {
     }
   };
 
-  const handleForgotCredentials = () => {
+  const handleForgotCredentials = async () => {
+    if (!username.trim()) {
+      Alert.alert('Error', 'Please enter your username first to recover your passphrase.');
+      return;
+    }
+
     Alert.alert(
-      'Forgot Credentials?',
-      'Since we don\'t store personal information, you\'ll need to create a new account. Your data will be preserved on this device.',
+      'Recover Passphrase',
+      `Do you want to generate a new passphrase for user "${username.trim()}"? This will invalidate your current passphrase.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Create New Account', onPress: handleCreateAccount }
+        { 
+          text: 'Recover Passphrase', 
+          onPress: async () => {
+            try {
+              setIsLoading(true);
+              console.log('🔄 Requesting password recovery for:', username.trim());
+              
+              const response = await requestPasswordRecovery({ username: username.trim() });
+              
+              if (response.success && response.temp_credentials) {
+                console.log('✅ Password recovery successful');
+                
+                Alert.alert(
+                  'Passphrase Recovery Successful',
+                  `Your new passphrase is: ${response.temp_credentials.passphrase}\n\n⚠️ Please save this passphrase securely and change it after login.`,
+                  [
+                    {
+                      text: 'Copy to Clipboard',
+                      onPress: () => {
+                        // In a real app, you'd copy to clipboard here
+                        console.log('Passphrase copied to clipboard');
+                      }
+                    },
+                    {
+                      text: 'OK',
+                      onPress: () => {
+                        // Auto-fill the passphrase field
+                        setPassphrase(response.temp_credentials!.passphrase);
+                      }
+                    }
+                  ]
+                );
+              } else {
+                console.log('❌ Password recovery failed:', response.message);
+                Alert.alert('Recovery Failed', response.message || 'Failed to recover passphrase. Please try again.');
+              }
+            } catch (error) {
+              console.error('❌ Password recovery error:', error);
+              Alert.alert('Error', 'Failed to recover passphrase. Please check your connection and try again.');
+            } finally {
+              setIsLoading(false);
+            }
+          }
+        }
       ]
     );
   };

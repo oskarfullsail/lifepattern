@@ -13,6 +13,7 @@ import EnhancedRegisterScreen from './app/enhancedRegister';
 import UserDashboardScreen from './app/userDashboard';
 import DataImportScreen from './app/dataImport';
 import DataVisualizationScreen from './app/dataVisualization';
+import WatchDataModuleScreen from './app/watchDataModule';
 import SettingsScreen from './app/settings';
 
 export type RootStackParamList = {
@@ -26,6 +27,7 @@ export type RootStackParamList = {
   UserDashboard: undefined;
   DataImport: { source?: string };
   DataVisualization: { data?: any };
+  WatchDataModule: undefined;
   ManualDataEntry: undefined;
   Settings: undefined;
 };
@@ -125,6 +127,14 @@ export default function Navigation() {
           component={DataVisualizationScreen} 
           options={{ 
             title: 'Health Data',
+            headerBackTitle: 'Back'
+          }} 
+        />
+        <Stack.Screen 
+          name="WatchDataModule" 
+          component={WatchDataModuleScreen} 
+          options={{ 
+            title: 'Watch Data',
             headerBackTitle: 'Back'
           }} 
         />

@@ -2,6 +2,7 @@ package services
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -31,13 +32,27 @@ type AIServiceRequest struct {
 }
 
 type AIServiceResponse struct {
-	IsAnomaly          bool                   `json:"is_anomaly"`
-	ConfidenceScore    float64                `json:"confidence_score"`
-	AnomalyType        string                 `json:"anomaly_type"`
-	Recommendations    []string               `json:"recommendations"`
-	Timestamp          string                 `json:"timestamp"`
-	DriftAnalysis      map[string]interface{} `json:"drift_analysis,omitempty"`
-	BaselineComparison map[string]interface{} `json:"baseline_comparison,omitempty"`
+	IsAnomaly               bool                     `json:"is_anomaly"`
+	ConfidenceScore         float64                  `json:"confidence_score"`
+	AnomalyType             string                   `json:"anomaly_type"`
+	Recommendations         []string                 `json:"recommendations"`
+	EnhancedRecommendations []EnhancedRecommendation `json:"enhanced_recommendations,omitempty"`
+	BehavioralContexts      []string                 `json:"behavioral_contexts,omitempty"`
+	Timestamp               string                   `json:"timestamp"`
+	DriftAnalysis           map[string]interface{}   `json:"drift_analysis,omitempty"`
+	BaselineComparison      map[string]interface{}   `json:"baseline_comparison,omitempty"`
+}
+
+// EnhancedRecommendation represents a rich recommendation with context and metadata
+type EnhancedRecommendation struct {
+	Type            string `json:"type"`
+	Title           string `json:"title"`
+	Description     string `json:"description"`
+	ActionURL       string `json:"action_url,omitempty"`
+	Priority        int    `json:"priority,omitempty"`
+	Context         string `json:"context,omitempty"`
+	EstimatedImpact string `json:"estimated_impact,omitempty"`
+	TimeSensitive   bool   `json:"time_sensitive,omitempty"`
 }
 
 func NewAIService(baseURL string) *AIService {
@@ -205,11 +220,21 @@ func calculateHealthScore(log database.RoutineLog) float64 {
 }
 
 // CheckHealth checks if the AI service is healthy
-// This method verifies the AI service is available for communication
+// This is a non-blocking health check that won't affect startup
 func (s *AIService) CheckHealth() error {
 	log.Printf("🏥 Checking AI service health at %s/health", s.baseURL)
 
-	resp, err := s.httpClient.Get(s.baseURL + "/health")
+	// Create a context with a shorter timeout for health checks
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", s.baseURL+"/health", nil)
+	if err != nil {
+		log.Printf("❌ AI service health check failed to create request: %v", err)
+		return fmt.Errorf("failed to create health check request: %w", err)
+	}
+
+	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		log.Printf("❌ AI service health check failed: %v", err)
 		return fmt.Errorf("failed to check AI service health: %w", err)

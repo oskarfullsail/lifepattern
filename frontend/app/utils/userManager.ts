@@ -470,6 +470,76 @@ export class UserManager {
       return null;
     }
   }
+
+  // Get refresh token for API calls
+  async getRefreshToken(): Promise<string | null> {
+    try {
+      return await secureStorage.getItemAsync('refreshToken');
+    } catch (error) {
+      console.error('Error getting refresh token:', error);
+      return null;
+    }
+  }
+
+  // iOS-specific token validation
+  async validateTokens(): Promise<{ accessToken: boolean; refreshToken: boolean }> {
+    try {
+      const accessToken = await this.getAccessToken();
+      const refreshToken = await this.getRefreshToken();
+      
+      const result = {
+        accessToken: !!accessToken,
+        refreshToken: !!refreshToken
+      };
+      
+      if (Platform.OS === 'ios') {
+        console.log('🍎 iOS Token Validation:');
+        console.log(`   Access Token: ${result.accessToken ? '✅ Found' : '❌ Missing'}`);
+        console.log(`   Refresh Token: ${result.refreshToken ? '✅ Found' : '❌ Missing'}`);
+        
+        if (accessToken) {
+          console.log(`   Access Token Preview: ${accessToken.substring(0, 20)}...`);
+        }
+        if (refreshToken) {
+          console.log(`   Refresh Token Preview: ${refreshToken.substring(0, 20)}...`);
+        }
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('❌ Token validation failed:', error);
+      return { accessToken: false, refreshToken: false };
+    }
+  }
+
+  // Force token refresh (for debugging)
+  async forceTokenRefresh(): Promise<boolean> {
+    try {
+      console.log('🔄 Force refreshing tokens...');
+      
+      const refreshToken = await this.getRefreshToken();
+      if (!refreshToken) {
+        console.log('❌ No refresh token available for force refresh');
+        return false;
+      }
+      
+      // Import refresh token function
+      const { refreshToken: refreshTokenFunction } = await import('../api/endpoint');
+      
+      const response = await refreshTokenFunction({
+        refresh_token: refreshToken
+      });
+      
+      // Store new tokens
+      await this.storeTokens(response.access_token, refreshToken);
+      
+      console.log('✅ Force token refresh successful');
+      return true;
+    } catch (error) {
+      console.error('❌ Force token refresh failed:', error);
+      return false;
+    }
+  }
 }
 
 export default UserManager.getInstance(); 

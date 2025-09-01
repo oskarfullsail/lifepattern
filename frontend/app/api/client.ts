@@ -2,14 +2,18 @@ import axios from 'axios';
 import { Platform } from 'react-native';
 import { currentConfig } from '../config/environment';
 import userManager from '../utils/userManager';
+import { refreshToken } from './endpoint';
 
 // Determine the correct backend URL based on the environment and platform
 const getBackendUrl = () => {
   // Use environment configuration
   const config = currentConfig;
   
-  // For web, always use the environment config
+  // For web development, use localhost
   if (Platform.OS === 'web') {
+    if (__DEV__) {
+      return 'http://localhost:8080';
+    }
     return config.backendUrl;
   }
   
@@ -37,6 +41,9 @@ const BASE_URL = getBackendUrl();
 
 console.log(`🔗 API Client configured for ${Platform.OS} with URL: ${BASE_URL}`);
 
+// Flag to prevent multiple simultaneous token refresh attempts
+let isRefreshingToken = false;
+
 const apiClient = axios.create({
   baseURL: BASE_URL,
   timeout: currentConfig.apiTimeout,
@@ -50,14 +57,22 @@ apiClient.interceptors.request.use(
   async (config) => {
     console.log(`📤 API Request: ${config.method?.toUpperCase()} ${config.url}`);
     
-    // Add access token to requests if available
-    try {
-      const accessToken = await userManager.getAccessToken();
-      if (accessToken) {
-        config.headers.Authorization = `Bearer ${accessToken}`;
+    // Define public endpoints that don't need authentication
+    const publicEndpoints = ['/health', '/auth/login', '/auth/register', '/auth/recovery'];
+    const isPublicEndpoint = publicEndpoints.some(endpoint => config.url?.includes(endpoint));
+    
+    // Add access token to requests if available and not a public endpoint
+    if (!isPublicEndpoint) {
+      try {
+        const accessToken = await userManager.getAccessToken();
+        if (accessToken) {
+          config.headers.Authorization = `Bearer ${accessToken}`;
+        }
+      } catch (error) {
+        console.log('No access token available for request');
       }
-    } catch (error) {
-      console.log('No access token available for request');
+    } else {
+      console.log('🔓 Public endpoint - skipping authentication');
     }
     
     return config;
@@ -73,7 +88,7 @@ apiClient.interceptors.response.use(
     console.log(`📥 API Response: ${response.status} ${response.config.url}`);
     return response;
   },
-  (error) => {
+  async (error) => {
     console.error('❌ API Response Error:', {
       url: error.config?.url,
       method: error.config?.method,
@@ -81,6 +96,79 @@ apiClient.interceptors.response.use(
       message: error.message,
       data: error.response?.data
     });
+    
+    // Handle 401 Unauthorized errors (token expired)
+    if (error.response?.status === 401 && error.config && !error.config._retry) {
+      console.log('🔄 Token expired, attempting to refresh...');
+      console.log(`📱 Platform: ${Platform.OS}`);
+
+      // Prevent multiple simultaneous refresh attempts
+      if (isRefreshingToken) {
+        console.log('⏳ Token refresh already in progress, skipping');
+        throw error;
+      }
+      
+      try {
+        // Mark this request as retried to prevent infinite loops
+        error.config._retry = true;
+        isRefreshingToken = true;
+        
+        // Get refresh token with iOS-specific handling
+        const refreshTokenValue = await userManager.getRefreshToken();
+        if (!refreshTokenValue) {
+          console.log('❌ No refresh token available');
+          if (Platform.OS === 'ios') {
+            console.log('🍎 iOS: Refresh token not found in storage');
+          }
+          throw error;
+        }
+        
+        console.log(`🔐 Refresh token found: ${refreshTokenValue.substring(0, 10)}...`);
+        
+        // Attempt to refresh the token
+        const refreshResponse = await refreshToken({
+          refresh_token: refreshTokenValue
+        });
+        
+        console.log('✅ Token refresh API call successful');
+        
+        // Store new access token (refresh token remains the same)
+        await userManager.storeTokens(refreshResponse.access_token, refreshTokenValue);
+        
+        // Update the original request with new token
+        error.config.headers.Authorization = `Bearer ${refreshResponse.access_token}`;
+        
+        console.log('✅ Token refreshed successfully, retrying original request');
+        
+        // Retry the original request with new token
+        return apiClient(error.config);
+        
+      } catch (refreshError: any) {
+        console.error('❌ Token refresh failed:', refreshError);
+        
+        if (Platform.OS === 'ios') {
+          console.log('🍎 iOS: Token refresh failed, possible causes:');
+          console.log('   - Network connectivity issues');
+          console.log('   - App background state');
+          console.log('   - Keychain access problems');
+          console.log('   - Refresh token expired');
+        }
+        
+        // If refresh fails, redirect to login
+        console.log('🔐 Redirecting to login due to authentication failure');
+        
+        // Clear stored tokens on refresh failure
+        try {
+          await userManager.clearSession();
+        } catch (clearError) {
+          console.error('❌ Failed to clear session:', clearError);
+        }
+        
+        throw error;
+      } finally {
+        isRefreshingToken = false;
+      }
+    }
     
     // Provide more helpful error messages
     if (error.code === 'ECONNREFUSED') {
@@ -90,6 +178,14 @@ apiClient.interceptors.response.use(
     
     if (error.code === 'ENOTFOUND') {
       console.error('🌐 Host not found. Check your backend URL configuration.');
+    }
+    
+    if (error.message === 'Network Error') {
+      console.error('🌐 Network Error - Possible causes:');
+      console.error('   1. Backend not running: docker-compose up -d');
+      console.error('   2. Wrong URL for platform:', Platform.OS);
+      console.error('   3. CORS issues (for web development)');
+      console.error('   4. Firewall blocking connection');
     }
     
     return Promise.reject(error);

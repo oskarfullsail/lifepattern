@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -556,13 +558,33 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TEMPORARY: Skip session creation for testing
-	log.Printf("✅ User created successfully, skipping session creation for testing")
+	// Create session
+	session, refreshToken, err := h.sessionService.CreateSession(userID, uuid.Nil, req.DeviceLabel, r.RemoteAddr, r.UserAgent())
+	if err != nil {
+		log.Printf("❌ Failed to create session: %v", err)
+		http.Error(w, "Failed to create session", http.StatusInternalServerError)
+		return
+	}
+
+	// Save session to database
+	if err := h.repo.SaveSession(*session); err != nil {
+		log.Printf("❌ Failed to save session: %v", err)
+		http.Error(w, "Failed to save session", http.StatusInternalServerError)
+		return
+	}
+
+	// Generate access token
+	accessToken, err := h.jwtService.GenerateAccessToken(userID, uuid.Nil, session.ID, req.DeviceLabel)
+	if err != nil {
+		log.Printf("❌ Failed to generate access token: %v", err)
+		http.Error(w, "Failed to generate access token", http.StatusInternalServerError)
+		return
+	}
 
 	response := database.AuthResponse{
 		UserID:       userID,
-		AccessToken:  "test-token",
-		RefreshToken: "test-refresh-token",
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
 		ExpiresIn:    900, // 15 minutes
 		DeviceLabel:  req.DeviceLabel,
 	}
@@ -687,42 +709,54 @@ func (h *AuthHandler) GetSessions(w http.ResponseWriter, r *http.Request) {
 
 // GenerateLinkToken handles generating a link token for cross-device authentication
 func (h *AuthHandler) GenerateLinkToken(w http.ResponseWriter, r *http.Request) {
+	log.Printf("🔗 GenerateLinkToken called - Method: %s, Path: %s", r.Method, r.URL.Path)
+
 	// Get user ID from context (user must be authenticated)
 	userID, err := h.getUserIDFromContext(r.Context())
 	if err != nil {
+		log.Printf("❌ GenerateLinkToken - Failed to get user ID from context: %v", err)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+	log.Printf("✅ GenerateLinkToken - User ID extracted: %s", userID)
 
 	var req struct {
 		DeviceLabel string `json:"device_label"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("❌ GenerateLinkToken - Failed to decode request body: %v", err)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
+	log.Printf("✅ GenerateLinkToken - Request decoded: device_label=%s", req.DeviceLabel)
 
 	if req.DeviceLabel == "" {
 		req.DeviceLabel = "Unknown Device"
+		log.Printf("⚠️ GenerateLinkToken - Empty device label, using default")
 	}
 
 	// Generate link token
+	log.Printf("🔄 GenerateLinkToken - Generating link token for user %s", userID)
 	linkToken, token, err := h.sessionService.GenerateLinkToken(userID, req.DeviceLabel, 10*time.Minute)
 	if err != nil {
-		log.Printf("❌ Failed to generate link token: %v", err)
+		log.Printf("❌ GenerateLinkToken - Failed to generate link token: %v", err)
 		http.Error(w, "Failed to generate link token", http.StatusInternalServerError)
 		return
 	}
+	log.Printf("✅ GenerateLinkToken - Link token generated successfully: %s", token)
 
 	// Save link token to database
+	log.Printf("💾 GenerateLinkToken - Saving link token to database")
 	if err := h.repo.SaveLinkToken(*linkToken); err != nil {
-		log.Printf("❌ Failed to save link token: %v", err)
+		log.Printf("❌ GenerateLinkToken - Failed to save link token: %v", err)
 		http.Error(w, "Failed to save link token", http.StatusInternalServerError)
 		return
 	}
+	log.Printf("✅ GenerateLinkToken - Link token saved to database")
 
 	// Generate QR code
+	log.Printf("📱 GenerateLinkToken - Generating QR code")
 	qrCode := h.mobileService.GenerateQRCode(token, req.DeviceLabel)
 
 	response := database.LinkTokenResponse{
@@ -732,8 +766,10 @@ func (h *AuthHandler) GenerateLinkToken(w http.ResponseWriter, r *http.Request) 
 		DeviceLabel: req.DeviceLabel,
 	}
 
+	log.Printf("✅ GenerateLinkToken - Response prepared, sending to client")
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+	log.Printf("🎉 GenerateLinkToken - Request completed successfully")
 }
 
 // VerifyLinkToken handles verifying a link token for cross-device authentication
@@ -880,11 +916,23 @@ func (h *AuthHandler) getUserIDFromRefreshToken(refreshToken string) (uuid.UUID,
 }
 
 func (h *AuthHandler) getUserIDFromContext(ctx context.Context) (uuid.UUID, error) {
+	log.Printf("🔍 getUserIDFromContext - Checking context for user_id")
+
 	userIDStr, ok := ctx.Value("user_id").(string)
 	if !ok {
+		log.Printf("❌ getUserIDFromContext - user_id not found in context or wrong type")
+		log.Printf("🔍 getUserIDFromContext - Context value: %v", ctx.Value("user_id"))
 		return uuid.Nil, fmt.Errorf("user_id not found in context")
 	}
-	return uuid.Parse(userIDStr)
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		log.Printf("❌ getUserIDFromContext - Failed to parse user_id as UUID: %v", err)
+		return uuid.Nil, fmt.Errorf("invalid user_id format")
+	}
+
+	log.Printf("✅ getUserIDFromContext - Found user_id in context: %s", userID)
+	return userID, nil
 }
 
 func (h *AuthHandler) getSessionIDFromContext(ctx context.Context) (uuid.UUID, error) {
@@ -893,4 +941,100 @@ func (h *AuthHandler) getSessionIDFromContext(ctx context.Context) (uuid.UUID, e
 		return uuid.Nil, fmt.Errorf("session_id not found in context")
 	}
 	return uuid.Parse(sessionIDStr)
+}
+
+// PasswordRecovery handles password recovery requests
+func (h *AuthHandler) PasswordRecovery(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Username string `json:"username"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Username == "" {
+		http.Error(w, "Username is required", http.StatusBadRequest)
+		return
+	}
+
+	// Check if user exists
+	userCred, err := h.repo.GetUserCredentialByUsername(req.Username)
+	if err != nil {
+		log.Printf("❌ User not found: %v", err)
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	// Generate new secure passphrase
+	newPassphrase := generateSecurePassphrase()
+	newSalt := generateSalt()
+
+	// Hash the new passphrase
+	hashedPassphrase := hashPassphrase(newPassphrase, newSalt)
+
+	// Update user credentials
+	userCred.HashedPassphrase = hashedPassphrase
+	userCred.Salt = newSalt
+	userCred.LastUsedAt = time.Now()
+
+	if err := h.repo.SaveUserCredential(*userCred); err != nil {
+		log.Printf("❌ Failed to update user credentials: %v", err)
+		http.Error(w, "Failed to update credentials", http.StatusInternalServerError)
+		return
+	}
+
+	response := struct {
+		Success         bool   `json:"success"`
+		Message         string `json:"message"`
+		TempCredentials struct {
+			Username   string `json:"username"`
+			Passphrase string `json:"passphrase"`
+		} `json:"temp_credentials"`
+	}{
+		Success: true,
+		Message: "Passphrase recovery successful. Please change your passphrase after login.",
+		TempCredentials: struct {
+			Username   string `json:"username"`
+			Passphrase string `json:"passphrase"`
+		}{
+			Username:   req.Username,
+			Passphrase: newPassphrase,
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// Helper functions for password recovery
+func generateSecurePassphrase() string {
+	// Generate a 16-character secure passphrase
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	result := make([]byte, 16)
+	for i := range result {
+		result[i] = charset[time.Now().UnixNano()%int64(len(charset))]
+		time.Sleep(1 * time.Nanosecond) // Add some entropy
+	}
+	return string(result)
+}
+
+func generateSalt() string {
+	// Generate a 32-byte salt
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/"
+	result := make([]byte, 32)
+	for i := range result {
+		result[i] = charset[time.Now().UnixNano()%int64(len(charset))]
+		time.Sleep(1 * time.Nanosecond) // Add some entropy
+	}
+	return string(result)
+}
+
+func hashPassphrase(passphrase, salt string) string {
+	// Simple SHA-256 hash of passphrase + salt
+	// In production, use a proper password hashing library like bcrypt
+	data := passphrase + salt
+	hash := sha256.Sum256([]byte(data))
+	return base64.StdEncoding.EncodeToString(hash[:])
 }

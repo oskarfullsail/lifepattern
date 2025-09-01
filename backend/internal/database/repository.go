@@ -55,7 +55,11 @@ func (r *Repository) GetUser(userID uuid.UUID) (*User, error) {
 // SaveUserCredential saves user credentials to the database
 func (r *Repository) SaveUserCredential(cred UserCredential) error {
 	query := `INSERT INTO user_credentials (id, user_id, username, hashed_passphrase, salt, created_at, last_used_at) 
-		VALUES ($1, $2, $3, $4, $5, $6, $7)`
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		ON CONFLICT (id) DO UPDATE SET 
+		hashed_passphrase = EXCLUDED.hashed_passphrase,
+		salt = EXCLUDED.salt,
+		last_used_at = EXCLUDED.last_used_at`
 
 	_, err := r.db.Exec(query, cred.ID, cred.UserID, cred.Username, cred.HashedPassphrase, cred.Salt, cred.CreatedAt, cred.LastUsedAt)
 	if err != nil {

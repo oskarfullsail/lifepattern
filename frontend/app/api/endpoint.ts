@@ -98,7 +98,21 @@ export interface RefreshTokenRequest {
 
 export interface RefreshTokenResponse {
   access_token: string;
-  refresh_token: string;
+}
+
+// Password Recovery Types
+export interface PasswordRecoveryRequest {
+  username: string;
+}
+
+export interface PasswordRecoveryResponse {
+  success: boolean;
+  message: string;
+  new_passphrase?: string;
+  temp_credentials?: {
+    username: string;
+    passphrase: string;
+  };
 }
 
 export interface LoginRequest {
@@ -193,26 +207,26 @@ export interface SyncWatchDataResponse {
 
 // API Calls
 export const createRoutineLog = async (payload: RoutineLogPayload) => {
-  const res = await apiClient.post<CreateRoutineLogResponse>('/log', payload);
+  const res = await apiClient.post<CreateRoutineLogResponse>('/api/log', payload);
   return res.data;
 };
 
 export const getUserRoutineLogs = async (user_id: string, limit = 10) => {
-  const res = await apiClient.get<{ logs: RoutineLogPayload[]; user_id: string }>(`/logs`, {
+  const res = await apiClient.get<{ logs: RoutineLogPayload[]; user_id: string }>(`/api/logs`, {
     params: { user_id, limit },
   });
   return res.data;
 };
 
 export const getInsight = async (log_id: number) => {
-  const res = await apiClient.get<InsightResponse>(`/insights`, {
+  const res = await apiClient.get<InsightResponse>(`/api/insights`, {
     params: { log_id },
   });
   return res.data;
 };
 
 export const getUserInsights = async (user_id: string, limit = 10) => {
-  const res = await apiClient.get<{ user_id: string; insights: InsightResponse[]; count: number }>(`/user-insights`, {
+  const res = await apiClient.get<{ user_id: string; insights: InsightResponse[]; count: number }>(`/api/user-insights`, {
     params: { user_id, limit },
   });
   return res.data;
@@ -266,7 +280,7 @@ export const register = async (payload: RegisterRequest) => {
 
 // Cross-Device Linking API Calls
 export const generateLinkToken = async (payload: GenerateLinkTokenRequest) => {
-  const res = await apiClient.post<GenerateLinkTokenResponse>('/auth/link/generate', payload);
+  const res = await apiClient.post<GenerateLinkTokenResponse>('/api/auth/link/generate', payload);
   return res.data;
 };
 
@@ -276,7 +290,7 @@ export const verifyLinkToken = async (payload: VerifyLinkTokenRequest) => {
 };
 
 export const getLinkStatus = async () => {
-  const res = await apiClient.get<LinkStatusResponse>('/auth/link/status');
+  const res = await apiClient.get<LinkStatusResponse>('/api/auth/link/status');
   return res.data;
 };
 
@@ -288,5 +302,11 @@ export const syncWatchData = async (payload: SyncWatchDataRequest) => {
 
 export const getDeviceInfo = async (): Promise<DeviceInfo> => {
   const res = await apiClient.get<DeviceInfo>('/api/device/info');
+  return res.data;
+};
+
+// Password Recovery API Call
+export const requestPasswordRecovery = async (payload: PasswordRecoveryRequest): Promise<PasswordRecoveryResponse> => {
+  const res = await apiClient.post<PasswordRecoveryResponse>('/auth/recovery', payload);
   return res.data;
 }; 

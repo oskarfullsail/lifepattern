@@ -89,17 +89,19 @@ type RoutineLog struct {
 
 // AIReport represents an AI analysis report for a routine log
 type AIReport struct {
-	ID                 int             `json:"id,omitempty" db:"id"`
-	RoutineLogID       int             `json:"routine_log_id" db:"routine_log_id"`
-	IsAnomaly          bool            `json:"is_anomaly" db:"is_anomaly"`
-	ConfidenceScore    float64         `json:"confidence_score" db:"confidence_score"`
-	AnomalyType        string          `json:"anomaly_type" db:"anomaly_type"`
-	Recommendations    []string        `json:"recommendations" db:"recommendations"`
-	AIServiceResponse  string          `json:"ai_service_response" db:"ai_service_response"`
-	DriftAnalysis      json.RawMessage `json:"drift_analysis" db:"drift_analysis"`
-	BaselineComparison json.RawMessage `json:"baseline_comparison" db:"baseline_comparison"`
-	ModelVersion       string          `json:"model_version" db:"model_version"`
-	CreatedAt          time.Time       `json:"created_at,omitempty" db:"created_at"`
+	ID                      int             `json:"id,omitempty" db:"id"`
+	RoutineLogID            int             `json:"routine_log_id" db:"routine_log_id"`
+	IsAnomaly               bool            `json:"is_anomaly" db:"is_anomaly"`
+	ConfidenceScore         float64         `json:"confidence_score" db:"confidence_score"`
+	AnomalyType             string          `json:"anomaly_type" db:"anomaly_type"`
+	Recommendations         []string        `json:"recommendations" db:"recommendations"`
+	EnhancedRecommendations json.RawMessage `json:"enhanced_recommendations" db:"enhanced_recommendations"`
+	BehavioralContexts      []string        `json:"behavioral_contexts" db:"behavioral_contexts"`
+	AIServiceResponse       string          `json:"ai_service_response" db:"ai_service_response"`
+	DriftAnalysis           json.RawMessage `json:"drift_analysis" db:"drift_analysis"`
+	BaselineComparison      json.RawMessage `json:"baseline_comparison" db:"baseline_comparison"`
+	ModelVersion            string          `json:"model_version" db:"model_version"`
+	CreatedAt               time.Time       `json:"created_at,omitempty" db:"created_at"`
 }
 
 // InsightResponse combines routine log and AI report data
