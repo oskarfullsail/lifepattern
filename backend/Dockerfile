@@ -37,7 +37,6 @@ COPY --from=builder /app/main .
 
 # Copy any additional files if needed
 COPY --from=builder /app/migrations ./migrations
-COPY --from=builder /app/CROSS_DEVICE_LINKING.md ./CROSS_DEVICE_LINKING.md
 
 # Change ownership to non-root user
 RUN chown -R appuser:appgroup /app
