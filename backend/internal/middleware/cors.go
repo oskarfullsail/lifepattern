@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 	"strings"
+	"lifepattern-api/internal/config"
 )
 
 // CORS middleware handles Cross-Origin Resource Sharing
@@ -11,19 +12,22 @@ func CORS(next http.Handler) http.Handler {
 		// Get the origin from the request
 		origin := r.Header.Get("Origin")
 
-		// Define allowed origins for development (without trailing slashes)
+		// Load configuration to get allowed origins
+		cfg := config.Load()
+		
+		// Define allowed origins (combine config and defaults)
 		allowedOrigins := []string{
 			"http://localhost:19006",               // Expo development server
 			"http://localhost:3000",                // React development server
 			"http://localhost:8081",                // Alternative development port
 			"https://lifepattern-ai-dc5fe.web.app", // Production
 		}
+		
+		// Add origins from configuration
+		allowedOrigins = append(allowedOrigins, cfg.Auth.CORSAllowedOrigins...)
 
 		// Normalize origin by removing trailing slash for comparison
-		normalizedOrigin := origin
-		if strings.HasSuffix(normalizedOrigin, "/") {
-			normalizedOrigin = strings.TrimSuffix(normalizedOrigin, "/")
-		}
+		normalizedOrigin := strings.TrimSuffix(origin, "/")
 
 		// Check if the origin is allowed
 		allowed := false
