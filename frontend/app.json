@@ -27,12 +27,18 @@
           "health-kit",
           "location",
           "background-fetch",
+          "remote-notification",
+          "health-kit",
+          "location",
+          "background-fetch",
           "remote-notification"
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       },
       "entitlements": {
         "com.apple.developer.healthkit": true,
         "com.apple.developer.healthkit.access": [
+          "health-records",
           "health-records"
         ]
       }
@@ -80,6 +86,11 @@
       "favicon": "./assets/favicon.png"
     },
     "scheme": "lifepattern-ai",
-    "plugins": []
+    "plugins": [],
+    "extra": {
+      "eas": {
+        "projectId": "6a5e526c-7cf1-4d52-8e71-c8e1fe22c92a"
+      }
+    }
   }
 }

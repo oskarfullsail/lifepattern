@@ -239,7 +239,7 @@ export const webAuthnRegistrationStart = async (payload: WebAuthnRegistrationSta
 };
 
 export const webAuthnRegistrationFinish = async (payload: WebAuthnRegistrationFinishRequest) => {
-  const res = await apiClient.post<{ message: string }>('/auth/webauthn/register/finish', payload);
+  const res = await apiClient.post<LoginResponse>('/auth/webauthn/register/finish', payload);
   return res.data;
 };
 

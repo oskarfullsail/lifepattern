@@ -27,6 +27,8 @@ import {
 } from './api/endpoint';
 import { testBackendConnection } from './api/client';
 import userManager from './utils/userManager';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 
 type EnhancedRegisterScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'EnhancedRegister'>;
 
@@ -163,18 +165,75 @@ export default function EnhancedRegister({ navigation }: Props) {
         [{ text: 'OK' }]
       );
       
-      // Simulate WebAuthn completion and redirect to dashboard
-      setTimeout(() => {
-        Alert.alert(
-          'Registration Complete! 🎉',
-          'Your account has been created successfully!',
-          [
-            {
-              text: 'Continue to Dashboard',
-              onPress: () => navigation.replace('UserDashboard'),
+      // For now, simulate WebAuthn completion since we don't have actual WebAuthn implementation
+      // In a real implementation, this would wait for the actual WebAuthn response
+      setTimeout(async () => {
+        try {
+          // Simulate completing the WebAuthn registration
+          // In a real app, this would be the actual WebAuthn response data
+          const mockWebAuthnResponse = {
+            id: 'mock-credential-id',
+            rawId: 'mock-raw-id',
+            response: {
+              clientDataJSON: 'mock-client-data',
+              attestationObject: 'mock-attestation'
             },
-          ]
-        );
+            type: 'public-key'
+          };
+
+          // Call the finish registration endpoint
+          const finishResponse = await webAuthnRegistrationFinish({
+            user_id: response.user_id,
+            session_data: response.session_data,
+            credential: mockWebAuthnResponse
+          });
+
+          // Store the actual tokens from the backend response
+          await userManager.storeTokens(finishResponse.access_token, finishResponse.refresh_token);
+          
+          // Create a proper user session for the userManager
+          const deviceId = await userManager.getDeviceId();
+          const session = {
+            userId: finishResponse.user_id,
+            deviceId,
+            username: `WebAuthn-User-${finishResponse.user_id.substring(0, 8)}`,
+            createdAt: new Date().toISOString(),
+            lastLogin: new Date().toISOString(),
+            isFirstLogin: true,
+            isAuthenticated: true,
+          };
+          
+          // Store the session using secure storage
+          const secureStorage = {
+            async setItemAsync(key: string, value: string): Promise<void> {
+              try {
+                if (Platform.OS === 'web') {
+                  await AsyncStorage.setItem(key, value);
+                } else {
+                  await SecureStore.setItemAsync(key, value);
+                }
+              } catch (error) {
+                console.log('SecureStore failed, falling back to AsyncStorage:', error);
+                await AsyncStorage.setItem(key, value);
+              }
+            }
+          };
+          await secureStorage.setItemAsync('userSession', JSON.stringify(session));
+          
+          Alert.alert(
+            'Registration Complete! 🎉',
+            'Your account has been created successfully!',
+            [
+              {
+                text: 'Continue to Dashboard',
+                onPress: () => navigation.replace('UserDashboard'),
+              },
+            ]
+          );
+        } catch (error) {
+          console.error('WebAuthn completion error:', error);
+          Alert.alert('Error', 'Failed to complete registration. Please try again.');
+        }
       }, 3000);
     } catch (error) {
       console.error('Registration error:', error);
