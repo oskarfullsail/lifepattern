@@ -249,59 +249,39 @@ export default function DataImport({ navigation, route }: Props) {
       
       console.log('✅ Backend response:', response);
       
-      // Show success message with AI analysis if available
-      let successMessage = 'Your health data has been saved successfully!';
+      // Reset form
+      setShowManualForm(false);
+      setManualData({
+        sleep_hours: '',
+        exercise_duration: '',
+        screen_time: '',
+        water_intake: '',
+        stress_level: '',
+        wake_up_time: '',
+        bed_time: '',
+        meal_times: '',
+      });
       
-      if (response.has_ai && response.ai_result) {
-        const { is_anomaly, confidence_score, anomaly_type } = response.ai_result;
-        
-        if (is_anomaly) {
-          successMessage += `\n\n🔍 AI Analysis:\nAn ${anomaly_type} pattern was detected with ${(confidence_score * 100).toFixed(0)}% confidence.`;
-        } else {
-          successMessage += `\n\n✅ AI Analysis:\nYour routine looks healthy! Keep it up!`;
-        }
+      // Navigate to AI Insights if we have AI analysis
+      if (response.ai_response) {
+        navigation.navigate('AIInsights', {
+          aiResponse: response.ai_response,
+          logId: response.log_id,
+          userId: response.user_id,
+        });
+      } else {
+        // Fallback to simple success message if no AI response
+        Alert.alert(
+          'Success',
+          'Your health data has been saved successfully!',
+          [
+            {
+              text: 'OK',
+              onPress: () => navigation.goBack()
+            }
+          ]
+        );
       }
-      
-      Alert.alert(
-        'Success',
-        successMessage,
-        [
-          {
-            text: 'View Insights',
-            onPress: () => {
-              setShowManualForm(false);
-              setManualData({
-                sleep_hours: '',
-                exercise_duration: '',
-                screen_time: '',
-                water_intake: '',
-                stress_level: '',
-                wake_up_time: '',
-                bed_time: '',
-                meal_times: '',
-              });
-              navigation.navigate('DataVisualization', {});
-            }
-          },
-          {
-            text: 'OK',
-            onPress: () => {
-              setShowManualForm(false);
-              setManualData({
-                sleep_hours: '',
-                exercise_duration: '',
-                screen_time: '',
-                water_intake: '',
-                stress_level: '',
-                wake_up_time: '',
-                bed_time: '',
-                meal_times: '',
-              });
-              navigation.goBack();
-            }
-          }
-        ]
-      );
     } catch (error: any) {
       console.error('❌ Error saving manual data:', error);
       

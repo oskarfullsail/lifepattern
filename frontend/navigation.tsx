@@ -6,7 +6,6 @@ import { StatusBar } from 'expo-status-bar';
 import HomeScreen from './app/index';
 import LoginScreen from './app/login';
 import RegisterScreen from './app/register';
-import DashboardScreen from './app/dashboard';
 import CrossDeviceLinkingScreen from './app/crossDeviceLinking';
 import DeviceManagementScreen from './app/deviceManagement';
 import EnhancedRegisterScreen from './app/enhancedRegister';
@@ -15,6 +14,8 @@ import DataImportScreen from './app/dataImport';
 import DataVisualizationScreen from './app/dataVisualization';
 import WatchDataModuleScreen from './app/watchDataModule';
 import SettingsScreen from './app/settings';
+import AutomationSettingsScreen from './app/automationSettings';
+import AIInsightsScreen from './app/aiInsights';
 
 export type RootStackParamList = {
   Home: undefined;
@@ -28,8 +29,9 @@ export type RootStackParamList = {
   DataImport: { source?: string };
   DataVisualization: { data?: any };
   WatchDataModule: undefined;
-  ManualDataEntry: undefined;
   Settings: undefined;
+  AutomationSettings: undefined;
+  AIInsights: { aiResponse: any; logId: number; userId: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -84,7 +86,7 @@ export default function Navigation() {
         />
         <Stack.Screen 
           name="Dashboard" 
-          component={DashboardScreen} 
+          component={UserDashboardScreen} 
           options={{ 
             title: 'Dashboard',
             headerShown: false
@@ -144,6 +146,22 @@ export default function Navigation() {
           options={{ 
             title: 'Settings',
             headerBackTitle: 'Back'
+          }} 
+        />
+        <Stack.Screen 
+          name="AutomationSettings" 
+          component={AutomationSettingsScreen} 
+          options={{ 
+            title: 'Automation Settings',
+            headerShown: false
+          }} 
+        />
+        <Stack.Screen 
+          name="AIInsights" 
+          component={AIInsightsScreen} 
+          options={{ 
+            title: 'AI Insights',
+            headerShown: false
           }} 
         />
       </Stack.Navigator>
