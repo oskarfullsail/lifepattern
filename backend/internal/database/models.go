@@ -1,11 +1,45 @@
 package database
 
 import (
+	"database/sql/driver"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+// JSONStringArray is a custom type for handling PostgreSQL JSONB arrays of strings
+type JSONStringArray []string
+
+// Value implements the driver.Valuer interface for database writes
+func (j JSONStringArray) Value() (driver.Value, error) {
+	if j == nil {
+		return json.Marshal([]string{})
+	}
+	return json.Marshal(j)
+}
+
+// Scan implements the sql.Scanner interface for database reads
+func (j *JSONStringArray) Scan(value interface{}) error {
+	if value == nil {
+		*j = []string{}
+		return nil
+	}
+
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("failed to scan JSONStringArray: value is not []byte")
+	}
+
+	var arr []string
+	if err := json.Unmarshal(bytes, &arr); err != nil {
+		return err
+	}
+
+	*j = arr
+	return nil
+}
 
 // User represents a user in the zero-PII authentication system
 type User struct {
@@ -72,19 +106,19 @@ type LinkToken struct {
 
 // RoutineLog represents a daily routine log entry
 type RoutineLog struct {
-	ID               int       `json:"id,omitempty" db:"id"`
-	UserID           uuid.UUID `json:"user_id" db:"user_id"`
-	SleepHours       float64   `json:"sleep_hours" db:"sleep_hours"`
-	MealTimes        []string  `json:"meal_times" db:"meal_times"`
-	ScreenTime       float64   `json:"screen_time" db:"screen_time"`
-	ExerciseDuration float64   `json:"exercise_duration" db:"exercise_duration"`
-	WakeUpTime       string    `json:"wake_up_time" db:"wake_up_time"`
-	BedTime          string    `json:"bed_time" db:"bed_time"`
-	WaterIntake      float64   `json:"water_intake" db:"water_intake"`
-	StressLevel      int       `json:"stress_level" db:"stress_level"`
-	LogDate          string    `json:"log_date" db:"log_date"`
-	CreatedAt        time.Time `json:"created_at,omitempty" db:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at,omitempty" db:"updated_at"`
+	ID               int             `json:"id,omitempty" db:"id"`
+	UserID           uuid.UUID       `json:"user_id" db:"user_id"`
+	SleepHours       float64         `json:"sleep_hours" db:"sleep_hours"`
+	MealTimes        JSONStringArray `json:"meal_times" db:"meal_times"`
+	ScreenTime       float64         `json:"screen_time" db:"screen_time"`
+	ExerciseDuration float64         `json:"exercise_duration" db:"exercise_duration"`
+	WakeUpTime       string          `json:"wake_up_time" db:"wake_up_time"`
+	BedTime          string          `json:"bed_time" db:"bed_time"`
+	WaterIntake      float64         `json:"water_intake" db:"water_intake"`
+	StressLevel      int             `json:"stress_level" db:"stress_level"`
+	LogDate          string          `json:"log_date" db:"log_date"`
+	CreatedAt        time.Time       `json:"created_at,omitempty" db:"created_at"`
+	UpdatedAt        time.Time       `json:"updated_at,omitempty" db:"updated_at"`
 }
 
 // AIReport represents an AI analysis report for a routine log
@@ -94,9 +128,9 @@ type AIReport struct {
 	IsAnomaly               bool            `json:"is_anomaly" db:"is_anomaly"`
 	ConfidenceScore         float64         `json:"confidence_score" db:"confidence_score"`
 	AnomalyType             string          `json:"anomaly_type" db:"anomaly_type"`
-	Recommendations         []string        `json:"recommendations" db:"recommendations"`
+	Recommendations         JSONStringArray `json:"recommendations" db:"recommendations"`
 	EnhancedRecommendations json.RawMessage `json:"enhanced_recommendations" db:"enhanced_recommendations"`
-	BehavioralContexts      []string        `json:"behavioral_contexts" db:"behavioral_contexts"`
+	BehavioralContexts      JSONStringArray `json:"behavioral_contexts" db:"behavioral_contexts"`
 	AIServiceResponse       string          `json:"ai_service_response" db:"ai_service_response"`
 	DriftAnalysis           json.RawMessage `json:"drift_analysis" db:"drift_analysis"`
 	BaselineComparison      json.RawMessage `json:"baseline_comparison" db:"baseline_comparison"`
