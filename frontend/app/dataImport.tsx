@@ -885,6 +885,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
   },
+  inputHint: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
   importButtonDisabled: {
     backgroundColor: '#ccc',
   },
