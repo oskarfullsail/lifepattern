@@ -141,29 +141,33 @@ func (s *AIService) AnalyzeRoutineWithHistory(routineLog database.RoutineLog, hi
 		}
 	}
 
-	// Enhanced request with historical context
-	enhancedRequest := map[string]interface{}{
-		"current_data": AIServiceRequest{
-			SleepHours:       routineLog.SleepHours,
-			MealTimes:        routineLog.MealTimes,
-			ScreenTime:       routineLog.ScreenTime,
-			ExerciseDuration: routineLog.ExerciseDuration,
-			WakeUpTime:       routineLog.WakeUpTime,
-			BedTime:          routineLog.BedTime,
-			WaterIntake:      routineLog.WaterIntake,
-			StressLevel:      routineLog.StressLevel,
-		},
-		"historical_data": historicalPayload,
-		"user_id":         routineLog.UserID,
+	// For now, use simple format (AI service doesn't support historical data format yet)
+	// TODO: Update when AI service supports enhanced endpoint
+	request := AIServiceRequest{
+		SleepHours:       routineLog.SleepHours,
+		MealTimes:        routineLog.MealTimes,
+		ScreenTime:       routineLog.ScreenTime,
+		ExerciseDuration: routineLog.ExerciseDuration,
+		WakeUpTime:       routineLog.WakeUpTime,
+		BedTime:          routineLog.BedTime,
+		WaterIntake:      routineLog.WaterIntake,
+		StressLevel:      routineLog.StressLevel,
 	}
 
-	requestJSON, err := json.Marshal(enhancedRequest)
+	// Enhanced request with historical context (for future use)
+	// enhancedRequest := map[string]interface{}{
+	// 	"current_data": request,
+	// 	"historical_data": historicalPayload,
+	// 	"user_id":         routineLog.UserID,
+	// }
+
+	requestJSON, err := json.Marshal(request)
 	if err != nil {
-		log.Printf("❌ Failed to marshal enhanced AI service request: %v", err)
-		return nil, fmt.Errorf("failed to marshal enhanced AI service request: %w", err)
+		log.Printf("❌ Failed to marshal AI service request: %v", err)
+		return nil, fmt.Errorf("failed to marshal AI service request: %w", err)
 	}
 
-	log.Printf("📤 Sending enhanced request to AI service: %s", string(requestJSON))
+	log.Printf("📤 Sending request to AI service (with %d historical records for context): %s", len(historicalData), string(requestJSON))
 
 	resp, err := s.httpClient.Post(s.baseURL+"/predict", "application/json", bytes.NewBuffer(requestJSON))
 	if err != nil {
@@ -178,7 +182,7 @@ func (s *AIService) AnalyzeRoutineWithHistory(routineLog database.RoutineLog, hi
 		return nil, fmt.Errorf("failed to read AI service response: %w", err)
 	}
 
-	log.Printf("📥 Received enhanced response from AI service (status: %d): %s", resp.StatusCode, string(body))
+	log.Printf("📥 Received response from AI service (status: %d): %s", resp.StatusCode, string(body))
 
 	if resp.StatusCode != http.StatusOK {
 		log.Printf("❌ AI service returned error status %d: %s", resp.StatusCode, string(body))
@@ -191,8 +195,8 @@ func (s *AIService) AnalyzeRoutineWithHistory(routineLog database.RoutineLog, hi
 		return nil, fmt.Errorf("failed to unmarshal AI service response: %w", err)
 	}
 
-	log.Printf("✅ Successfully processed enhanced AI service response - Anomaly: %v, Type: %s, Drift: %v",
-		aiResponse.IsAnomaly, aiResponse.AnomalyType, aiResponse.DriftAnalysis != nil)
+	log.Printf("✅ Successfully processed AI service response - Anomaly: %v, Type: %s, Recommendations: %d",
+		aiResponse.IsAnomaly, aiResponse.AnomalyType, len(aiResponse.Recommendations))
 
 	return &aiResponse, nil
 }
