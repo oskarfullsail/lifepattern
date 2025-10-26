@@ -4,19 +4,23 @@
 
 -- Check if id is UUID type and convert to SERIAL if needed
 DO $$
+DECLARE
+    current_type text;
 BEGIN
     -- Check current data type of id column
-    IF EXISTS (
-        SELECT 1
-        FROM information_schema.columns
-        WHERE table_name = 'routine_logs'
-        AND column_name = 'id'
-        AND data_type = 'uuid'
-    ) THEN
+    SELECT data_type INTO current_type
+    FROM information_schema.columns
+    WHERE table_name = 'routine_logs' AND column_name = 'id';
+    
+    RAISE NOTICE 'Current routine_logs.id type: %', current_type;
+    
+    IF current_type = 'uuid' THEN
         RAISE NOTICE 'Converting routine_logs.id from UUID to INTEGER...';
         
-        -- Drop foreign key constraints first
-        ALTER TABLE ai_reports DROP CONSTRAINT IF EXISTS ai_reports_routine_log_id_fkey;
+        -- Drop foreign key constraints from ALL tables that reference routine_logs
+        -- Handle both insights and ai_reports tables
+        ALTER TABLE insights DROP CONSTRAINT IF EXISTS insights_log_id_fkey CASCADE;
+        ALTER TABLE ai_reports DROP CONSTRAINT IF EXISTS ai_reports_routine_log_id_fkey CASCADE;
         
         -- Convert id column to integer
         -- First, drop the default UUID generation
@@ -41,14 +45,34 @@ BEGIN
         -- Set as primary key
         ALTER TABLE routine_logs ADD PRIMARY KEY (id);
         
-        -- Restore foreign key constraint
-        ALTER TABLE ai_reports 
-        ADD CONSTRAINT ai_reports_routine_log_id_fkey 
-        FOREIGN KEY (routine_log_id) REFERENCES routine_logs(id) ON DELETE CASCADE;
+        -- Restore foreign key constraints (if tables exist)
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'ai_reports') THEN
+            ALTER TABLE ai_reports 
+            ADD CONSTRAINT ai_reports_routine_log_id_fkey 
+            FOREIGN KEY (routine_log_id) REFERENCES routine_logs(id) ON DELETE CASCADE;
+            RAISE NOTICE 'Restored ai_reports foreign key constraint';
+        END IF;
+        
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'insights') THEN
+            -- Check if insights.log_id column exists and is integer
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'insights' AND column_name = 'log_id' AND data_type = 'integer'
+            ) THEN
+                ALTER TABLE insights 
+                ADD CONSTRAINT insights_log_id_fkey 
+                FOREIGN KEY (log_id) REFERENCES routine_logs(id) ON DELETE CASCADE;
+                RAISE NOTICE 'Restored insights foreign key constraint';
+            ELSE
+                RAISE NOTICE 'Skipping insights foreign key - column type mismatch or does not exist';
+            END IF;
+        END IF;
         
         RAISE NOTICE 'Successfully converted routine_logs.id to INTEGER';
-    ELSE
+    ELSIF current_type = 'integer' THEN
         RAISE NOTICE 'routine_logs.id is already INTEGER type, no conversion needed';
+    ELSE
+        RAISE NOTICE 'routine_logs.id has unexpected type: %, skipping conversion', current_type;
     END IF;
 END $$;
 
