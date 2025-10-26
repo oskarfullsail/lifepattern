@@ -1,8 +1,37 @@
--- Fix routine_logs id type mismatch
+-- Fix routine_logs id type mismatch AND insights table compatibility
 -- The production database has UUID for id, but our code expects SERIAL
 -- This migration detects and fixes the discrepancy
 
--- Check if id is UUID type and convert to SERIAL if needed
+-- STEP 1: Fix insights.log_id type to match routine_logs.id
+DO $$
+DECLARE
+    insights_log_id_type text;
+    routine_logs_id_type text;
+BEGIN
+    -- Check if insights table exists
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'insights') THEN
+        -- Get current types
+        SELECT data_type INTO insights_log_id_type
+        FROM information_schema.columns
+        WHERE table_name = 'insights' AND column_name = 'log_id';
+        
+        SELECT data_type INTO routine_logs_id_type
+        FROM information_schema.columns
+        WHERE table_name = 'routine_logs' AND column_name = 'id';
+        
+        RAISE NOTICE 'insights.log_id type: %, routine_logs.id type: %', insights_log_id_type, routine_logs_id_type;
+        
+        -- If insights.log_id is UUID but routine_logs.id is INTEGER, convert insights first
+        IF insights_log_id_type = 'uuid' AND routine_logs_id_type = 'integer' THEN
+            RAISE NOTICE 'Converting insights.log_id from UUID to INTEGER...';
+            ALTER TABLE insights DROP CONSTRAINT IF EXISTS insights_log_id_fkey CASCADE;
+            ALTER TABLE insights ALTER COLUMN log_id TYPE INTEGER USING log_id::text::integer;
+            RAISE NOTICE 'Converted insights.log_id to INTEGER';
+        END IF;
+    END IF;
+END $$;
+
+-- STEP 2: Check if routine_logs.id is UUID type and convert to SERIAL if needed
 DO $$
 DECLARE
     current_type text;
