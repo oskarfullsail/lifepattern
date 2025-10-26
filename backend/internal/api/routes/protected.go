@@ -17,28 +17,28 @@ func SetupProtectedRoutes(router *mux.Router, container *container.Container) {
 	log.Println("✅ Auth middleware applied to /api routes")
 
 	// Routine log endpoints
-	protectedRouter.HandleFunc("/log", container.Handlers.LogHandler.CreateRoutineLog).Methods("POST")
-	protectedRouter.HandleFunc("/logs", container.Handlers.LogHandler.GetUserRoutineLogs).Methods("GET")
+	protectedRouter.HandleFunc("/log", container.Handlers.LogHandler.CreateRoutineLog).Methods("POST", "OPTIONS")
+	protectedRouter.HandleFunc("/logs", container.Handlers.LogHandler.GetUserRoutineLogs).Methods("GET", "OPTIONS")
 	log.Println("✅ Routine log routes registered")
 
 	// Insight endpoints
-	protectedRouter.HandleFunc("/insights", container.Handlers.InsightHandler.GetInsight).Methods("GET")
-	protectedRouter.HandleFunc("/user-insights", container.Handlers.InsightHandler.GetUserInsights).Methods("GET")
+	protectedRouter.HandleFunc("/insights", container.Handlers.InsightHandler.GetInsight).Methods("GET", "OPTIONS")
+	protectedRouter.HandleFunc("/user-insights", container.Handlers.InsightHandler.GetUserInsights).Methods("GET", "OPTIONS")
 	log.Println("✅ Insight routes registered")
 
 	// Session management endpoints
-	protectedRouter.HandleFunc("/auth/logout", container.Handlers.AuthHandler.Logout).Methods("POST")
-	protectedRouter.HandleFunc("/auth/sessions", container.Handlers.AuthHandler.GetSessions).Methods("GET")
+	protectedRouter.HandleFunc("/auth/logout", container.Handlers.AuthHandler.Logout).Methods("POST", "OPTIONS")
+	protectedRouter.HandleFunc("/auth/sessions", container.Handlers.AuthHandler.GetSessions).Methods("GET", "OPTIONS")
 	log.Println("✅ Session management routes registered")
 
 	// Cross-device linking endpoints (protected)
-	protectedRouter.HandleFunc("/auth/link/generate", container.Handlers.AuthHandler.GenerateLinkToken).Methods("POST")
-	protectedRouter.HandleFunc("/auth/link/status", container.Handlers.AuthHandler.GetLinkStatus).Methods("GET")
+	protectedRouter.HandleFunc("/auth/link/generate", container.Handlers.AuthHandler.GenerateLinkToken).Methods("POST", "OPTIONS")
+	protectedRouter.HandleFunc("/auth/link/status", container.Handlers.AuthHandler.GetLinkStatus).Methods("GET", "OPTIONS")
 	log.Println("✅ Cross-device linking routes registered")
 
 	// Device endpoints (protected)
-	protectedRouter.HandleFunc("/device/info", container.Handlers.DeviceHandler.GetDeviceInfo).Methods("GET")
-	protectedRouter.HandleFunc("/device/sync-watch", container.Handlers.DeviceHandler.SyncWatchData).Methods("POST")
+	protectedRouter.HandleFunc("/device/info", container.Handlers.DeviceHandler.GetDeviceInfo).Methods("GET", "OPTIONS")
+	protectedRouter.HandleFunc("/device/sync-watch", container.Handlers.DeviceHandler.SyncWatchData).Methods("POST", "OPTIONS")
 	log.Println("✅ Device routes registered")
 
 	log.Println("🎉 All protected routes configured successfully")

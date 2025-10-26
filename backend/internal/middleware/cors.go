@@ -1,9 +1,9 @@
 package middleware
 
 import (
+	"lifepattern-api/internal/config"
 	"net/http"
 	"strings"
-	"lifepattern-api/internal/config"
 )
 
 // CORS middleware handles Cross-Origin Resource Sharing
@@ -14,7 +14,7 @@ func CORS(next http.Handler) http.Handler {
 
 		// Load configuration to get allowed origins
 		cfg := config.Load()
-		
+
 		// Define allowed origins (combine config and defaults)
 		allowedOrigins := []string{
 			"http://localhost:19006",               // Expo development server
@@ -22,7 +22,7 @@ func CORS(next http.Handler) http.Handler {
 			"http://localhost:8081",                // Alternative development port
 			"https://lifepattern-ai-dc5fe.web.app", // Production
 		}
-		
+
 		// Add origins from configuration
 		allowedOrigins = append(allowedOrigins, cfg.Auth.CORSAllowedOrigins...)
 
@@ -41,14 +41,15 @@ func CORS(next http.Handler) http.Handler {
 		// Set CORS headers
 		if allowed {
 			w.Header().Set("Access-Control-Allow-Origin", normalizedOrigin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
 		} else {
-			// Fallback to wildcard for development
+			// Fallback to wildcard for development (but can't use credentials with wildcard)
 			w.Header().Set("Access-Control-Allow-Origin", "*")
+			// Do NOT set Access-Control-Allow-Credentials when using wildcard
 		}
 
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, X-File-Name")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Access-Control-Max-Age", "86400") // 24 hours
 
 		// Handle preflight requests
