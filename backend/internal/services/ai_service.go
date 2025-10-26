@@ -59,9 +59,48 @@ func NewAIService(baseURL string) *AIService {
 	return &AIService{
 		baseURL: baseURL,
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout: 45 * time.Second, // Increased for rate limit retries
 		},
 	}
+}
+
+// makeRequestWithRetry makes an HTTP request with retry logic for rate limits (429)
+func (s *AIService) makeRequestWithRetry(url string, requestJSON []byte, maxRetries int) (*http.Response, []byte, error) {
+	var resp *http.Response
+	var body []byte
+	var err error
+	
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			// Exponential backoff: 2s, 4s, 8s
+			waitTime := time.Duration(2<<uint(attempt-1)) * time.Second
+			log.Printf("⏳ Rate limited (429), retrying in %v... (attempt %d/%d)", waitTime, attempt+1, maxRetries+1)
+			time.Sleep(waitTime)
+		}
+		
+		resp, err = s.httpClient.Post(url, "application/json", bytes.NewBuffer(requestJSON))
+		if err != nil {
+			// Network error, don't retry
+			return nil, nil, err
+		}
+		
+		body, err = io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return nil, nil, err
+		}
+		
+		// If not rate limited, return immediately
+		if resp.StatusCode != http.StatusTooManyRequests {
+			return resp, body, nil
+		}
+		
+		// Log rate limit
+		log.Printf("⚠️ AI service rate limited (429) on attempt %d", attempt+1)
+	}
+	
+	// All retries exhausted
+	return resp, body, fmt.Errorf("max retries (%d) exceeded, still rate limited", maxRetries)
 }
 
 // AnalyzeRoutine sends routine data to AI service and returns analysis
@@ -88,17 +127,11 @@ func (s *AIService) AnalyzeRoutine(routineLog database.RoutineLog) (*AIServiceRe
 
 	log.Printf("📤 Sending request to AI service: %s", string(requestJSON))
 
-	resp, err := s.httpClient.Post(s.baseURL+"/predict", "application/json", bytes.NewBuffer(requestJSON))
+	// Use retry logic for rate limits
+	resp, body, err := s.makeRequestWithRetry(s.baseURL+"/predict", requestJSON, 3)
 	if err != nil {
-		log.Printf("❌ Failed to call AI service: %v", err)
+		log.Printf("❌ Failed to call AI service after retries: %v", err)
 		return nil, fmt.Errorf("failed to call AI service: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Printf("❌ Failed to read AI service response: %v", err)
-		return nil, fmt.Errorf("failed to read AI service response: %w", err)
 	}
 
 	log.Printf("📥 Received response from AI service (status: %d): %s", resp.StatusCode, string(body))
@@ -169,17 +202,11 @@ func (s *AIService) AnalyzeRoutineWithHistory(routineLog database.RoutineLog, hi
 
 	log.Printf("📤 Sending request to AI service (with %d historical records for context): %s", len(historicalData), string(requestJSON))
 
-	resp, err := s.httpClient.Post(s.baseURL+"/predict", "application/json", bytes.NewBuffer(requestJSON))
+	// Use retry logic for rate limits
+	resp, body, err := s.makeRequestWithRetry(s.baseURL+"/predict", requestJSON, 3)
 	if err != nil {
-		log.Printf("❌ Failed to call AI service: %v", err)
+		log.Printf("❌ Failed to call AI service after retries: %v", err)
 		return nil, fmt.Errorf("failed to call AI service: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Printf("❌ Failed to read AI service response: %v", err)
-		return nil, fmt.Errorf("failed to read AI service response: %w", err)
 	}
 
 	log.Printf("📥 Received response from AI service (status: %d): %s", resp.StatusCode, string(body))
