@@ -103,9 +103,44 @@ func (s *AIService) makeRequestWithRetry(url string, requestJSON []byte, maxRetr
 	return resp, body, fmt.Errorf("max retries (%d) exceeded, still rate limited", maxRetries)
 }
 
+// ensureAIServiceAwake pings the health endpoint to wake up the service if sleeping
+func (s *AIService) ensureAIServiceAwake() error {
+	log.Printf("🔔 Pinging AI service to ensure it's awake...")
+	
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	
+	req, err := http.NewRequestWithContext(ctx, "GET", s.baseURL+"/health", nil)
+	if err != nil {
+		return err
+	}
+	
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		log.Printf("⚠️ AI service wake-up ping failed: %v", err)
+		return err
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode == http.StatusOK {
+		log.Printf("✅ AI service is awake and ready")
+		// Give it a moment to fully initialize
+		time.Sleep(500 * time.Millisecond)
+		return nil
+	}
+	
+	return fmt.Errorf("AI service health check returned status %d", resp.StatusCode)
+}
+
 // AnalyzeRoutine sends routine data to AI service and returns analysis
 // This method handles the communication between Backend and AI Service
 func (s *AIService) AnalyzeRoutine(routineLog database.RoutineLog) (*AIServiceResponse, error) {
+	// Wake up AI service if sleeping
+	if err := s.ensureAIServiceAwake(); err != nil {
+		log.Printf("⚠️ Failed to wake AI service: %v", err)
+		// Continue anyway, might still work
+	}
+	
 	log.Printf("🤖 Sending routine data to AI service at %s/predict", s.baseURL)
 
 	request := AIServiceRequest{
@@ -156,6 +191,12 @@ func (s *AIService) AnalyzeRoutine(routineLog database.RoutineLog) (*AIServiceRe
 // AnalyzeRoutineWithHistory sends routine data with historical context to AI service
 // This method provides enhanced drift detection with user baseline analysis
 func (s *AIService) AnalyzeRoutineWithHistory(routineLog database.RoutineLog, historicalData []database.RoutineLog) (*AIServiceResponse, error) {
+	// Wake up AI service if sleeping
+	if err := s.ensureAIServiceAwake(); err != nil {
+		log.Printf("⚠️ Failed to wake AI service: %v", err)
+		// Continue anyway, might still work
+	}
+	
 	log.Printf("🤖 Sending routine data with historical context to AI service at %s/predict", s.baseURL)
 
 	// Convert historical data to format expected by AI service
