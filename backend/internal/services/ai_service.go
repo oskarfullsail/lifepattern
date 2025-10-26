@@ -69,7 +69,7 @@ func (s *AIService) makeRequestWithRetry(url string, requestJSON []byte, maxRetr
 	var resp *http.Response
 	var body []byte
 	var err error
-	
+
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
 			// Exponential backoff: 2s, 4s, 8s
@@ -77,28 +77,28 @@ func (s *AIService) makeRequestWithRetry(url string, requestJSON []byte, maxRetr
 			log.Printf("⏳ Rate limited (429), retrying in %v... (attempt %d/%d)", waitTime, attempt+1, maxRetries+1)
 			time.Sleep(waitTime)
 		}
-		
+
 		resp, err = s.httpClient.Post(url, "application/json", bytes.NewBuffer(requestJSON))
 		if err != nil {
 			// Network error, don't retry
 			return nil, nil, err
 		}
-		
+
 		body, err = io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if err != nil {
 			return nil, nil, err
 		}
-		
+
 		// If not rate limited, return immediately
 		if resp.StatusCode != http.StatusTooManyRequests {
 			return resp, body, nil
 		}
-		
+
 		// Log rate limit
 		log.Printf("⚠️ AI service rate limited (429) on attempt %d", attempt+1)
 	}
-	
+
 	// All retries exhausted
 	return resp, body, fmt.Errorf("max retries (%d) exceeded, still rate limited", maxRetries)
 }
@@ -106,29 +106,29 @@ func (s *AIService) makeRequestWithRetry(url string, requestJSON []byte, maxRetr
 // ensureAIServiceAwake pings the health endpoint to wake up the service if sleeping
 func (s *AIService) ensureAIServiceAwake() error {
 	log.Printf("🔔 Pinging AI service to ensure it's awake...")
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	
+
 	req, err := http.NewRequestWithContext(ctx, "GET", s.baseURL+"/health", nil)
 	if err != nil {
 		return err
 	}
-	
+
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		log.Printf("⚠️ AI service wake-up ping failed: %v", err)
 		return err
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode == http.StatusOK {
 		log.Printf("✅ AI service is awake and ready")
 		// Give it a moment to fully initialize
 		time.Sleep(500 * time.Millisecond)
 		return nil
 	}
-	
+
 	return fmt.Errorf("AI service health check returned status %d", resp.StatusCode)
 }
 
@@ -140,7 +140,7 @@ func (s *AIService) AnalyzeRoutine(routineLog database.RoutineLog) (*AIServiceRe
 		log.Printf("⚠️ Failed to wake AI service: %v", err)
 		// Continue anyway, might still work
 	}
-	
+
 	log.Printf("🤖 Sending routine data to AI service at %s/predict", s.baseURL)
 
 	request := AIServiceRequest{
@@ -196,7 +196,7 @@ func (s *AIService) AnalyzeRoutineWithHistory(routineLog database.RoutineLog, hi
 		log.Printf("⚠️ Failed to wake AI service: %v", err)
 		// Continue anyway, might still work
 	}
-	
+
 	log.Printf("🤖 Sending routine data with historical context to AI service at %s/predict", s.baseURL)
 
 	// Convert historical data to format expected by AI service

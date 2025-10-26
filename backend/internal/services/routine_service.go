@@ -65,6 +65,13 @@ func (s *RoutineService) CreateRoutineLog(routineLog database.RoutineLog) (*Crea
 		// Continue without AI analysis
 	} else {
 		// 4. Save AI report to database
+		// Marshal the full AI response to JSON
+		aiResponseJSON, err := json.Marshal(aiResponse)
+		if err != nil {
+			log.Printf("⚠️ Failed to marshal AI response: %v", err)
+			aiResponseJSON = json.RawMessage("{}")
+		}
+
 		aiReport := database.AIReport{
 			RoutineLogID:       logID,
 			IsAnomaly:          aiResponse.IsAnomaly,
@@ -72,7 +79,7 @@ func (s *RoutineService) CreateRoutineLog(routineLog database.RoutineLog) (*Crea
 			AnomalyType:        aiResponse.AnomalyType,
 			Recommendations:    aiResponse.Recommendations,
 			BehavioralContexts: aiResponse.BehavioralContexts,
-			AIServiceResponse:  aiResponse.Timestamp,
+			AIServiceResponse:  aiResponseJSON,
 			DriftAnalysis:      json.RawMessage("{}"), // Will be populated from aiResponse.DriftAnalysis
 			BaselineComparison: json.RawMessage("{}"), // Will be populated from aiResponse.BaselineComparison
 			ModelVersion:       "1.0.0",

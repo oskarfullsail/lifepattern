@@ -131,7 +131,7 @@ type AIReport struct {
 	Recommendations         JSONStringArray `json:"recommendations" db:"recommendations"`
 	EnhancedRecommendations json.RawMessage `json:"enhanced_recommendations" db:"enhanced_recommendations"`
 	BehavioralContexts      JSONStringArray `json:"behavioral_contexts" db:"behavioral_contexts"`
-	AIServiceResponse       string          `json:"ai_service_response" db:"ai_service_response"`
+	AIServiceResponse       json.RawMessage `json:"ai_service_response" db:"ai_service_response"`
 	DriftAnalysis           json.RawMessage `json:"drift_analysis" db:"drift_analysis"`
 	BaselineComparison      json.RawMessage `json:"baseline_comparison" db:"baseline_comparison"`
 	ModelVersion            string          `json:"model_version" db:"model_version"`
