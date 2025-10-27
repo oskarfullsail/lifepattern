@@ -27,7 +27,7 @@ export interface CreateRoutineLogResponse {
 }
 
 export interface InsightResponse {
-  routine_log: RoutineLogPayload;
+  routine_log: RoutineLogPayload & { id?: number; log_id?: number };
   ai_report: {
     is_anomaly: boolean;
     confidence_score: number;
@@ -308,5 +308,11 @@ export const getDeviceInfo = async (): Promise<DeviceInfo> => {
 // Password Recovery API Call
 export const requestPasswordRecovery = async (payload: PasswordRecoveryRequest): Promise<PasswordRecoveryResponse> => {
   const res = await apiClient.post<PasswordRecoveryResponse>('/auth/recovery', payload);
+  return res.data;
+};
+
+// Logout API Call
+export const logout = async (): Promise<{ message: string }> => {
+  const res = await apiClient.post<{ message: string }>('/api/auth/logout');
   return res.data;
 }; 

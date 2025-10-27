@@ -463,9 +463,9 @@ export default function AIInsights({ navigation, route }: Props) {
           <Text style={styles.navLabel}>Dashboard</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity style={styles.centerNavButton}>
+        <TouchableOpacity style={styles.centerNavButton} onPress={() => navigation.navigate('DataImport', {})}>
           <View style={styles.centerNavButtonInner}>
-            <Text style={styles.centerNavIcon}>🤖</Text>
+            <Text style={styles.centerNavIcon}>+</Text>
           </View>
         </TouchableOpacity>
         

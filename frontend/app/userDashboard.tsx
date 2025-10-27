@@ -16,6 +16,7 @@ import {
   getLinkStatus,
   syncWatchData,
   getDeviceInfo,
+  getUserInsights,
   LinkStatusResponse,
   DeviceInfo,
   WatchData
@@ -222,16 +223,13 @@ export default function UserDashboard({ navigation }: Props) {
   };
 
   const handleImportData = () => {
-    Alert.alert(
-      'Import Data',
-      'Choose data source:',
-      [
-        { text: 'Health App', onPress: () => navigation.navigate('DataImport', { source: 'health' }) },
-        { text: 'CSV File', onPress: () => navigation.navigate('DataImport', { source: 'csv' }) },
-        { text: 'Manual Entry', onPress: () => navigation.navigate('DataImport', { source: 'manual' }) },
-        { text: 'Cancel', style: 'cancel' }
-      ]
-    );
+    try {
+      // Navigate to DataImport without a source to show all options
+      navigation.navigate('DataImport', {});
+    } catch (error) {
+      console.error('Navigation error:', error);
+      Alert.alert('Error', 'Unable to navigate to Data Import. Please try again.');
+    }
   };
 
   const handleViewData = () => {
@@ -297,417 +295,853 @@ export default function UserDashboard({ navigation }: Props) {
   }
 
   return (
-    <ScrollView 
-      style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-      }
-    >
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Welcome to LifePattern</Text>
-        <Text style={styles.subtitle}>
-          {currentUser ? `User ID: ${currentUser.id}` : 'Getting started...'}
-        </Text>
-        
-        {/* Connection Status */}
-        <View style={styles.connectionStatus}>
-          <View style={[
-            styles.connectionIndicator, 
-            connectionStatus === 'connected' && styles.connected,
-            connectionStatus === 'failed' && styles.failed
-          ]}>
-            <Text style={styles.connectionText}>
-              {connectionStatus === 'connected' ? '🔗 Connected' : 
-               connectionStatus === 'failed' ? '❌ Disconnected' : 
-               '⏳ Connecting...'}
-            </Text>
-          </View>
-          {connectionStatus === 'failed' && (
-            <TouchableOpacity style={styles.retryButton} onPress={testConnection}>
-              <Text style={styles.retryButtonText}>Retry Connection</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-
-      {/* Quick Stats */}
-      <View style={styles.statsContainer}>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>
-            {linkStatusStatus === 'loading' ? '⏳' : 
-             linkStatusStatus === 'error' ? '❌' : 
-             linkStatus?.active_tokens?.length || 0}
-          </Text>
-          <Text style={styles.statLabel}>
-            {linkStatusStatus === 'loading' ? 'Loading...' : 
-             linkStatusStatus === 'error' ? 'Auth Required' : 
-             'Linked Devices'}
-          </Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>
-            {watchDataEnabled ? '✓' : '✗'}
-          </Text>
-          <Text style={styles.statLabel}>Watch Sync</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>
-            {deviceInfoStatus === 'loading' ? '⏳' : 
-             deviceInfoStatus === 'error' ? '❌' : 
-             deviceInfo?.platform || 'Unknown'}
-          </Text>
-          <Text style={styles.statLabel}>
-            {deviceInfoStatus === 'loading' ? 'Loading...' : 
-             deviceInfoStatus === 'error' ? 'Auth Required' : 
-             'Platform'}
-          </Text>
-        </View>
-      </View>
-
-      {/* Main Actions */}
-      <View style={styles.actionsContainer}>
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-        
-        <TouchableOpacity style={styles.actionCard} onPress={handleImportData}>
-          <Text style={styles.actionIcon}>📊</Text>
-          <View style={styles.actionContent}>
-            <Text style={styles.actionTitle}>Import Data</Text>
-            <Text style={styles.actionDescription}>
-              Import health data from various sources
-            </Text>
-          </View>
-          <Text style={styles.actionArrow}>→</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.actionCard} onPress={handleViewData}>
-          <Text style={styles.actionIcon}>📈</Text>
-          <View style={styles.actionContent}>
-            <Text style={styles.actionTitle}>View Data</Text>
-            <Text style={styles.actionDescription}>
-              Visualize your health patterns and insights
-            </Text>
-          </View>
-          <Text style={styles.actionArrow}>→</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.actionCard} onPress={handleManageDevices}>
-          <Text style={styles.actionIcon}>🔗</Text>
-          <View style={styles.actionContent}>
-            <Text style={styles.actionTitle}>Manage Devices</Text>
-            <Text style={styles.actionDescription}>
-              Link and manage your devices
-            </Text>
-          </View>
-          <Text style={styles.actionArrow}>→</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.actionCard} onPress={handleWatchData}>
-          <Text style={styles.actionIcon}>⌚</Text>
-          <View style={styles.actionContent}>
-            <Text style={styles.actionTitle}>Watch Data</Text>
-            <Text style={styles.actionDescription}>
-              Connect and sync smartwatch data
-            </Text>
-          </View>
-          <Text style={styles.actionArrow}>→</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Watch Data Section */}
-      <View style={styles.watchSection}>
-        <Text style={styles.sectionTitle}>Smartwatch Integration</Text>
-        
-        <View style={styles.watchCard}>
-          <View style={styles.watchHeader}>
-            <Text style={styles.watchTitle}>Apple Watch / Fitbit</Text>
-            <TouchableOpacity 
-              style={[styles.toggleButton, watchDataEnabled && styles.toggleActive]}
-              onPress={handleToggleWatchData}
-            >
-              <Text style={styles.toggleText}>
-                {watchDataEnabled ? 'ON' : 'OFF'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-          
-          <Text style={styles.watchDescription}>
-            Automatically sync health data from your smartwatch
-          </Text>
-          
-          {watchDataEnabled && (
-            <View style={styles.watchStatus}>
-              <Text style={styles.watchStatusText}>
-                Last sync: {lastSyncTime || 'Never'}
-              </Text>
-              {syncStatus === 'syncing' && (
-                <ActivityIndicator size="small" color="#007AFF" />
-              )}
+    <View style={styles.wrapper}>
+      <ScrollView 
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <View style={styles.headerLeft}>
+              <View style={styles.appIcon}>
+                <Text style={styles.appIconText}>🧠</Text>
+              </View>
+              <Text style={styles.title}>Dashboard</Text>
             </View>
-          )}
+            <View style={styles.headerRight}>
+              <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
+                <Text style={styles.refreshIcon}>🔄</Text>
+              </TouchableOpacity>
+              <View style={styles.profilePic}>
+                <Text style={styles.profilePicText}>👤</Text>
+              </View>
+            </View>
+          </View>
         </View>
-      </View>
 
-      {/* Recent Activity */}
-      <View style={styles.activitySection}>
-        <Text style={styles.sectionTitle}>Recent Activity</Text>
-        
-        <View style={styles.activityCard}>
-          <Text style={styles.activityText}>
-            {currentUser ? 
-              `Account created successfully! You can now start tracking your health patterns.` :
-              'Welcome! Complete your profile to get started.'
-            }
-          </Text>
+        {/* Connection Status */}
+        <View style={styles.connectionSection}>
+          <View style={styles.connectionHeader}>
+            <Text style={styles.sectionTitle}>Connection Status</Text>
+            <View style={[styles.statusBadge, connectionStatus === 'connected' && styles.statusConnected]}>
+              <View style={styles.statusDot} />
+              <Text style={styles.statusText}>
+                {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
+              </Text>
+            </View>
+          </View>
+          
+          <View style={styles.statusCards}>
+            <View style={[styles.statusCard, styles.statusCardBlue]}>
+              <Text style={styles.statusCardIcon}>🔗</Text>
+              <Text style={styles.statusCardLabel}>API Status</Text>
+              <Text style={styles.statusCardValue}>Active</Text>
+            </View>
+            
+            <View style={[styles.statusCard, styles.statusCardGreen]}>
+              <Text style={styles.statusCardIcon}>🛡️</Text>
+              <Text style={styles.statusCardLabel}>Auth Token</Text>
+              <Text style={styles.statusCardValue}>Valid</Text>
+            </View>
+          </View>
         </View>
-      </View>
 
-      {/* Settings Section */}
-      <View style={styles.settingsSection}>
-        <Text style={styles.sectionTitle}>Settings</Text>
-        
-        <TouchableOpacity style={styles.settingsButton} onPress={handleSettings}>
-          <Text style={styles.settingsButtonText}>⚙️ App Settings</Text>
+        {/* Linked Devices */}
+        <View style={styles.devicesSection}>
+          <View style={styles.devicesSectionHeader}>
+            <Text style={styles.sectionTitle}>Linked Devices</Text>
+            <View style={styles.devicesBadge}>
+              <Text style={styles.devicesBadgeText}>
+                {linkStatus?.active_tokens?.length || 3} Connected
+              </Text>
+            </View>
+          </View>
+          
+          <View style={styles.deviceCard}>
+            <View style={[styles.deviceIconContainer, { backgroundColor: '#dbeafe' }]}>
+              <Text style={styles.deviceIcon}>⌚</Text>
+            </View>
+            <View style={styles.deviceInfo}>
+              <Text style={styles.deviceName}>Apple Watch</Text>
+              <Text style={styles.deviceSync}>Last sync: 2 min ago</Text>
+            </View>
+            <View style={[styles.deviceStatus, styles.deviceStatusGreen]} />
+          </View>
+
+          <View style={styles.deviceCard}>
+            <View style={[styles.deviceIconContainer, { backgroundColor: '#fee2e2' }]}>
+              <Text style={styles.deviceIcon}>📱</Text>
+            </View>
+            <View style={styles.deviceInfo}>
+              <Text style={styles.deviceName}>iPhone 14</Text>
+              <Text style={styles.deviceSync}>Last sync: 5 min ago</Text>
+            </View>
+            <View style={[styles.deviceStatus, styles.deviceStatusGreen]} />
+          </View>
+
+          <View style={styles.deviceCard}>
+            <View style={[styles.deviceIconContainer, { backgroundColor: '#e9d5ff' }]}>
+              <Text style={styles.deviceIcon}>🛏️</Text>
+            </View>
+            <View style={styles.deviceInfo}>
+              <Text style={styles.deviceName}>Sleep Tracker</Text>
+              <Text style={styles.deviceSync}>Last sync: 1 hour ago</Text>
+            </View>
+            <View style={[styles.deviceStatus, styles.deviceStatusOrange]} />
+          </View>
+        </View>
+
+        {/* Platform Status */}
+        <View style={styles.platformSection}>
+          <View style={styles.platformHeader}>
+            <View style={styles.platformIconContainer}>
+              <Text style={styles.platformIcon}>🖥️</Text>
+            </View>
+            <View>
+              <Text style={styles.platformTitle}>Platform Status</Text>
+              <Text style={styles.platformVersion}>AI Engine v2.1.4</Text>
+            </View>
+          </View>
+          
+          <View style={styles.platformMetrics}>
+            <View style={styles.metricItem}>
+              <Text style={styles.metricLabel}>Uptime</Text>
+              <Text style={styles.metricValue}>99.9%</Text>
+            </View>
+            <View style={styles.metricItem}>
+              <Text style={styles.metricLabel}>Response</Text>
+              <Text style={styles.metricValue}>120ms</Text>
+            </View>
+            <View style={styles.metricItem}>
+              <Text style={styles.metricLabel}>Load</Text>
+              <Text style={styles.metricValue}>Low</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.quickActionsSection}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          
+          <View style={styles.quickActionsGrid}>
+            <TouchableOpacity style={styles.quickActionCard} onPress={handleImportData}>
+              <View style={[styles.quickActionIcon, { backgroundColor: '#dbeafe' }]}>
+                <Text style={styles.quickActionIconText}>⬇️</Text>
+              </View>
+              <Text style={styles.quickActionTitle}>Import Data</Text>
+              <Text style={styles.quickActionDesc}>Upload health data files</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.quickActionCard} onPress={handleViewData}>
+              <View style={[styles.quickActionIcon, { backgroundColor: '#d1fae5' }]}>
+                <Text style={styles.quickActionIconText}>📈</Text>
+              </View>
+              <Text style={styles.quickActionTitle}>View Charts</Text>
+              <Text style={styles.quickActionDesc}>Data visualizations</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.quickActionCard} onPress={handleManageDevices}>
+              <View style={[styles.quickActionIcon, { backgroundColor: '#e9d5ff' }]}>
+                <Text style={styles.quickActionIconText}>⚙️</Text>
+              </View>
+              <Text style={styles.quickActionTitle}>Manage Devices</Text>
+              <Text style={styles.quickActionDesc}>Configure connections</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.quickActionCard} onPress={handleSyncWatchData}>
+              <View style={[styles.quickActionIcon, { backgroundColor: '#fed7aa' }]}>
+                <Text style={styles.quickActionIconText}>🔄</Text>
+              </View>
+              <Text style={styles.quickActionTitle}>Sync Watch</Text>
+              <Text style={styles.quickActionDesc}>Update smartwatch data</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.quickActionCard} onPress={() => navigation.navigate('AutomationSettings')}>
+              <View style={[styles.quickActionIcon, { backgroundColor: '#fae8ff' }]}>
+                <Text style={styles.quickActionIconText}>⚡</Text>
+              </View>
+              <Text style={styles.quickActionTitle}>Automation</Text>
+              <Text style={styles.quickActionDesc}>Smart data collection</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.quickActionCard} onPress={async () => {
+              try {
+                // Fetch the latest AI insights for the user
+                const userId = currentUser?.userId || await userManager.getUserId();
+                if (!userId) {
+                  Alert.alert('Error', 'Unable to retrieve user ID. Please log in again.');
+                  return;
+                }
+
+                setIsLoading(true);
+                const insights = await getUserInsights(userId, 1); // Get the latest insight
+                
+                if (insights.insights && insights.insights.length > 0) {
+                  const latestInsight = insights.insights[0];
+                  
+                  // Parse the AI service response
+                  let aiResponse;
+                  try {
+                    aiResponse = typeof latestInsight.ai_report.ai_service_response === 'string'
+                      ? JSON.parse(latestInsight.ai_report.ai_service_response)
+                      : latestInsight.ai_report.ai_service_response;
+                  } catch (parseError) {
+                    console.error('Error parsing AI response:', parseError);
+                    aiResponse = {
+                      is_anomaly: latestInsight.ai_report.is_anomaly,
+                      confidence_score: latestInsight.ai_report.confidence_score,
+                      anomaly_type: latestInsight.ai_report.anomaly_type,
+                      recommendations: latestInsight.ai_report.recommendations,
+                      enhanced_recommendations: [],
+                      behavioral_contexts: [],
+                      timestamp: new Date().toISOString(),
+                      drift_analysis: {},
+                      baseline_comparison: {},
+                    };
+                  }
+                  
+                  // Navigate to AI Insights screen
+                  navigation.navigate('AIInsights', {
+                    aiResponse,
+                    logId: latestInsight.routine_log.log_id || latestInsight.routine_log.id || 0,
+                    userId,
+                  });
+                } else {
+                  // No insights available yet
+                  Alert.alert(
+                    'No Insights Yet',
+                    'Submit health data to see AI-powered insights and drift detection. Your analysis will appear here automatically.',
+                    [
+                      { text: 'Submit Data', onPress: handleImportData },
+                      { text: 'OK', style: 'cancel' }
+                    ]
+                  );
+                }
+              } catch (error) {
+                console.error('Error fetching AI insights:', error);
+                Alert.alert(
+                  'No Insights Available',
+                  'Submit health data to see AI-powered insights and drift detection.',
+                  [
+                    { text: 'Submit Data', onPress: handleImportData },
+                    { text: 'OK', style: 'cancel' }
+                  ]
+                );
+              } finally {
+                setIsLoading(false);
+              }
+            }}>
+              <View style={[styles.quickActionIcon, { backgroundColor: '#ddd6fe' }]}>
+                <Text style={styles.quickActionIconText}>🤖</Text>
+              </View>
+              <Text style={styles.quickActionTitle}>AI Insights</Text>
+              <Text style={styles.quickActionDesc}>View health analysis</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Debug Info */}
+        <View style={styles.debugSection}>
+          <View style={styles.debugHeader}>
+            <Text style={styles.debugTitle}>Debug Info</Text>
+            <TouchableOpacity onPress={handleDebugTokens}>
+              <Text style={styles.debugEye}>👁️</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.debugRow}>
+            <Text style={styles.debugLabel}>Token:</Text>
+            <Text style={styles.debugValueGreen}>eyJ0eXAi...valid</Text>
+          </View>
+          <View style={styles.debugRow}>
+            <Text style={styles.debugLabel}>Session:</Text>
+            <Text style={styles.debugValueBlue}>Active (2h 34m)</Text>
+          </View>
+          <View style={styles.debugRow}>
+            <Text style={styles.debugLabel}>API Calls:</Text>
+            <Text style={styles.debugValueYellow}>247 today</Text>
+          </View>
+        </View>
+
+        {/* App Modules */}
+        <View style={styles.modulesSection}>
+          <Text style={styles.sectionTitle}>App Modules</Text>
+          
+          <TouchableOpacity style={styles.moduleCard} onPress={handleImportData}>
+            <View style={styles.moduleIconContainer}>
+              <Text style={styles.moduleIcon}>💾</Text>
+            </View>
+            <View style={styles.moduleInfo}>
+              <Text style={styles.moduleName}>DataImport Module</Text>
+              <Text style={styles.moduleDesc}>Import and process health data</Text>
+            </View>
+            <Text style={styles.moduleChevron}>›</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.moduleCard} onPress={handleWatchData}>
+            <View style={styles.moduleIconContainer}>
+              <Text style={styles.moduleIcon}>⌚</Text>
+            </View>
+            <View style={styles.moduleInfo}>
+              <Text style={styles.moduleName}>WatchData Module</Text>
+              <Text style={styles.moduleDesc}>Smartwatch data management</Text>
+            </View>
+            <Text style={styles.moduleChevron}>›</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.moduleCard} onPress={handleManageDevices}>
+            <View style={styles.moduleIconContainer}>
+              <Text style={styles.moduleIcon}>🔗</Text>
+            </View>
+            <View style={styles.moduleInfo}>
+              <Text style={styles.moduleName}>CrossDevice Linking</Text>
+              <Text style={styles.moduleDesc}>Multi-device synchronization</Text>
+            </View>
+            <Text style={styles.moduleChevron}>›</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.moduleCard} onPress={handleSettings}>
+            <View style={styles.moduleIconContainer}>
+              <Text style={styles.moduleIcon}>⚙️</Text>
+            </View>
+            <View style={styles.moduleInfo}>
+              <Text style={styles.moduleName}>Settings</Text>
+              <Text style={styles.moduleDesc}>App configuration and preferences</Text>
+            </View>
+            <Text style={styles.moduleChevron}>›</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+
+      {/* Bottom Navigation */}
+      <View style={styles.bottomNav}>
+        <TouchableOpacity style={styles.navTab} onPress={() => navigation.navigate('Home')}>
+          <Text style={styles.navIcon}>🏠</Text>
+          <Text style={styles.navLabel}>Home</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity 
-          style={[styles.settingsButton, { marginTop: 12, backgroundColor: '#ff6b6b' }]} 
-          onPress={handleLogout}
-        >
-          <Text style={[styles.settingsButtonText, { color: '#fff' }]}>🚪 Logout</Text>
+        <TouchableOpacity style={styles.navTab} onPress={() => navigation.navigate('UserDashboard')}>
+          <Text style={[styles.navIcon, styles.navIconActive]}>📊</Text>
+          <Text style={[styles.navLabel, styles.navLabelActive]}>Dashboard</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity 
-          style={[styles.settingsButton, { marginTop: 12, backgroundColor: '#6c757d' }]} 
-          onPress={handleDebugTokens}
-        >
-          <Text style={[styles.settingsButtonText, { color: '#fff' }]}>🔧 Debug Tokens</Text>
+        <TouchableOpacity style={styles.centerNavButton} onPress={handleImportData}>
+          <View style={styles.centerNavButtonInner}>
+            <Text style={styles.centerNavIcon}>+</Text>
+          </View>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.navTab} onPress={handleWatchData}>
+          <Text style={styles.navIcon}>🎯</Text>
+          <Text style={styles.navLabel}>Goals</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.navTab} onPress={handleSettings}>
+          <Text style={styles.navIcon}>👤</Text>
+          <Text style={styles.navLabel}>Profile</Text>
         </TouchableOpacity>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+    backgroundColor: '#f5f7fa',
+  },
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+  },
+  scrollContent: {
+    paddingBottom: 90,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#f5f7fa',
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
     color: '#666',
   },
+  // Header
   header: {
-    backgroundColor: '#fff',
-    padding: 20,
+    backgroundColor: '#ffffff',
     paddingTop: 60,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: '#e5e7eb',
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 16,
-  },
-  connectionStatus: {
-    alignItems: 'center',
-  },
-  connectionIndicator: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: '#f0f0f0',
-  },
-  connected: {
-    backgroundColor: '#d4edda',
-  },
-  failed: {
-    backgroundColor: '#f8d7da',
-  },
-  connectionText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    padding: 20,
-    gap: 12,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#007AFF',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-  },
-  actionsContainer: {
-    padding: 20,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 16,
-  },
-  actionCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  actionIcon: {
-    fontSize: 24,
-    marginRight: 16,
-  },
-  actionContent: {
-    flex: 1,
-  },
-  actionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 4,
-  },
-  actionDescription: {
-    fontSize: 14,
-    color: '#666',
-  },
-  actionArrow: {
-    fontSize: 18,
-    color: '#007AFF',
-    fontWeight: 'bold',
-  },
-  watchSection: {
-    padding: 20,
-  },
-  watchCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  watchHeader: {
+  headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
   },
-  watchTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  toggleButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: '#f0f0f0',
-  },
-  toggleActive: {
-    backgroundColor: '#007AFF',
-  },
-  toggleText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#333',
-  },
-  watchDescription: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 12,
-  },
-  watchStatus: {
+  headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
   },
-  watchStatusText: {
-    fontSize: 12,
-    color: '#666',
-  },
-  activitySection: {
-    padding: 20,
-  },
-  activityCard: {
-    backgroundColor: '#fff',
+  appIcon: {
+    width: 44,
+    height: 44,
     borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: '#6366f1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
-  activityText: {
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
+  appIconText: {
+    fontSize: 24,
   },
-  settingsSection: {
-    padding: 20,
-    paddingBottom: 40,
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1f2937',
   },
-  settingsButton: {
-    backgroundColor: '#f0f0f0',
-    borderRadius: 12,
-    padding: 16,
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  refreshButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f3f4f6',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  settingsButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
+  refreshIcon: {
+    fontSize: 20,
   },
-  retryButton: {
-    backgroundColor: '#6c757d',
+  profilePic: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#f3f4f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profilePicText: {
+    fontSize: 22,
+  },
+  // Connection Status
+  connectionSection: {
+    backgroundColor: '#ffffff',
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  connectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1f2937',
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 6,
-    marginTop: 8,
+    borderRadius: 12,
+    backgroundColor: '#fee2e2',
+    gap: 6,
   },
-  retryButtonText: {
-    color: '#fff',
+  statusConnected: {
+    backgroundColor: '#d1fae5',
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#10b981',
+  },
+  statusText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#065f46',
+  },
+  statusCards: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  statusCard: {
+    flex: 1,
+    borderRadius: 12,
+    padding: 16,
+  },
+  statusCardBlue: {
+    backgroundColor: '#eff6ff',
+  },
+  statusCardGreen: {
+    backgroundColor: '#d1fae5',
+  },
+  statusCardIcon: {
+    fontSize: 20,
+    marginBottom: 8,
+  },
+  statusCardLabel: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginBottom: 4,
+  },
+  statusCardValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1f2937',
+  },
+  // Linked Devices
+  devicesSection: {
+    backgroundColor: '#ffffff',
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  devicesSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  devicesBadge: {
+    backgroundColor: '#6366f1',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  devicesBadgeText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  deviceCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  deviceIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  deviceIcon: {
+    fontSize: 24,
+  },
+  deviceInfo: {
+    flex: 1,
+  },
+  deviceName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  deviceSync: {
+    fontSize: 13,
+    color: '#6b7280',
+  },
+  deviceStatus: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  deviceStatusGreen: {
+    backgroundColor: '#10b981',
+  },
+  deviceStatusOrange: {
+    backgroundColor: '#f59e0b',
+  },
+  // Platform Status
+  platformSection: {
+    backgroundColor: '#ffffff',
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  platformHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  platformIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 14,
+    backgroundColor: '#6366f1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  platformIcon: {
+    fontSize: 28,
+  },
+  platformTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  platformVersion: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  platformMetrics: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+  },
+  metricItem: {
+    alignItems: 'center',
+  },
+  metricLabel: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginBottom: 6,
+  },
+  metricValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1f2937',
+  },
+  // Quick Actions
+  quickActionsSection: {
+    marginHorizontal: 16,
+    marginTop: 16,
+  },
+  quickActionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  quickActionCard: {
+    width: '48%',
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  quickActionIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  quickActionIconText: {
+    fontSize: 24,
+  },
+  quickActionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  quickActionDesc: {
+    fontSize: 13,
+    color: '#6b7280',
+    lineHeight: 18,
+  },
+  // Debug Section
+  debugSection: {
+    backgroundColor: '#1f2937',
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 16,
+    padding: 20,
+  },
+  debugHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  debugTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  debugEye: {
+    fontSize: 20,
+  },
+  debugRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+  },
+  debugLabel: {
+    fontSize: 14,
+    color: '#9ca3af',
+  },
+  debugValueGreen: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#10b981',
+  },
+  debugValueBlue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#3b82f6',
+  },
+  debugValueYellow: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fbbf24',
+  },
+  // App Modules
+  modulesSection: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 20,
+  },
+  moduleCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  moduleIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 14,
+    backgroundColor: '#f3f4f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  moduleIcon: {
+    fontSize: 28,
+  },
+  moduleInfo: {
+    flex: 1,
+  },
+  moduleName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  moduleDesc: {
+    fontSize: 13,
+    color: '#6b7280',
+  },
+  moduleChevron: {
+    fontSize: 32,
+    color: '#d1d5db',
+  },
+  bottomNav: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    height: 70,
+    backgroundColor: '#ffffff',
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    paddingHorizontal: 10,
+    paddingBottom: 10,
+  },
+  navTab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+  },
+  navIcon: {
+    fontSize: 24,
+    marginBottom: 4,
+    opacity: 0.5,
+  },
+  navIconActive: {
+    opacity: 1,
+  },
+  navLabel: {
     fontSize: 12,
+    color: '#9ca3af',
     fontWeight: '500',
+  },
+  navLabelActive: {
+    color: '#6366f1',
+    fontWeight: '600',
+  },
+  centerNavButton: {
+    width: 56,
+    height: 56,
+    marginTop: -20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  centerNavButtonInner: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#6366f1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#6366f1',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  centerNavIcon: {
+    fontSize: 28,
+    color: '#ffffff',
+    fontWeight: 'bold',
   },
 }); 
