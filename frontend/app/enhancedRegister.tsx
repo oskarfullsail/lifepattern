@@ -663,12 +663,13 @@ export default function EnhancedRegister({ navigation }: Props) {
   );
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Enhanced Registration</Text>
-        <Text style={styles.subtitle}>
-          Create a new account or link to an existing one
-        </Text>
+    <View style={styles.wrapper}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Enhanced Registration</Text>
+          <Text style={styles.subtitle}>
+            Create a new account or link to an existing one
+          </Text>
         
         {/* Connection Status */}
         <View style={styles.connectionStatus}>
@@ -694,14 +695,51 @@ export default function EnhancedRegister({ navigation }: Props) {
       {currentStep === 'method' && renderMethodSelection()}
       {currentStep === 'form' && renderRegistrationForm()}
       {currentStep === 'verification' && renderVerification()}
-    </ScrollView>
+      </ScrollView>
+
+      {/* Bottom Navigation */}
+      <View style={styles.bottomNav}>
+        <TouchableOpacity style={styles.navTab} onPress={() => navigation.navigate('Home')}>
+          <Text style={styles.navIcon}>🏠</Text>
+          <Text style={styles.navLabel}>Home</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.navTab}>
+          <Text style={styles.navIcon}>📊</Text>
+          <Text style={styles.navLabel}>Dashboard</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.centerNavButton}>
+          <View style={styles.centerNavButtonInner}>
+            <Text style={styles.centerNavIcon}>+</Text>
+          </View>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.navTab}>
+          <Text style={styles.navIcon}>🎯</Text>
+          <Text style={styles.navLabel}>Goals</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.navTab}>
+          <Text style={styles.navIcon}>👤</Text>
+          <Text style={styles.navLabel}>Profile</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  scrollContent: {
+    paddingBottom: 90,
   },
   header: {
     padding: 20,
@@ -967,5 +1005,71 @@ const styles = StyleSheet.create({
     color: '#856404',
     flex: 1,
     lineHeight: 20,
+  },
+  bottomNav: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    height: 70,
+    backgroundColor: '#ffffff',
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    paddingHorizontal: 10,
+    paddingBottom: 10,
+  },
+  navTab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+  },
+  navIcon: {
+    fontSize: 24,
+    marginBottom: 4,
+    opacity: 0.5,
+  },
+  navIconActive: {
+    opacity: 1,
+  },
+  navLabel: {
+    fontSize: 12,
+    color: '#9ca3af',
+    fontWeight: '500',
+  },
+  navLabelActive: {
+    color: '#6366f1',
+    fontWeight: '600',
+  },
+  centerNavButton: {
+    width: 56,
+    height: 56,
+    marginTop: -20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  centerNavButtonInner: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#6366f1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#6366f1',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  centerNavIcon: {
+    fontSize: 28,
+    color: '#ffffff',
+    fontWeight: 'bold',
   },
 }); 

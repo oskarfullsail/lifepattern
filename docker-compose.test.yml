@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  test-db:
+    image: postgres:15-alpine
+    container_name: test-db
+    environment:
+      POSTGRES_DB: lifepattern
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d lifepattern"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
+  # AI Service
+  test-ai:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: test-ai-service
+    ports:
+      - "8001:8000"
+    environment:
+      - PORT=8000
+      - PYTHONPATH=/app
+      - LOG_LEVEL=DEBUG
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - test-network
+
+  # Backend Service
+  test-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: test-backend
+    ports:
+      - "8081:8080"
+    environment:
+      - PORT=8080
+      - HOST=0.0.0.0
+      - DATABASE_URL=postgres://postgres:password@test-db:5432/lifepattern?sslmode=disable
+      - AI_SERVICE_URL=http://test-ai:8000
+      - JWT_SECRET_KEY=test-secret-key-for-local-testing
+      - JWT_ISSUER=lifepattern-test
+      - JWT_AUDIENCE=lifepattern-test-users
+      - JWT_ACCESS_TOKEN_EXPIRY=15m
+      - JWT_REFRESH_TOKEN_EXPIRY=720h
+      - WEBAUTHN_RP_ID=localhost
+      - WEBAUTHN_RP_NAME=LifePatternTest
+      - WEBAUTHN_RP_ORIGIN=http://localhost:8081
+      - CHALLENGE_EXPIRY=5m
+      - LINK_TOKEN_EXPIRY=10m
+      - DEBUG=true
+      - LOG_LEVEL=debug
+    depends_on:
+      test-db:
+        condition: service_healthy
+      test-ai:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - test-network
+
+networks:
+  test-network:
+    driver: bridge
+

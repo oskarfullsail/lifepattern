@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+web-build/
+dist/
+.expo/
+.metro/
+
+# Config files
+*.config.js
+*.config.ts
+
+# Coverage
+coverage/
+
+# Environment
+env.config.js
+
+# Assets
+assets/
+
+# Firebase
+firebase/
+.firebase/

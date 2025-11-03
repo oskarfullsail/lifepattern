@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.lifepattern.ai",
+      "bundleIdentifier": "com.oskarsanchez.lifepatternai",
       "buildNumber": "1.0.0",
       "infoPlist": {
         "NSHealthShareUsageDescription": "LifePattern needs access to your health data to provide personalized insights and recommendations.",
@@ -24,13 +24,8 @@
         "NSCameraUsageDescription": "LifePattern uses camera access for QR code scanning during device linking.",
         "NSMicrophoneUsageDescription": "LifePattern uses microphone access for voice input and health monitoring.",
         "UIBackgroundModes": [
-          "health-kit",
           "location",
-          "background-fetch",
-          "remote-notification",
-          "health-kit",
-          "location",
-          "background-fetch",
+          "fetch",
           "remote-notification"
         ],
         "ITSAppUsesNonExemptEncryption": false
@@ -48,9 +43,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
-      "package": "com.lifepattern.ai",
-      "versionCode": 1,
+      "package": "com.oskarsanchez.lifepatternai",
       "permissions": [
         "ACTIVITY_RECOGNITION",
         "ACCESS_FINE_LOCATION",
@@ -82,7 +75,7 @@
       ]
     },
     "web": {
-      "bundler": "webpack",
+      "bundler": "metro",
       "favicon": "./assets/favicon.png"
     },
     "scheme": "lifepattern-ai",

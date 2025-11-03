@@ -22,7 +22,6 @@ export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
   EnhancedRegister: undefined;
-  Dashboard: undefined;
   CrossDeviceLinking: undefined;
   DeviceManagement: undefined;
   UserDashboard: undefined;
@@ -76,29 +75,21 @@ export default function Navigation() {
             headerBackTitle: 'Back'
           }} 
         />
-        <Stack.Screen 
-          name="EnhancedRegister" 
-          component={EnhancedRegisterScreen} 
-          options={{ 
+        <Stack.Screen
+          name="EnhancedRegister"
+          component={EnhancedRegisterScreen}
+          options={{
             title: 'Enhanced Registration',
             headerBackTitle: 'Back'
-          }} 
+          }}
         />
-        <Stack.Screen 
-          name="Dashboard" 
-          component={UserDashboardScreen} 
-          options={{ 
-            title: 'Dashboard',
-            headerShown: false
-          }} 
-        />
-        <Stack.Screen 
-          name="CrossDeviceLinking" 
-          component={CrossDeviceLinkingScreen} 
-          options={{ 
+        <Stack.Screen
+          name="CrossDeviceLinking"
+          component={CrossDeviceLinkingScreen}
+          options={{
             title: 'Cross-Device Linking',
             headerBackTitle: 'Back'
-          }} 
+          }}
         />
         <Stack.Screen 
           name="DeviceManagement" 

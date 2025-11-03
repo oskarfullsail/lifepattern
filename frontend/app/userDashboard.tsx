@@ -480,6 +480,20 @@ export default function UserDashboard({ navigation }: Props) {
                 setIsLoading(true);
                 const insights = await getUserInsights(userId, 1); // Get the latest insight
                 
+                // Check if insights is null or undefined
+                if (!insights) {
+                  console.log('No insights returned from API');
+                  Alert.alert(
+                    'No Insights Yet',
+                    'Submit health data to see AI-powered insights and drift detection. Your analysis will appear here automatically.',
+                    [
+                      { text: 'Submit Data', onPress: handleImportData },
+                      { text: 'OK', style: 'cancel' }
+                    ]
+                  );
+                  return;
+                }
+                
                 if (insights.insights && insights.insights.length > 0) {
                   const latestInsight = insights.insights[0];
                   

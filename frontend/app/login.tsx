@@ -98,30 +98,27 @@ export default function Login({ navigation }: Props) {
     try {
       setIsLoading(true);
       console.log('Initializing new user...');
-      
-      // Initialize new user
-      const session = await userManager.initializeUser();
-      console.log('User session created:', session);
-      
-      const credentials = await userManager.getUserCredentials();
-      console.log('User credentials retrieved:', credentials);
-      
-      if (credentials) {
-        console.log('Showing credentials alert');
+
+      // Initialize new user - returns session and one-time credentials
+      const result = await userManager.initializeUser();
+      console.log('User session created:', result.session);
+
+      if (result.credentials) {
+        console.log('Showing credentials alert - ONE TIME ONLY');
         Alert.alert(
           'Account Created! 🎉',
-          `Your credentials:\n\nUsername: ${credentials.username}\nPassphrase: ${credentials.passphrase}\n\nPlease save these credentials safely!`,
+          `Your credentials:\n\nUsername: ${result.credentials.username}\nPassphrase: ${result.credentials.passphrase}\n\n⚠️ IMPORTANT: Save these credentials now!\nThey will NOT be shown again for security reasons.`,
           [
             {
               text: 'I Saved Them',
               onPress: () => {
-                console.log('User confirmed credentials, proceeding to login');
-                setUsername(credentials.username);
-                setPassphrase(credentials.passphrase);
-                handleLogin();
+                console.log('User confirmed credentials, navigating to dashboard');
+                // User is already authenticated, go to dashboard
+                navigation.replace('UserDashboard');
               }
             }
-          ]
+          ],
+          { cancelable: false } // Force user to acknowledge
         );
       } else {
         console.error('No credentials returned from userManager');
@@ -205,11 +202,12 @@ export default function Login({ navigation }: Props) {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Welcome Back</Text>
-        <Text style={styles.subtitle}>Sign in to your LifePattern account</Text>
-      </View>
+    <View style={styles.wrapper}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Welcome Back</Text>
+          <Text style={styles.subtitle}>Sign in to your LifePattern account</Text>
+        </View>
 
       <View style={styles.formContainer}>
         {userCredentials ? (
@@ -289,10 +287,44 @@ export default function Login({ navigation }: Props) {
         </Text>
       </View>
     </ScrollView>
+
+      {/* Bottom Navigation */}
+      <View style={styles.bottomNav}>
+        <TouchableOpacity style={styles.navTab} onPress={() => navigation.navigate('Home')}>
+          <Text style={styles.navIcon}>🏠</Text>
+          <Text style={styles.navLabel}>Home</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.navTab}>
+          <Text style={styles.navIcon}>📊</Text>
+          <Text style={styles.navLabel}>Dashboard</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.centerNavButton}>
+          <View style={styles.centerNavButtonInner}>
+            <Text style={styles.centerNavIcon}>+</Text>
+          </View>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.navTab}>
+          <Text style={styles.navIcon}>🎯</Text>
+          <Text style={styles.navLabel}>Goals</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.navTab}>
+          <Text style={styles.navIcon}>👤</Text>
+          <Text style={styles.navLabel}>Profile</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+  },
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
@@ -300,6 +332,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     flexGrow: 1,
     padding: 20,
+    paddingBottom: 90,
   },
   loadingContainer: {
     flex: 1,
@@ -441,5 +474,71 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     lineHeight: 20,
+  },
+  bottomNav: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    height: 70,
+    backgroundColor: '#ffffff',
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    paddingHorizontal: 10,
+    paddingBottom: 10,
+  },
+  navTab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+  },
+  navIcon: {
+    fontSize: 24,
+    marginBottom: 4,
+    opacity: 0.5,
+  },
+  navIconActive: {
+    opacity: 1,
+  },
+  navLabel: {
+    fontSize: 12,
+    color: '#9ca3af',
+    fontWeight: '500',
+  },
+  navLabelActive: {
+    color: '#6366f1',
+    fontWeight: '600',
+  },
+  centerNavButton: {
+    width: 56,
+    height: 56,
+    marginTop: -20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  centerNavButtonInner: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#6366f1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#6366f1',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  centerNavIcon: {
+    fontSize: 28,
+    color: '#ffffff',
+    fontWeight: 'bold',
   },
 }); 

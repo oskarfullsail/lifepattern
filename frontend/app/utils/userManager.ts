@@ -65,7 +65,7 @@ export interface UserSession {
 
 export interface UserCredentials {
   username: string;
-  passphrase: string;
+  // Security: Passphrase is never stored, only username is persisted
 }
 
 // Generate human-friendly username
@@ -144,7 +144,7 @@ const generateDeviceId = async (): Promise<string> => {
   } catch (error) {
     console.error('Error generating device ID:', error);
     // Fallback to timestamp-based ID
-    return `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `device_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
   }
 };
 
@@ -154,13 +154,13 @@ const hashString = async (str: string): Promise<string> => {
   const data = encoder.encode(str);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substr(0, 16);
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
 };
 
 // Generate unique user ID
 const generateUserId = (deviceId: string): string => {
   const timestamp = Date.now();
-  const random = Math.random().toString(36).substr(2, 9);
+  const random = Math.random().toString(36).substring(2, 11);
   return `user_${deviceId}_${timestamp}_${random}`;
 };
 
@@ -175,7 +175,7 @@ const hashPassphrase = async (passphrase: string, salt: string): Promise<string>
 
 // Generate salt
 const generateSalt = (): string => {
-  return Math.random().toString(36).substr(2, 16);
+  return Math.random().toString(36).substring(2, 18);
 };
 
 // User session management
@@ -191,36 +191,38 @@ export class UserManager {
   }
 
   // Initialize or load user session
-  async initializeUser(): Promise<UserSession> {
+  // Returns session for existing users, or session + credentials for new users
+  async initializeUser(): Promise<{ session: UserSession; credentials?: { username: string; passphrase: string } }> {
     try {
       // Check for existing session
       const existingSession = await secureStorage.getItemAsync('userSession');
       if (existingSession) {
         const session: UserSession = JSON.parse(existingSession);
         this.currentSession = session;
-        
+
         // Update last login
         session.lastLogin = new Date().toISOString();
         await secureStorage.setItemAsync('userSession', JSON.stringify(session));
-        
-        return session;
+
+        // Existing user - no credentials to return
+        return { session };
       }
 
       // Create new user session
       const deviceId = await generateDeviceId();
       const username = generateUsername();
       const passphrase = generatePassphrase();
-      
+
       // Import the register API function
       const { register } = await import('../api/endpoint');
-      
+
       // Register with backend
       const response = await register({
         username,
         passphrase,
         device_label: `${Platform.OS} Device`
       });
-      
+
       const newSession: UserSession = {
         userId: response.user_id,
         deviceId,
@@ -233,20 +235,27 @@ export class UserManager {
 
       // Store session securely
       await secureStorage.setItemAsync('userSession', JSON.stringify(newSession));
-      
-      // Store credentials securely
+
+      // Store credentials securely (username only - never store passphrase)
       await secureStorage.setItemAsync('userCredentials', JSON.stringify({
         username,
-        passphrase, // Store original for retrieval
+        // Security: Passphrase is never stored locally
+        // Backend validates credentials and issues tokens
       }));
-      
+
       // Store tokens
       await secureStorage.setItemAsync('accessToken', response.access_token);
       await secureStorage.setItemAsync('refreshToken', response.refresh_token);
-      
+
       this.currentSession = newSession;
 
-      return newSession;
+      // Return session AND credentials for one-time display
+      // Credentials are returned ONLY for new users to show them once
+      // They are NEVER stored locally
+      return {
+        session: newSession,
+        credentials: { username, passphrase }
+      };
     } catch (error) {
       console.error('Error initializing user:', error);
       throw error;
@@ -272,7 +281,7 @@ export class UserManager {
     }
   }
 
-  // Get user credentials
+  // Get user credentials (username only - passphrase is never stored)
   async getUserCredentials(): Promise<UserCredentials | null> {
     try {
       const credentialsData = await secureStorage.getItemAsync('userCredentials');
@@ -280,7 +289,7 @@ export class UserManager {
         const credentials = JSON.parse(credentialsData);
         return {
           username: credentials.username,
-          passphrase: credentials.passphrase, // This should be the original passphrase
+          // Security: Passphrase is never stored or returned
         };
       }
       return null;
@@ -366,19 +375,20 @@ export class UserManager {
   }
 
   // Update passphrase
+  // Note: This only updates the passphrase on the backend
+  // Passphrase is NEVER stored locally for security reasons
   async updatePassphrase(newPassphrase: string): Promise<void> {
     try {
-      const salt = generateSalt();
-      const hashedPassphrase = await hashPassphrase(newPassphrase, salt);
-      
-      const credentialsData = await secureStorage.getItemAsync('userCredentials');
-      if (credentialsData) {
-        const credentials = JSON.parse(credentialsData);
-        credentials.hashedPassphrase = hashedPassphrase;
-        credentials.salt = salt;
-        credentials.passphrase = newPassphrase; // Store original
-        await secureStorage.setItemAsync('userCredentials', JSON.stringify(credentials));
-      }
+      // TODO: Implement backend API call to update passphrase
+      // The backend should handle passphrase hashing and storage
+      console.log('⚠️ updatePassphrase: Backend API call not yet implemented');
+      console.log('📝 Passphrase is never stored locally - only sent to backend for validation');
+
+      // No local storage of passphrase for security
+      // When implemented, this should call:
+      // await apiClient.post('/api/auth/update-passphrase', { newPassphrase });
+
+      throw new Error('Passphrase update not implemented - requires backend API');
     } catch (error) {
       console.error('Error updating passphrase:', error);
       throw error;
@@ -389,11 +399,25 @@ export class UserManager {
   async clearSession(): Promise<void> {
     try {
       console.log('🚪 Logging out user...');
+      
+      // Call backend logout endpoint to revoke session
+      try {
+        const { default: apiClient } = await import('../api/client');
+        await apiClient.post('/api/auth/logout');
+        console.log('✅ Backend session revoked');
+      } catch (error) {
+        console.warn('⚠️ Failed to revoke backend session:', error);
+        // Continue with local cleanup even if backend fails
+      }
+      
+      // Clear local session data
       this.currentSession = null;
       await secureStorage.deleteItemAsync('userSession');
       await secureStorage.deleteItemAsync('accessToken');
       await secureStorage.deleteItemAsync('refreshToken');
-      console.log('✅ Logout successful');
+      await secureStorage.deleteItemAsync('userCredentials');
+      
+      console.log('✅ Logout successful - all data cleared');
     } catch (error) {
       console.error('❌ Error during logout:', error);
     }
@@ -437,10 +461,65 @@ export class UserManager {
         return false;
       }
       
+      // Validate token is not expired (basic check)
+      if (this.isTokenExpired(accessToken)) {
+        console.log('⚠️ Access token expired, attempting refresh...');
+        const refreshed = await this.refreshTokenIfNeeded();
+        return refreshed;
+      }
+      
       console.log('✅ User is authenticated');
       return true;
     } catch (error) {
       console.error('❌ Error checking authentication:', error);
+      return false;
+    }
+  }
+
+  // Check if JWT token is expired
+  private isTokenExpired(token: string): boolean {
+    try {
+      // Parse JWT payload (simple base64 decode)
+      const parts = token.split('.');
+      if (parts.length !== 3) return true;
+      
+      const payload = JSON.parse(atob(parts[1]));
+      const exp = payload.exp;
+      
+      if (!exp) return false; // No expiration set
+      
+      // Check if expired (with 5 minute buffer)
+      const now = Math.floor(Date.now() / 1000);
+      return now >= (exp - 300); // Refresh 5 minutes before expiry
+    } catch (error) {
+      console.error('Error parsing token:', error);
+      return true; // Treat parse errors as expired
+    }
+  }
+
+  // Refresh token if needed
+  async refreshTokenIfNeeded(): Promise<boolean> {
+    try {
+      const refreshToken = await this.getRefreshToken();
+      if (!refreshToken) {
+        console.log('❌ No refresh token available');
+        return false;
+      }
+      
+      console.log('🔄 Refreshing access token...');
+      
+      const { refreshToken: refreshTokenFunction } = await import('../api/endpoint');
+      const response = await refreshTokenFunction({
+        refresh_token: refreshToken
+      });
+      
+      // Store new access token (keep same refresh token)
+      await this.storeTokens(response.access_token, refreshToken);
+      
+      console.log('✅ Access token refreshed successfully');
+      return true;
+    } catch (error) {
+      console.error('❌ Token refresh failed:', error);
       return false;
     }
   }
@@ -538,6 +617,82 @@ export class UserManager {
     } catch (error) {
       console.error('❌ Force token refresh failed:', error);
       return false;
+    }
+  }
+
+  // Initialize and validate session on app load
+  async initializeSession(): Promise<{
+    isValid: boolean;
+    needsLogin: boolean;
+    wasRefreshed: boolean;
+  }> {
+    try {
+      console.log('🔄 Initializing session...');
+      
+      // Check if user has any session
+      const user = await this.getCurrentUser();
+      if (!user) {
+        console.log('❌ No session found - needs login');
+        return { isValid: false, needsLogin: true, wasRefreshed: false };
+      }
+      
+      // Check tokens
+      const accessToken = await this.getAccessToken();
+      const refreshToken = await this.getRefreshToken();
+      
+      if (!refreshToken) {
+        console.log('❌ No refresh token - needs login');
+        await this.clearSession();
+        return { isValid: false, needsLogin: true, wasRefreshed: false };
+      }
+      
+      // If no access token or expired, try to refresh
+      if (!accessToken || this.isTokenExpired(accessToken)) {
+        console.log('⚠️ Access token missing or expired - attempting refresh...');
+        const refreshed = await this.refreshTokenIfNeeded();
+        
+        if (!refreshed) {
+          console.log('❌ Token refresh failed - needs login');
+          await this.clearSession();
+          return { isValid: false, needsLogin: true, wasRefreshed: false };
+        }
+        
+        console.log('✅ Session refreshed successfully');
+        return { isValid: true, needsLogin: false, wasRefreshed: true };
+      }
+      
+      console.log('✅ Session is valid');
+      return { isValid: true, needsLogin: false, wasRefreshed: false };
+      
+    } catch (error) {
+      console.error('❌ Session initialization failed:', error);
+      await this.clearSession();
+      return { isValid: false, needsLogin: true, wasRefreshed: false };
+    }
+  }
+
+  // Logout with backend notification
+  async logoutCompletely(): Promise<void> {
+    try {
+      console.log('🚪 Performing complete logout...');
+      
+      // Call backend to revoke session
+      try {
+        const { logout } = await import('../api/endpoint');
+        await logout();
+        console.log('✅ Backend session revoked');
+      } catch (error) {
+        console.warn('⚠️ Failed to notify backend of logout:', error);
+        // Continue with local cleanup
+      }
+      
+      // Clear all local data
+      await this.clearSession();
+      
+      console.log('✅ Logout complete');
+    } catch (error) {
+      console.error('❌ Logout error:', error);
+      throw error;
     }
   }
 }

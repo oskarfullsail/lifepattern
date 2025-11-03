@@ -6,34 +6,30 @@ import { refreshToken } from './endpoint';
 
 // Determine the correct backend URL based on the environment and platform
 const getBackendUrl = () => {
-  // Use environment configuration
+  // Use environment configuration (which already handles dev vs prod)
   const config = currentConfig;
   
-  // For web development, use localhost
-  if (Platform.OS === 'web') {
-    if (__DEV__) {
+  // For development mode only, use platform-specific local URLs
+  if (__DEV__) {
+    if (Platform.OS === 'web') {
+      console.log('🔧 DEV MODE (Web): Using', config.backendUrl);
+      return config.backendUrl;
+    }
+
+    if (Platform.OS === 'ios') {
+      console.log('🔧 DEV MODE (iOS): Using localhost:8080');
       return 'http://localhost:8080';
     }
-    return config.backendUrl;
-  }
-  
-  // For mobile development, use environment config but fallback to localhost for dev
-  if (Platform.OS === 'ios' || Platform.OS === 'android') {
-    // In development, use platform-specific URLs
-    if (__DEV__) {
-      if (Platform.OS === 'ios') {
-        return 'http://localhost:8080';
-      }
-      if (Platform.OS === 'android') {
-        return 'http://10.0.2.2:8080';
-      }
+
+    if (Platform.OS === 'android') {
+      console.log('🔧 DEV MODE (Android): Using 10.0.2.2:8080');
+      return 'http://10.0.2.2:8080';
     }
-    
-    // In production, use the environment config
-    return config.backendUrl;
   }
   
-  // Fallback
+  // For production builds, ALWAYS use the environment config
+  // This ensures Firebase deployment uses Render backend
+  console.log(`🚀 PRODUCTION MODE (${Platform.OS}): Using ${config.backendUrl}`);
   return config.backendUrl;
 };
 
@@ -56,6 +52,8 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
   async (config) => {
     console.log(`📤 API Request: ${config.method?.toUpperCase()} ${config.url}`);
+    console.log(`📍 Base URL: ${BASE_URL}`);
+    console.log(`📦 Request Data:`, config.data);
     
     // Define public endpoints that don't need authentication
     const publicEndpoints = ['/health', '/auth/login', '/auth/register', '/auth/recovery'];
@@ -67,13 +65,19 @@ apiClient.interceptors.request.use(
         const accessToken = await userManager.getAccessToken();
         if (accessToken) {
           config.headers.Authorization = `Bearer ${accessToken}`;
+          console.log(`🔐 Token added: ${accessToken.substring(0, 20)}...`);
+        } else {
+          console.warn('⚠️ No access token found for protected endpoint!');
         }
       } catch (error) {
-        console.log('No access token available for request');
+        console.error('❌ Error getting access token:', error);
       }
     } else {
       console.log('🔓 Public endpoint - skipping authentication');
     }
+    
+    console.log(`🌐 Full URL: ${config.baseURL}${config.url}`);
+    console.log(`⏱️ Timeout: ${config.timeout}ms`);
     
     return config;
   },
