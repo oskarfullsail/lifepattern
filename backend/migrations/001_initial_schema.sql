@@ -5,11 +5,22 @@
 -- Users table
 CREATE TABLE IF NOT EXISTS users (
     id VARCHAR(255) PRIMARY KEY, -- Changed to string for privacy-focused IDs
-    username VARCHAR(50) UNIQUE NOT NULL,
+    username VARCHAR(50) UNIQUE,
     device_id VARCHAR(255) NOT NULL, -- Device identifier for cross-platform use
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Add username column if it doesn't exist (for existing databases)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='users' AND column_name='username'
+    ) THEN
+        ALTER TABLE users ADD COLUMN username VARCHAR(50) UNIQUE;
+    END IF;
+END $$;
 
 -- Routine logs table
 CREATE TABLE IF NOT EXISTS routine_logs (
@@ -67,7 +78,18 @@ CREATE TRIGGER update_users_updated_at
     BEFORE UPDATE ON users 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Sample data insertion (for testing)
-INSERT INTO users (id, username, device_id) VALUES 
-    ('test_user_123', 'testuser', 'device_123')
-ON CONFLICT (username) DO NOTHING; 
+-- Sample data insertion (for testing) - only if username column exists
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='users' AND column_name='username'
+    ) THEN
+        INSERT INTO users (id, username, device_id) VALUES
+            ('test_user_123', 'testuser', 'device_123')
+        ON CONFLICT (username) DO NOTHING;
+    END IF;
+EXCEPTION WHEN OTHERS THEN
+    -- Ignore any errors (table might not have username column yet)
+    NULL;
+END $$; 
