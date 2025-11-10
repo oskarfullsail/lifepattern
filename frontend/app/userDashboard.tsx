@@ -310,7 +310,12 @@ export default function UserDashboard({ navigation }: Props) {
               <View style={styles.appIcon}>
                 <Text style={styles.appIconText}>🧠</Text>
               </View>
-              <Text style={styles.title}>Dashboard</Text>
+              <View>
+                <Text style={styles.title}>Dashboard</Text>
+                {currentUser?.username && (
+                  <Text style={styles.welcomeText}>Welcome, {currentUser.username}</Text>
+                )}
+              </View>
             </View>
             <View style={styles.headerRight}>
               <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
@@ -719,6 +724,11 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '700',
     color: '#1f2937',
+  },
+  welcomeText: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 2,
   },
   headerRight: {
     flexDirection: 'row',

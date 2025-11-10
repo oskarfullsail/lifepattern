@@ -19,6 +19,9 @@ COPY backend/ .
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/server
 
+# Build the migration tool
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o migrate ./cmd/migrate
+
 # Final stage
 FROM alpine:latest
 
@@ -32,11 +35,16 @@ RUN addgroup -g 1001 -S appgroup && \
 # Set working directory
 WORKDIR /app
 
-# Copy binary from builder stage
+# Copy binaries from builder stage
 COPY --from=builder /app/main .
+COPY --from=builder /app/migrate .
 
 # Copy any additional files if needed
 COPY --from=builder /app/migrations ./migrations
+
+# Copy entrypoint script
+COPY backend/entrypoint.sh .
+RUN chmod +x entrypoint.sh
 
 # Change ownership to non-root user
 RUN chown -R appuser:appgroup /app
@@ -51,5 +59,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
-# Run the application
-CMD ["./main"] 
+# Run migrations then start the application
+CMD ["./entrypoint.sh"] 

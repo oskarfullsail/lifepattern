@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation';
+import userManager from './utils/userManager';
 
 type SettingsScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Settings'>;
 
@@ -17,16 +18,24 @@ interface Props {
 }
 
 export default function Settings({ navigation }: Props) {
-  const handleLogout = () => {
+  const handleLogout = async () => {
     Alert.alert(
       'Logout',
       'Are you sure you want to logout?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Logout', 
+        {
+          text: 'Logout',
           style: 'destructive',
-          onPress: () => navigation.replace('Home')
+          onPress: async () => {
+            try {
+              await userManager.logout();
+              navigation.replace('Home');
+            } catch (error) {
+              console.error('Logout error:', error);
+              navigation.replace('Home');
+            }
+          }
         }
       ]
     );
