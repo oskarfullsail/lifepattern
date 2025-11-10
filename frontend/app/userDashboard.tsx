@@ -233,8 +233,7 @@ export default function UserDashboard({ navigation }: Props) {
   };
 
   const handleViewData = () => {
-    // navigation.navigate('DataVisualization');
-    Alert.alert('Coming Soon', 'Data visualization feature is under development');
+    navigation.navigate('DataVisualization');
   };
 
   const handleManageDevices = () => {
