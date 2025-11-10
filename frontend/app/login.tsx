@@ -93,44 +93,8 @@ export default function Login({ navigation }: Props) {
     }
   };
 
-  const handleCreateAccount = async () => {
-    console.log('Create account button clicked');
-    try {
-      setIsLoading(true);
-      console.log('Initializing new user...');
-
-      // Initialize new user - returns session and one-time credentials
-      const result = await userManager.initializeUser();
-      console.log('User session created:', result.session);
-
-      if (result.credentials) {
-        console.log('Showing credentials alert - ONE TIME ONLY');
-        Alert.alert(
-          'Account Created! 🎉',
-          `Your credentials:\n\nUsername: ${result.credentials.username}\nPassphrase: ${result.credentials.passphrase}\n\n⚠️ IMPORTANT: Save these credentials now!\nThey will NOT be shown again for security reasons.`,
-          [
-            {
-              text: 'I Saved Them',
-              onPress: () => {
-                console.log('User confirmed credentials, navigating to dashboard');
-                // User is already authenticated, go to dashboard
-                navigation.replace('UserDashboard');
-              }
-            }
-          ],
-          { cancelable: false } // Force user to acknowledge
-        );
-      } else {
-        console.error('No credentials returned from userManager');
-        Alert.alert('Error', 'Failed to generate credentials. Please try again.');
-      }
-    } catch (error) {
-      console.error('Error creating account:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      Alert.alert('Error', `Failed to create account: ${errorMessage}`);
-    } finally {
-      setIsLoading(false);
-    }
+  const handleCreateAccount = () => {
+    navigation.navigate('Register');
   };
 
   const handleForgotCredentials = async () => {
@@ -233,10 +197,10 @@ export default function Login({ navigation }: Props) {
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Passphrase</Text>
+          <Text style={styles.label}>Password</Text>
           <TextInput
             style={styles.input}
-            placeholder="Enter your passphrase"
+            placeholder="Enter your password"
             value={passphrase}
             onChangeText={setPassphrase}
             secureTextEntry
@@ -258,15 +222,13 @@ export default function Login({ navigation }: Props) {
           )}
         </TouchableOpacity>
 
-        {!userCredentials && (
-          <TouchableOpacity
-            style={styles.createAccountButton}
-            onPress={handleCreateAccount}
-            disabled={isLoading}
-          >
-            <Text style={styles.createAccountText}>Create New Account</Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={styles.createAccountButton}
+          onPress={handleCreateAccount}
+          disabled={isLoading}
+        >
+          <Text style={styles.createAccountText}>Create New Account</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.forgotButton}

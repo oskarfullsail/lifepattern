@@ -16,6 +16,9 @@ import WatchDataModuleScreen from './app/watchDataModule';
 import SettingsScreen from './app/settings';
 import AutomationSettingsScreen from './app/automationSettings';
 import AIInsightsScreen from './app/aiInsights';
+import ScreeningQuestionnaireScreen from './app/screeningQuestionnaire';
+import UsabilitySurveyScreen from './app/usabilitySurvey';
+import AdminDashboardScreen from './app/adminDashboard';
 
 export type RootStackParamList = {
   Home: undefined;
@@ -31,6 +34,9 @@ export type RootStackParamList = {
   Settings: undefined;
   AutomationSettings: undefined;
   AIInsights: { aiResponse: any; logId: number; userId: string };
+  ScreeningQuestionnaire: undefined;
+  UsabilitySurvey: undefined;
+  AdminDashboard: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -147,13 +153,37 @@ export default function Navigation() {
             headerShown: false
           }} 
         />
-        <Stack.Screen 
-          name="AIInsights" 
-          component={AIInsightsScreen} 
-          options={{ 
+        <Stack.Screen
+          name="AIInsights"
+          component={AIInsightsScreen}
+          options={{
             title: 'AI Insights',
             headerShown: false
-          }} 
+          }}
+        />
+        <Stack.Screen
+          name="ScreeningQuestionnaire"
+          component={ScreeningQuestionnaireScreen}
+          options={{
+            title: 'Screening Questionnaire',
+            headerBackTitle: 'Back'
+          }}
+        />
+        <Stack.Screen
+          name="UsabilitySurvey"
+          component={UsabilitySurveyScreen}
+          options={{
+            title: 'Usability Survey',
+            headerBackTitle: 'Back'
+          }}
+        />
+        <Stack.Screen
+          name="AdminDashboard"
+          component={AdminDashboardScreen}
+          options={{
+            title: 'Admin Dashboard',
+            headerShown: false
+          }}
         />
       </Stack.Navigator>
       <StatusBar style="auto" />

@@ -188,3 +188,49 @@ type MobileChallenge struct {
 	CreatedAt time.Time `json:"created_at"`
 	ExpiresAt time.Time `json:"expires_at"`
 }
+
+// ScreeningResponse represents a candidate screening questionnaire response
+type ScreeningResponse struct {
+	ID                      uuid.UUID `json:"id" db:"id"`
+	UserID                  uuid.UUID `json:"user_id" db:"user_id"`
+	Age                     int       `json:"age" db:"age"`
+	Gender                  string    `json:"gender" db:"gender"`
+	Occupation              string    `json:"occupation" db:"occupation"`
+	SmartphoneUsage         string    `json:"smartphone_usage" db:"smartphone_usage"`
+	DeviceType              string    `json:"device_type" db:"device_type"`
+	SleepHours              string    `json:"sleep_hours" db:"sleep_hours"`
+	HabitTracking           string    `json:"habit_tracking" db:"habit_tracking"`
+	RoutineStructure        string    `json:"routine_structure" db:"routine_structure"`
+	ProductivityFluctuation string    `json:"productivity_fluctuation" db:"productivity_fluctuation"`
+	TechComfort             string    `json:"tech_comfort" db:"tech_comfort"`
+	WellnessAppsUsed        bool      `json:"wellness_apps_used" db:"wellness_apps_used"`
+	AIFeedbackOpenness      string    `json:"ai_feedback_openness" db:"ai_feedback_openness"`
+	InterestReason          string    `json:"interest_reason" db:"interest_reason"`
+	IsQualifiedTester       bool      `json:"is_qualified_tester" db:"is_qualified_tester"`
+	QualificationScore      int       `json:"qualification_score" db:"qualification_score"`
+	CreatedAt               time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt               time.Time `json:"updated_at" db:"updated_at"`
+}
+
+// UsabilitySurveyResponse represents a usability testing survey response
+type UsabilitySurveyResponse struct {
+	ID                     uuid.UUID `json:"id" db:"id"`
+	UserID                 uuid.UUID `json:"user_id" db:"user_id"`
+	EasyToUse              int       `json:"easy_to_use" db:"easy_to_use"`
+	FeltConfident          int       `json:"felt_confident" db:"felt_confident"`
+	ClearDesign            int       `json:"clear_design" db:"clear_design"`
+	ResponsiveSmooth       int       `json:"responsive_smooth" db:"responsive_smooth"`
+	FeedbackUnderstandable int       `json:"feedback_understandable" db:"feedback_understandable"`
+	EasyToFind             int       `json:"easy_to_find" db:"easy_to_find"`
+	HelpedReflect          int       `json:"helped_reflect" db:"helped_reflect"`
+	WouldUseRegularly      int       `json:"would_use_regularly" db:"would_use_regularly"`
+	WouldRecommend         int       `json:"would_recommend" db:"would_recommend"`
+	OverallSatisfied       int       `json:"overall_satisfied" db:"overall_satisfied"`
+	LikedMost              string    `json:"liked_most" db:"liked_most"`
+	WouldImprove           string    `json:"would_improve" db:"would_improve"`
+	EncounteredIssues      string    `json:"encountered_issues" db:"encountered_issues"`
+	SUSScore               float64   `json:"sus_score" db:"sus_score"`
+	AverageRating          float64   `json:"average_rating" db:"average_rating"`
+	CreatedAt              time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt              time.Time `json:"updated_at" db:"updated_at"`
+}

@@ -181,6 +181,34 @@ export default function Settings({ navigation }: Props) {
           </View>
           <Text style={styles.settingArrow}>→</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.settingItem}
+          onPress={() => navigation.navigate('UsabilitySurvey')}
+        >
+          <Text style={styles.settingIcon}>💬</Text>
+          <View style={styles.settingContent}>
+            <Text style={styles.settingTitle}>Provide Feedback</Text>
+            <Text style={styles.settingDescription}>Share your experience with us</Text>
+          </View>
+          <Text style={styles.settingArrow}>→</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Admin</Text>
+
+        <TouchableOpacity
+          style={styles.settingItem}
+          onPress={() => navigation.navigate('AdminDashboard')}
+        >
+          <Text style={styles.settingIcon}>🔑</Text>
+          <View style={styles.settingContent}>
+            <Text style={styles.settingTitle}>Admin Dashboard</Text>
+            <Text style={styles.settingDescription}>Owner access to questionnaire data</Text>
+          </View>
+          <Text style={styles.settingArrow}>→</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.dangerSection}>

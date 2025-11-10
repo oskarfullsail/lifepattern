@@ -30,6 +30,11 @@ func (r *Repository) Close() error {
 	return r.db.Close()
 }
 
+// GetDB returns the database instance for direct queries
+func (r *Repository) GetDB() *sql.DB {
+	return r.db
+}
+
 // CreateUser creates a new user
 func (r *Repository) CreateUser(user User) error {
 	query := `INSERT INTO users (id, created_at, last_seen_at) VALUES ($1, $2, $3)`

@@ -34,11 +34,12 @@ type Services struct {
 
 // Handlers holds all HTTP handlers
 type Handlers struct {
-	AuthHandler    *handlers.AuthHandler
-	HealthHandler  *handlers.HealthHandler
-	LogHandler     *handlers.LogHandler
-	InsightHandler *handlers.InsightHandler
-	DeviceHandler  *handlers.DeviceHandler
+	AuthHandler          *handlers.AuthHandler
+	HealthHandler        *handlers.HealthHandler
+	LogHandler           *handlers.LogHandler
+	InsightHandler       *handlers.InsightHandler
+	DeviceHandler        *handlers.DeviceHandler
+	QuestionnaireHandler *handlers.QuestionnaireHandler
 }
 
 // Middleware holds all HTTP middleware
@@ -77,11 +78,12 @@ func NewContainer(cfg *config.Config, db *sql.DB) *Container {
 
 	// Create handlers
 	handlers := &Handlers{
-		AuthHandler:    handlers.NewAuthHandler(repo, services.JWTService, services.WebAuthnService, services.SessionService, services.MobileService),
-		HealthHandler:  handlers.NewHealthHandler(repo, services.AIService),
-		LogHandler:     handlers.NewLogHandler(services.RoutineService),
-		InsightHandler: handlers.NewInsightHandler(services.RoutineService),
-		DeviceHandler:  handlers.NewDeviceHandler(),
+		AuthHandler:          handlers.NewAuthHandler(repo, services.JWTService, services.WebAuthnService, services.SessionService, services.MobileService),
+		HealthHandler:        handlers.NewHealthHandler(repo, services.AIService),
+		LogHandler:           handlers.NewLogHandler(services.RoutineService),
+		InsightHandler:       handlers.NewInsightHandler(services.RoutineService),
+		DeviceHandler:        handlers.NewDeviceHandler(),
+		QuestionnaireHandler: handlers.NewQuestionnaireHandler(repo),
 	}
 	log.Println("✅ All handlers created")
 

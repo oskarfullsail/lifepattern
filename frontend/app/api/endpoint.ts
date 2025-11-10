@@ -315,4 +315,103 @@ export const requestPasswordRecovery = async (payload: PasswordRecoveryRequest):
 export const logout = async (): Promise<{ message: string }> => {
   const res = await apiClient.post<{ message: string }>('/api/auth/logout');
   return res.data;
+};
+
+// Questionnaire Types
+export interface ScreeningRequest {
+  age: number;
+  gender: string;
+  occupation: string;
+  smartphone_usage: string;
+  device_type: string;
+  sleep_hours: string;
+  habit_tracking: string;
+  routine_structure: string;
+  productivity_fluctuation: string;
+  tech_comfort: string;
+  wellness_apps_used: boolean;
+  ai_feedback_openness: string;
+  interest_reason: string;
+}
+
+export interface ScreeningResponse {
+  id: string;
+  user_id: string;
+  age: number;
+  gender: string;
+  occupation: string;
+  smartphone_usage: string;
+  device_type: string;
+  sleep_hours: string;
+  habit_tracking: string;
+  routine_structure: string;
+  productivity_fluctuation: string;
+  tech_comfort: string;
+  wellness_apps_used: boolean;
+  ai_feedback_openness: string;
+  interest_reason: string;
+  is_qualified_tester: boolean;
+  qualification_score: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UsabilitySurveyRequest {
+  easy_to_use: number;
+  felt_confident: number;
+  clear_design: number;
+  responsive_smooth: number;
+  feedback_understandable: number;
+  easy_to_find: number;
+  helped_reflect: number;
+  would_use_regularly: number;
+  would_recommend: number;
+  overall_satisfied: number;
+  liked_most: string;
+  would_improve: string;
+  encountered_issues: string;
+}
+
+export interface UsabilitySurveyResponse {
+  id: string;
+  user_id: string;
+  easy_to_use: number;
+  felt_confident: number;
+  clear_design: number;
+  responsive_smooth: number;
+  feedback_understandable: number;
+  easy_to_find: number;
+  helped_reflect: number;
+  would_use_regularly: number;
+  would_recommend: number;
+  overall_satisfied: number;
+  liked_most: string;
+  would_improve: string;
+  encountered_issues: string;
+  sus_score: number;
+  average_rating: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Screening Questionnaire API Calls
+export const submitScreening = async (payload: ScreeningRequest): Promise<ScreeningResponse> => {
+  const res = await apiClient.post<ScreeningResponse>('/api/screening', payload);
+  return res.data;
+};
+
+export const getScreening = async (): Promise<ScreeningResponse> => {
+  const res = await apiClient.get<ScreeningResponse>('/api/screening');
+  return res.data;
+};
+
+// Usability Survey API Calls
+export const submitUsabilitySurvey = async (payload: UsabilitySurveyRequest): Promise<UsabilitySurveyResponse> => {
+  const res = await apiClient.post<UsabilitySurveyResponse>('/api/usability-survey', payload);
+  return res.data;
+};
+
+export const getUsabilitySurveys = async (): Promise<UsabilitySurveyResponse[]> => {
+  const res = await apiClient.get<UsabilitySurveyResponse[]>('/api/usability-surveys');
+  return res.data;
 }; 

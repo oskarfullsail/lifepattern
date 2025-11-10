@@ -45,7 +45,7 @@ export default function HomeScreen({ navigation }: Props) {
   };
 
   const handleStartTracking = () => {
-    navigation.navigate('EnhancedRegister');
+    navigation.navigate('Register');
   };
 
   if (isLoading) {
