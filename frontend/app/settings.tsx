@@ -30,10 +30,18 @@ export default function Settings({ navigation }: Props) {
           onPress: async () => {
             try {
               await userManager.logout();
-              navigation.replace('Home');
+              // Reset navigation stack to Home screen
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Home' }],
+              });
             } catch (error) {
               console.error('Logout error:', error);
-              navigation.replace('Home');
+              // Reset navigation even on error
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Home' }],
+              });
             }
           }
         }

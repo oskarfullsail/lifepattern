@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation';
 import userManager from './utils/userManager';
 
@@ -23,13 +24,9 @@ const { width } = Dimensions.get('window');
 export default function HomeScreen({ navigation }: Props) {
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    // Check if user is already authenticated
-    checkAuthStatus();
-  }, [navigation]);
-
-  const checkAuthStatus = async () => {
+  const checkAuthStatus = useCallback(async () => {
     try {
+      setIsLoading(true);
       const isAuthenticated = await userManager.isAuthenticated();
       if (isAuthenticated) {
         // User is authenticated, navigate to dashboard
@@ -42,7 +39,14 @@ export default function HomeScreen({ navigation }: Props) {
       console.error('Error checking auth status:', error);
       setIsLoading(false);
     }
-  };
+  }, [navigation]);
+
+  // Check auth status on mount and every time screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      checkAuthStatus();
+    }, [checkAuthStatus])
+  );
 
   const handleStartTracking = () => {
     navigation.navigate('Register');
