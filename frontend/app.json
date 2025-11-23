@@ -2,7 +2,7 @@
   "expo": {
     "name": "LifePattern AI",
     "slug": "lifepattern-ai",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/icon-optimized.png",
     "userInterfaceStyle": "automatic",
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.oskarsanchez.lifepatternai",
-      "buildNumber": "4",
+      "buildNumber": "5",
       "infoPlist": {
         "NSHealthShareUsageDescription": "LifePattern needs access to your health data to provide personalized insights and recommendations.",
         "NSHealthUpdateUsageDescription": "LifePattern needs to update your health data to track your progress and sync with other devices.",
@@ -47,7 +47,7 @@
         "foregroundImage": "./assets/adaptive-icon-optimized.png",
         "backgroundColor": "#5BA8DB"
       },
-      "versionCode": 11,
+      "versionCode": 12,
       "package": "com.oskarsanchez.lifepatternai",
       "compileSdkVersion": 35,
       "targetSdkVersion": 35,
