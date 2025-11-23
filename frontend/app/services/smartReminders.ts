@@ -27,13 +27,19 @@ export interface ReminderStats {
 }
 
 // Configure notification behavior
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+// Wrapped in try-catch to prevent crashes if Notifications is not available
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    }),
+  });
+} catch (error) {
+  console.error('❌ Error setting notification handler:', error);
+  console.warn('⚠️ Notification handler could not be configured. Notifications may not work properly.');
+}
 
 /**
  * Request notification permissions
@@ -195,7 +201,7 @@ const scheduleMorningReminder = async (settings: ReminderSettings): Promise<stri
         hour: settings.morningTime.hour,
         minute: settings.morningTime.minute,
         repeats: true,
-      },
+      } as Notifications.CalendarTriggerInput,
     });
 
     console.log('✅ Morning reminder scheduled:', identifier);
@@ -228,7 +234,7 @@ const scheduleEveningReminder = async (settings: ReminderSettings): Promise<stri
         hour: settings.eveningTime.hour,
         minute: settings.eveningTime.minute,
         repeats: true,
-      },
+      } as Notifications.CalendarTriggerInput,
     });
 
     console.log('✅ Evening reminder scheduled:', identifier);
@@ -266,7 +272,7 @@ const scheduleAdaptiveReminder = async (stats: ReminderStats): Promise<string | 
         hour: bestTime.hour,
         minute: 30,
         repeats: true,
-      },
+      } as Notifications.CalendarTriggerInput,
     });
 
     console.log('✅ Adaptive reminder scheduled for hour:', bestTime.hour);

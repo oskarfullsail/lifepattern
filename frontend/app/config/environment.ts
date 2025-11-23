@@ -48,18 +48,18 @@ export const getCurrentEnvironment = () => {
   }
   
   // For web, check the hostname first (most reliable for production detection)
-  if (typeof window !== 'undefined') {
+  if (typeof window !== 'undefined' && window.location && window.location.hostname) {
     const hostname = window.location.hostname;
-    
+
     // Production if deployed to Firebase or any non-local domain
-    if (hostname !== 'localhost' && 
-        hostname !== '127.0.0.1' && 
+    if (hostname !== 'localhost' &&
+        hostname !== '127.0.0.1' &&
         !hostname.includes('192.168.') &&
         !hostname.includes('10.0.2.2')) {
       console.log('🌍 Detected PRODUCTION environment from hostname:', hostname);
       return 'production';
     }
-    
+
     // Development for local hosts
     console.log('🌍 Detected DEVELOPMENT environment from hostname:', hostname);
     return 'development';
@@ -82,9 +82,15 @@ export const getEnvironmentConfig = () => {
   const config = ENV[env as keyof typeof ENV];
   
   // Debug logging for environment detection
-  if (typeof window !== 'undefined') {
+  if (typeof window !== 'undefined' && window.location) {
     console.log(`🌍 Environment Detection:`, {
       hostname: window.location.hostname,
+      detectedEnv: env,
+      backendUrl: config.backendUrl,
+      isDev: __DEV__
+    });
+  } else {
+    console.log(`🌍 Environment Detection (Mobile):`, {
       detectedEnv: env,
       backendUrl: config.backendUrl,
       isDev: __DEV__
@@ -94,5 +100,19 @@ export const getEnvironmentConfig = () => {
   return config;
 };
 
-// Export current config for easy access
-export const currentConfig = getEnvironmentConfig(); 
+// Export current config for easy access (lazy-loaded to avoid crashes)
+let _currentConfig: ReturnType<typeof getEnvironmentConfig> | null = null;
+export const getCurrentConfig = () => {
+  if (!_currentConfig) {
+    _currentConfig = getEnvironmentConfig();
+  }
+  return _currentConfig;
+};
+
+// Note: Use getCurrentConfig() instead of currentConfig to avoid module-load crashes
+// This getter ensures the config is only evaluated when actually accessed
+Object.defineProperty(exports, 'currentConfig', {
+  get: getCurrentConfig,
+  enumerable: true,
+  configurable: true,
+}); 

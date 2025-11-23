@@ -1,7 +1,7 @@
 {
   "cli": {
     "version": ">= 16.18.0",
-    "appVersionSource": "remote"
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
@@ -42,8 +42,7 @@
         "buildConfiguration": "Release"
       },
       "android": {
-        "buildType": "apk",
-        "gradleCommand": ":app:assembleRelease"
+        "buildType": "app-bundle"
       }
     }
   },

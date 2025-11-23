@@ -1,6 +1,6 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeApp, FirebaseApp, getApps } from 'firebase/app';
+import { getAuth, Auth } from 'firebase/auth';
+import { getFirestore, Firestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBjYxyKuyTHs-rCQsVFYB7inNuYMLTsiqE",
@@ -12,11 +12,31 @@ const firebaseConfig = {
   measurementId: "G-CNWSMQ70FL"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Safe Firebase initialization with error handling
+let app: FirebaseApp | null = null;
+let auth: Auth | null = null;
+let db: Firestore | null = null;
 
-// Initialize Firebase services
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+try {
+  // Check if Firebase is already initialized
+  if (getApps().length === 0) {
+    app = initializeApp(firebaseConfig);
+    console.log('✅ Firebase initialized successfully');
+  } else {
+    app = getApps()[0];
+    console.log('✅ Firebase already initialized');
+  }
 
+  // Initialize Firebase services
+  if (app) {
+    auth = getAuth(app);
+    db = getFirestore(app);
+  }
+} catch (error) {
+  console.error('❌ Error initializing Firebase:', error);
+  console.warn('⚠️ App will run with limited functionality. Some features may not work.');
+}
+
+// Export with null checks
+export { auth, db };
 export default app; 

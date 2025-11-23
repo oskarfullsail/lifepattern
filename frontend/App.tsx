@@ -2,9 +2,15 @@ import { useEffect, useState } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import Navigation from './navigation';
 import { initializeAutomation } from './app/utils/automationInit';
+import { setupGlobalErrorHandlers } from './app/utils/errorHandlers';
+import ErrorBoundary from './components/ErrorBoundary';
+
+// Setup global error handlers immediately
+setupGlobalErrorHandlers();
 
 export default function App() {
   const [isInitializing, setIsInitializing] = useState(true);
+  const [initError, setInitError] = useState<Error | null>(null);
 
   useEffect(() => {
     // Initialize automation services on app startup
@@ -15,6 +21,8 @@ export default function App() {
         console.log('✅ App initialization complete');
       } catch (error) {
         console.error('❌ App initialization error:', error);
+        // Don't block app startup if automation fails
+        setInitError(error as Error);
       } finally {
         setIsInitializing(false);
       }
@@ -32,7 +40,11 @@ export default function App() {
     );
   }
 
-  return <Navigation />;
+  return (
+    <ErrorBoundary>
+      <Navigation />
+    </ErrorBoundary>
+  );
 }
 
 const styles = StyleSheet.create({

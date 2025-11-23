@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"lifepattern-api/internal/database"
 	"lifepattern-api/internal/services"
@@ -24,6 +25,47 @@ func NewLogHandler(routineService services.RoutineServiceInterface) *LogHandler 
 	}
 }
 
+// normalizeTimeInput converts various time formats to HH:MM format
+// Handles inputs like: "7", "7:30", "07:30", "7:30:00", "07:30:00"
+func normalizeTimeInput(timeStr string) string {
+	if timeStr == "" {
+		return ""
+	}
+
+	// Trim whitespace
+	timeStr = strings.TrimSpace(timeStr)
+
+	// If it's just a number (e.g., "7"), convert to "07:00"
+	if num, err := strconv.Atoi(timeStr); err == nil {
+		if num >= 0 && num <= 23 {
+			return fmt.Sprintf("%02d:00", num)
+		}
+		return "00:00" // Invalid hour
+	}
+
+	// If it contains a colon, parse it
+	parts := strings.Split(timeStr, ":")
+	if len(parts) >= 2 {
+		// Parse hour and minute
+		hour, err1 := strconv.Atoi(parts[0])
+		minute, err2 := strconv.Atoi(parts[1])
+
+		if err1 == nil && err2 == nil {
+			// Validate ranges
+			if hour < 0 || hour > 23 {
+				hour = 0
+			}
+			if minute < 0 || minute > 59 {
+				minute = 0
+			}
+			return fmt.Sprintf("%02d:%02d", hour, minute)
+		}
+	}
+
+	// If we can't parse it, return as-is (might already be in correct format)
+	return timeStr
+}
+
 // CreateRoutineLog handles POST /log requests
 func (h *LogHandler) CreateRoutineLog(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -37,6 +79,10 @@ func (h *LogHandler) CreateRoutineLog(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
+
+	// Normalize time inputs to handle various formats
+	routineLog.WakeUpTime = normalizeTimeInput(routineLog.WakeUpTime)
+	routineLog.BedTime = normalizeTimeInput(routineLog.BedTime)
 
 	// Create routine log
 	response, err := h.routineService.CreateRoutineLog(routineLog)

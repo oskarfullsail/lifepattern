@@ -2,7 +2,7 @@
   "expo": {
     "name": "LifePattern AI",
     "slug": "lifepattern-ai",
-    "version": "1.0.0",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/icon-optimized.png",
     "userInterfaceStyle": "automatic",
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.oskarsanchez.lifepatternai",
-      "buildNumber": "1.0.0",
+      "buildNumber": "4",
       "infoPlist": {
         "NSHealthShareUsageDescription": "LifePattern needs access to your health data to provide personalized insights and recommendations.",
         "NSHealthUpdateUsageDescription": "LifePattern needs to update your health data to track your progress and sync with other devices.",
@@ -36,6 +36,10 @@
           "health-records",
           "health-records"
         ]
+      },
+      "requireFullScreen": false,
+      "config": {
+        "usesNonExemptEncryption": false
       }
     },
     "android": {
@@ -43,7 +47,11 @@
         "foregroundImage": "./assets/adaptive-icon-optimized.png",
         "backgroundColor": "#5BA8DB"
       },
+      "versionCode": 11,
       "package": "com.oskarsanchez.lifepatternai",
+      "compileSdkVersion": 35,
+      "targetSdkVersion": 35,
+      "privacyPolicy": "https://lifepattern-ai.web.app/privacy-policy.html",
       "permissions": [
         "ACTIVITY_RECOGNITION",
         "ACCESS_FINE_LOCATION",
@@ -79,7 +87,21 @@
       "favicon": "./assets/favicon-optimized.png"
     },
     "scheme": "lifepattern-ai",
-    "plugins": [],
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "minSdkVersion": 24
+          },
+          "ios": {
+            "deploymentTarget": "15.1"
+          }
+        }
+      ]
+    ],
     "extra": {
       "eas": {
         "projectId": "6a5e526c-7cf1-4d52-8e71-c8e1fe22c92a"

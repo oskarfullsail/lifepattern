@@ -220,8 +220,14 @@ const performBackgroundSync = async (): Promise<BackgroundFetch.BackgroundFetchR
 
 /**
  * Define background task
+ * Wrapped in try-catch to prevent crashes if TaskManager is not available
  */
-TaskManager.defineTask(HEALTH_SYNC_TASK, performBackgroundSync);
+try {
+  TaskManager.defineTask(HEALTH_SYNC_TASK, performBackgroundSync);
+} catch (error) {
+  console.error('❌ Error defining background task:', error);
+  console.warn('⚠️ Background health sync task could not be defined. This feature may not work.');
+}
 
 /**
  * Register background health sync task
@@ -280,6 +286,10 @@ export const unregisterHealthSyncTask = async (): Promise<void> => {
 export const getBackgroundFetchStatus = async (): Promise<string> => {
   try {
     const status = await BackgroundFetch.getStatusAsync();
+
+    if (status === null || status === undefined) {
+      return 'Unknown';
+    }
 
     const statusMap: { [key: number]: string } = {
       [BackgroundFetch.BackgroundFetchStatus.Restricted]: 'Restricted',

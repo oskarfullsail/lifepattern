@@ -7,10 +7,13 @@ import {
   ScrollView,
   ActivityIndicator,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation';
+import { getUserRoutineLogs, getUserInsights, InsightResponse } from './api/endpoint';
+import userManager from './utils/userManager';
 
 type DataVisualizationScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'DataVisualization'>;
 type DataVisualizationScreenRouteProp = RouteProp<RootStackParamList, 'DataVisualization'>;
@@ -24,23 +27,60 @@ const { width } = Dimensions.get('window');
 
 export default function DataVisualization({ navigation, route }: Props) {
   const { data } = route.params || {};
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'year'>('week');
+  const [routineLogs, setRoutineLogs] = useState<any[]>([]);
+  const [insights, setInsights] = useState<InsightResponse[]>([]);
+  const [currentData, setCurrentData] = useState<any>(null);
 
-  // Mock data for visualization
-  const mockData = {
-    sleep_hours: 7.5,
-    meal_times: ['08:00', '12:30', '19:00'],
-    screen_time: 4.2,
-    exercise_duration: 1.5,
-    wake_up_time: '07:00',
-    bed_time: '23:00',
-    water_intake: 2.5,
-    stress_level: 3,
-    log_date: new Date().toISOString().split('T')[0]
+  useEffect(() => {
+    fetchData();
+  }, [selectedPeriod]);
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const userId = await userManager.getUserId();
+
+      if (!userId) {
+        Alert.alert('Error', 'Please log in to view your data');
+        navigation.navigate('Home');
+        return;
+      }
+
+      // Calculate limit based on selected period
+      const limitMap = { week: 7, month: 30, year: 365 };
+      const limit = limitMap[selectedPeriod];
+
+      // Fetch routine logs and insights
+      const [logsResponse, insightsResponse] = await Promise.all([
+        getUserRoutineLogs(userId, limit),
+        getUserInsights(userId, limit),
+      ]);
+
+      setRoutineLogs(logsResponse.logs || []);
+      setInsights(insightsResponse.insights || []);
+
+      // Use the most recent log as current data, or the data passed via route params
+      if (data) {
+        setCurrentData(data);
+      } else if (logsResponse.logs && logsResponse.logs.length > 0) {
+        setCurrentData(logsResponse.logs[0]);
+      } else {
+        // No data available
+        setCurrentData(null);
+      }
+    } catch (error: any) {
+      console.error('Error fetching data:', error);
+      Alert.alert(
+        'Error',
+        'Failed to load data. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
-
-  const currentData = data || mockData;
 
   const renderSleepChart = () => (
     <View style={styles.chartContainer}>
@@ -128,39 +168,95 @@ export default function DataVisualization({ navigation, route }: Props) {
     </View>
   );
 
-  const renderInsights = () => (
-    <View style={styles.insightsContainer}>
-      <Text style={styles.insightsTitle}>AI Insights</Text>
-      
-      <View style={styles.insightCard}>
-        <Text style={styles.insightIcon}>💡</Text>
-        <Text style={styles.insightText}>
-          Your sleep pattern is good! You're getting close to the recommended 8 hours.
-        </Text>
+  const renderInsights = () => {
+    if (insights.length === 0) {
+      return (
+        <View style={styles.insightsContainer}>
+          <Text style={styles.insightsTitle}>AI Insights</Text>
+          <View style={styles.insightCard}>
+            <Text style={styles.insightIcon}>ℹ️</Text>
+            <Text style={styles.insightText}>
+              No AI insights available yet. Add more data to get personalized recommendations!
+            </Text>
+          </View>
+        </View>
+      );
+    }
+
+    // Get the most recent insight
+    const latestInsight = insights[0];
+    const recommendations = latestInsight.ai_report?.recommendations || [];
+
+    return (
+      <View style={styles.insightsContainer}>
+        <Text style={styles.insightsTitle}>AI Insights</Text>
+
+        {/* Anomaly Detection */}
+        {latestInsight.ai_report?.is_anomaly && (
+          <View style={[styles.insightCard, styles.anomalyCard]}>
+            <Text style={styles.insightIcon}>⚠️</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.anomalyTitle}>
+                {latestInsight.ai_report.anomaly_type || 'Unusual Pattern Detected'}
+              </Text>
+              <Text style={styles.insightText}>
+                Confidence: {(latestInsight.ai_report.confidence_score * 100).toFixed(0)}%
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Recommendations */}
+        {recommendations.length > 0 ? (
+          recommendations.map((rec: string, index: number) => (
+            <View key={index} style={styles.insightCard}>
+              <Text style={styles.insightIcon}>💡</Text>
+              <Text style={styles.insightText}>{rec}</Text>
+            </View>
+          ))
+        ) : (
+          <View style={styles.insightCard}>
+            <Text style={styles.insightIcon}>✅</Text>
+            <Text style={styles.insightText}>
+              Your routine looks healthy! Keep up the good work.
+            </Text>
+          </View>
+        )}
       </View>
-      
-      <View style={styles.insightCard}>
-        <Text style={styles.insightIcon}>🏃‍♂️</Text>
-        <Text style={styles.insightText}>
-          Try to increase exercise duration to 2 hours for better health outcomes.
-        </Text>
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={styles.loadingText}>Loading your health data...</Text>
       </View>
-      
-      <View style={styles.insightCard}>
-        <Text style={styles.insightIcon}>💧</Text>
-        <Text style={styles.insightText}>
-          You're drinking enough water. Keep up the good hydration!
+    );
+  }
+
+  if (!currentData) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <Text style={styles.noDataTitle}>No Data Available</Text>
+        <Text style={styles.noDataText}>
+          Start tracking your health by adding your first routine log!
         </Text>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('DataImport', { source: 'manual' })}
+        >
+          <Text style={styles.actionButtonText}>Add Data Now</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.secondaryButton]}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>← Back to Dashboard</Text>
+        </TouchableOpacity>
       </View>
-      
-      <View style={styles.insightCard}>
-        <Text style={styles.insightIcon}>📱</Text>
-        <Text style={styles.insightText}>
-          Screen time is within healthy limits. Consider taking more breaks.
-        </Text>
-      </View>
-    </View>
-  );
+    );
+  }
 
   return (
     <ScrollView style={styles.container}>
@@ -169,10 +265,10 @@ export default function DataVisualization({ navigation, route }: Props) {
         <Text style={styles.subtitle}>
           Your health patterns and insights
         </Text>
-        
+
         {/* Period Selector */}
         <View style={styles.periodSelector}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.periodButton, selectedPeriod === 'week' && styles.periodActive]}
             onPress={() => setSelectedPeriod('week')}
           >
@@ -180,7 +276,7 @@ export default function DataVisualization({ navigation, route }: Props) {
               Week
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.periodButton, selectedPeriod === 'month' && styles.periodActive]}
             onPress={() => setSelectedPeriod('month')}
           >
@@ -188,7 +284,7 @@ export default function DataVisualization({ navigation, route }: Props) {
               Month
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.periodButton, selectedPeriod === 'year' && styles.periodActive]}
             onPress={() => setSelectedPeriod('year')}
           >
@@ -219,14 +315,14 @@ export default function DataVisualization({ navigation, route }: Props) {
 
       {/* Actions */}
       <View style={styles.actionsContainer}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.actionButton}
           onPress={() => navigation.navigate('DataImport', { source: 'manual' })}
         >
           <Text style={styles.actionButtonText}>Add New Data</Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           style={styles.actionButton}
           onPress={() => navigation.goBack()}
         >
@@ -486,5 +582,47 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666',
+  },
+  noDataTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  noDataText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 24,
+  },
+  secondaryButton: {
+    backgroundColor: '#f0f0f0',
+    marginTop: 12,
+  },
+  secondaryButtonText: {
+    color: '#333',
+  },
+  anomalyCard: {
+    backgroundColor: '#FFF3E0',
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF9800',
+  },
+  anomalyTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#E65100',
+    marginBottom: 4,
   },
 }); 

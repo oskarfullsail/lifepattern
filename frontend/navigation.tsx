@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
+import { View, Text, ActivityIndicator } from 'react-native';
 
 // Import screens
 import HomeScreen from './app/index';
@@ -42,9 +44,39 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function Navigation() {
+  const [navigationError, setNavigationError] = useState(false);
+
+  const handleNavigationError = (error: Error) => {
+    console.error('Navigation error:', error);
+    setNavigationError(true);
+  };
+
+  if (navigationError) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+        <Text style={{ fontSize: 18, marginBottom: 20, textAlign: 'center' }}>
+          Navigation Error
+        </Text>
+        <Text style={{ fontSize: 14, color: '#666', textAlign: 'center' }}>
+          Unable to load navigation. Please restart the app.
+        </Text>
+      </View>
+    );
+  }
+
   return (
-    <NavigationContainer>
-      <Stack.Navigator 
+    <NavigationContainer
+      onStateChange={(state) => {
+        // Track navigation state changes
+        console.log('Navigation state changed:', state);
+      }}
+      fallback={
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#7C3AED" />
+        </View>
+      }
+    >
+      <Stack.Navigator
         initialRouteName="Home"
         screenOptions={{
           headerStyle: {

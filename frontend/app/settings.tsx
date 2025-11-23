@@ -8,6 +8,7 @@ import {
   Alert,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { CommonActions } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation';
 import userManager from './utils/userManager';
 
@@ -18,7 +19,7 @@ interface Props {
 }
 
 export default function Settings({ navigation }: Props) {
-  const handleLogout = async () => {
+  const handleLogout = () => {
     Alert.alert(
       'Logout',
       'Are you sure you want to logout?',
@@ -29,19 +30,29 @@ export default function Settings({ navigation }: Props) {
           style: 'destructive',
           onPress: async () => {
             try {
+              console.log('🚪 Starting logout...');
+
+              // Clear session completely
               await userManager.logout();
-              // Reset navigation stack to Home screen
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'Home' }],
-              });
+
+              console.log('✅ Logout complete, navigating to Home');
+
+              // Use CommonActions to reset the navigation state
+              navigation.dispatch(
+                CommonActions.reset({
+                  index: 0,
+                  routes: [{ name: 'Home' }],
+                })
+              );
             } catch (error) {
-              console.error('Logout error:', error);
-              // Reset navigation even on error
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'Home' }],
-              });
+              console.error('❌ Logout error:', error);
+              // Still try to navigate even on error
+              navigation.dispatch(
+                CommonActions.reset({
+                  index: 0,
+                  routes: [{ name: 'Home' }],
+                })
+              );
             }
           }
         }
