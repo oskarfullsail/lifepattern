@@ -52,33 +52,97 @@ export default function DataImport({ navigation, route }: Props) {
 
   const handleHealthAppImport = async () => {
     setIsLoading(true);
-    try {
-      // Simulate health app data import
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const mockData = {
-        sleep_hours: 7.5,
-        meal_times: ['08:00', '12:30', '19:00'],
-        screen_time: 4.2,
-        exercise_duration: 1.5,
-        wake_up_time: '07:00',
-        bed_time: '23:00',
-        water_intake: 2.5,
-        stress_level: 3,
-        log_date: new Date().toISOString().split('T')[0]
-      };
+    setLoadingMessage('Connecting to Health App...');
 
-      setImportData(mockData);
-      Alert.alert(
-        'Success', 
-        'Health data imported successfully!',
-        [{ text: 'OK', onPress: () => navigation.navigate('DataVisualization', { data: mockData }) }]
-      );
-    } catch (error) {
+    try {
+      // Get user ID
+      const userId = await userManager.getUserId();
+      if (!userId) {
+        Alert.alert('Error', 'Please log in to import health data');
+        return;
+      }
+
+      setLoadingMessage('Fetching health data...');
+
+      // Import the health sync service
+      const healthSync = require('./services/healthSync').default;
+
+      // Check if health sync is available
+      const status = await healthSync.getBackgroundFetchStatus();
+
+      if (status !== 'Available') {
+        Alert.alert(
+          'Health Sync Not Available',
+          'Background fetch is not available on this device. Health data import requires:\n\n' +
+          '• iOS: Apple Health permissions\n' +
+          '• Android: Google Health Connect\n\n' +
+          'Please enable these in your device settings.',
+          [
+            { text: 'OK' },
+            {
+              text: 'Try Manual Entry',
+              onPress: () => navigation.navigate('DataImport', { source: 'manual' })
+            }
+          ]
+        );
+        return;
+      }
+
+      // Attempt to sync health data
+      setLoadingMessage('Syncing with Health App...');
+      const success = await healthSync.manualHealthSync();
+
+      if (success) {
+        Alert.alert(
+          'Success',
+          'Health data imported and synced to your account!',
+          [
+            {
+              text: 'View Data',
+              onPress: () => navigation.navigate('DataVisualization', {})
+            },
+            { text: 'OK' }
+          ]
+        );
+      } else {
+        // No data available from health app - show helpful message
+        Alert.alert(
+          'No Health Data Available',
+          'No health data was found in your Health App. This could be because:\n\n' +
+          '• You need to grant Health App permissions\n' +
+          '• No health data has been logged yet\n' +
+          '• The Health App integration is still being set up\n\n' +
+          'Would you like to enter data manually instead?',
+          [
+            {
+              text: 'Manual Entry',
+              onPress: () => navigation.navigate('DataImport', { source: 'manual' })
+            },
+            { text: 'Cancel', style: 'cancel' }
+          ]
+        );
+      }
+    } catch (error: any) {
       console.error('Error importing health data:', error);
-      Alert.alert('Error', 'Failed to import health data');
+
+      Alert.alert(
+        'Import Failed',
+        'Failed to import health data. This feature requires:\n\n' +
+        '• Apple Health (iOS) or Google Health Connect (Android)\n' +
+        '• Appropriate permissions\n\n' +
+        'Error: ' + (error.message || 'Unknown error') + '\n\n' +
+        'Would you like to enter data manually?',
+        [
+          {
+            text: 'Manual Entry',
+            onPress: () => navigation.navigate('DataImport', { source: 'manual' })
+          },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
     } finally {
       setIsLoading(false);
+      setLoadingMessage('Loading...');
     }
   };
 

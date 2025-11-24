@@ -18,6 +18,8 @@ import WatchDataModuleScreen from './app/watchDataModule';
 import SettingsScreen from './app/settings';
 import AutomationSettingsScreen from './app/automationSettings';
 import AIInsightsScreen from './app/aiInsights';
+import AIProductivityInsightsScreen from './app/aiProductivityInsights';
+import QuickLogScreen from './app/quickLog';
 import ScreeningQuestionnaireScreen from './app/screeningQuestionnaire';
 import UsabilitySurveyScreen from './app/usabilitySurvey';
 import AdminDashboardScreen from './app/adminDashboard';
@@ -36,6 +38,8 @@ export type RootStackParamList = {
   Settings: undefined;
   AutomationSettings: undefined;
   AIInsights: { aiResponse: any; logId: number; userId: string };
+  AIProductivityInsights: undefined;
+  QuickLog: undefined;
   ScreeningQuestionnaire: undefined;
   UsabilitySurvey: undefined;
   AdminDashboard: undefined;
@@ -190,6 +194,22 @@ export default function Navigation() {
           component={AIInsightsScreen}
           options={{
             title: 'AI Insights',
+            headerShown: false
+          }}
+        />
+        <Stack.Screen
+          name="AIProductivityInsights"
+          component={AIProductivityInsightsScreen}
+          options={{
+            title: 'AI Productivity',
+            headerShown: false
+          }}
+        />
+        <Stack.Screen
+          name="QuickLog"
+          component={QuickLogScreen}
+          options={{
+            title: 'Quick Log',
             headerShown: false
           }}
         />

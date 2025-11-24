@@ -136,7 +136,12 @@ func (h *LogHandler) GetUserRoutineLogs(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Return logs
+	// Return logs in the format expected by frontend
+	response := map[string]interface{}{
+		"user_id": userID.String(),
+		"logs":    logs,
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(logs)
+	json.NewEncoder(w).Encode(response)
 }

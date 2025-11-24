@@ -6,6 +6,7 @@
 import smartReminders from '../services/smartReminders';
 import healthSync from '../services/healthSync';
 import passiveTracking from '../services/passiveTracking';
+import aiProductivityCoach from '../services/aiProductivityCoach';
 
 export interface AutomationStatus {
   reminders: {
@@ -20,6 +21,11 @@ export interface AutomationStatus {
     error?: string;
   };
   passiveTracking: {
+    initialized: boolean;
+    enabled: boolean;
+    error?: string;
+  };
+  aiProductivityCoach: {
     initialized: boolean;
     enabled: boolean;
     error?: string;
@@ -44,6 +50,10 @@ export const initializeAutomation = async (): Promise<AutomationStatus> => {
       status: 'Unknown',
     },
     passiveTracking: {
+      initialized: false,
+      enabled: false,
+    },
+    aiProductivityCoach: {
       initialized: false,
       enabled: false,
     },
@@ -107,6 +117,28 @@ export const initializeAutomation = async (): Promise<AutomationStatus> => {
       status.passiveTracking.error = String(error);
     }
 
+    // Initialize AI Productivity Coach
+    try {
+      console.log('🤖 Initializing AI Productivity Coach...');
+      const aiCoachSettings = await aiProductivityCoach.loadAICoachSettings();
+      status.aiProductivityCoach.initialized = true;
+      status.aiProductivityCoach.enabled = aiCoachSettings.enabled;
+
+      // Run initial AI check if enabled
+      if (aiCoachSettings.enabled) {
+        console.log('🧠 Running initial AI productivity check...');
+        await aiProductivityCoach.runAIProductivityCheck();
+      }
+
+      console.log(
+        `✅ AI Productivity Coach initialized` +
+          ` (${aiCoachSettings.enabled ? 'enabled' : 'disabled'})`
+      );
+    } catch (error) {
+      console.error('❌ Failed to initialize AI Productivity Coach:', error);
+      status.aiProductivityCoach.error = String(error);
+    }
+
     console.log('✅ Automation initialization complete');
     console.log('📊 Status:', status);
 
@@ -155,6 +187,10 @@ export const getAutomationStatus = async (): Promise<AutomationStatus> => {
       status: 'Unknown',
     },
     passiveTracking: {
+      initialized: false,
+      enabled: false,
+    },
+    aiProductivityCoach: {
       initialized: false,
       enabled: false,
     },

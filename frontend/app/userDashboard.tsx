@@ -472,6 +472,22 @@ export default function UserDashboard({ navigation }: Props) {
               <Text style={styles.quickActionDesc}>Smart data collection</Text>
             </TouchableOpacity>
 
+            <TouchableOpacity style={styles.quickActionCard} onPress={() => navigation.navigate('QuickLog')}>
+              <View style={[styles.quickActionIcon, { backgroundColor: '#dbeafe' }]}>
+                <Text style={styles.quickActionIconText}>✍️</Text>
+              </View>
+              <Text style={styles.quickActionTitle}>Quick Log</Text>
+              <Text style={styles.quickActionDesc}>Easy data entry</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.quickActionCard} onPress={() => navigation.navigate('AIProductivityInsights')}>
+              <View style={[styles.quickActionIcon, { backgroundColor: '#f3e8ff' }]}>
+                <Text style={styles.quickActionIconText}>🤖</Text>
+              </View>
+              <Text style={styles.quickActionTitle}>AI Coach</Text>
+              <Text style={styles.quickActionDesc}>Productivity insights</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity style={styles.quickActionCard} onPress={async () => {
               try {
                 // Fetch the latest AI insights for the user

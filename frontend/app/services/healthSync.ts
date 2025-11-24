@@ -46,9 +46,9 @@ const getDefaultSettings = (): HealthSyncSettings => ({
   syncInterval: 60 * 60 * 4, // 4 hours in seconds
   syncSleep: true,
   syncSteps: true,
-  syncHeartRate: false, // Requires additional permissions
+  syncHeartRate: true,
   syncWorkouts: true,
-  syncNutrition: false, // Requires additional permissions
+  syncNutrition: true, // Water intake
   totalSyncs: 0,
 });
 
@@ -81,45 +81,321 @@ export const saveHealthSyncSettings = async (settings: HealthSyncSettings): Prom
 };
 
 /**
+ * Fetch health data from iOS HealthKit
+ */
+const fetchIOSHealthData = async (settings: HealthSyncSettings): Promise<HealthData | null> => {
+  try {
+    const AppleHealthKit = require('rn-apple-healthkit').default;
+
+    // Define permissions
+    const permissions = {
+      permissions: {
+        read: [
+          AppleHealthKit.Constants.Permissions.SleepAnalysis,
+          AppleHealthKit.Constants.Permissions.Steps,
+          AppleHealthKit.Constants.Permissions.DistanceWalkingRunning,
+          AppleHealthKit.Constants.Permissions.ActiveEnergyBurned,
+          AppleHealthKit.Constants.Permissions.Water,
+          AppleHealthKit.Constants.Permissions.HeartRate,
+        ],
+      },
+    };
+
+    // Initialize HealthKit
+    await new Promise((resolve, reject) => {
+      AppleHealthKit.initHealthKit(permissions, (error: string) => {
+        if (error) {
+          console.error('❌ HealthKit init error:', error);
+          reject(new Error(error));
+        } else {
+          console.log('✅ HealthKit initialized');
+          resolve(true);
+        }
+      });
+    });
+
+    const healthData: HealthData = {};
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    // Fetch sleep data
+    if (settings.syncSleep) {
+      const sleepOptions = {
+        startDate: yesterday.toISOString(),
+        endDate: now.toISOString(),
+      };
+
+      const sleepSamples: any = await new Promise((resolve, reject) => {
+        AppleHealthKit.getSleepSamples(sleepOptions, (err: any, results: any) => {
+          if (err) reject(err);
+          else resolve(results);
+        });
+      });
+
+      if (sleepSamples && sleepSamples.length > 0) {
+        // Calculate total sleep hours
+        const totalMinutes = sleepSamples.reduce((sum: number, sample: any) => {
+          const start = new Date(sample.startDate).getTime();
+          const end = new Date(sample.endDate).getTime();
+          return sum + (end - start) / (1000 * 60);
+        }, 0);
+        healthData.sleep_hours = totalMinutes / 60;
+        console.log(`✅ Sleep data: ${healthData.sleep_hours.toFixed(2)} hours`);
+      }
+    }
+
+    // Fetch steps
+    if (settings.syncSteps) {
+      const stepsOptions = {
+        startDate: yesterday.toISOString(),
+        endDate: now.toISOString(),
+      };
+
+      const steps: any = await new Promise((resolve, reject) => {
+        AppleHealthKit.getStepCount(stepsOptions, (err: any, results: any) => {
+          if (err) reject(err);
+          else resolve(results);
+        });
+      });
+
+      if (steps && steps.value) {
+        healthData.steps = steps.value;
+        console.log(`✅ Steps: ${healthData.steps}`);
+      }
+    }
+
+    // Fetch workouts/exercise
+    if (settings.syncWorkouts) {
+      const workoutOptions = {
+        startDate: yesterday.toISOString(),
+        endDate: now.toISOString(),
+      };
+
+      const workouts: any = await new Promise((resolve, reject) => {
+        AppleHealthKit.getSamples(workoutOptions, (err: any, results: any) => {
+          if (err) reject(err);
+          else resolve(results);
+        });
+      });
+
+      if (workouts && workouts.length > 0) {
+        // Calculate total exercise duration in hours
+        const totalMinutes = workouts.reduce((sum: number, workout: any) => {
+          return sum + (workout.duration || 0);
+        }, 0);
+        healthData.exercise_duration = totalMinutes / 60;
+        console.log(`✅ Exercise: ${healthData.exercise_duration.toFixed(2)} hours`);
+      }
+    }
+
+    // Fetch water intake
+    if (settings.syncNutrition) {
+      const waterOptions = {
+        startDate: yesterday.toISOString(),
+        endDate: now.toISOString(),
+      };
+
+      const water: any = await new Promise((resolve, reject) => {
+        AppleHealthKit.getWater(waterOptions, (err: any, results: any) => {
+          if (err) reject(err);
+          else resolve(results);
+        });
+      });
+
+      if (water && water.value) {
+        // Convert from ml to liters
+        healthData.water_intake = water.value / 1000;
+        console.log(`✅ Water intake: ${healthData.water_intake.toFixed(2)}L`);
+      }
+    }
+
+    // Fetch heart rate
+    if (settings.syncHeartRate) {
+      const heartRateOptions = {
+        startDate: yesterday.toISOString(),
+        endDate: now.toISOString(),
+      };
+
+      const heartRate: any = await new Promise((resolve, reject) => {
+        AppleHealthKit.getHeartRateSamples(heartRateOptions, (err: any, results: any) => {
+          if (err) reject(err);
+          else resolve(results);
+        });
+      });
+
+      if (heartRate && heartRate.length > 0) {
+        // Calculate average heart rate
+        const avgHeartRate = heartRate.reduce((sum: number, sample: any) => {
+          return sum + sample.value;
+        }, 0) / heartRate.length;
+        healthData.heart_rate_avg = Math.round(avgHeartRate);
+        console.log(`✅ Average heart rate: ${healthData.heart_rate_avg} bpm`);
+      }
+    }
+
+    return Object.keys(healthData).length > 0 ? healthData : null;
+  } catch (error) {
+    console.error('❌ Error fetching iOS health data:', error);
+    return null;
+  }
+};
+
+/**
+ * Fetch health data from Android Google Fit
+ */
+const fetchAndroidHealthData = async (settings: HealthSyncSettings): Promise<HealthData | null> => {
+  try {
+    const GoogleFit = require('react-native-google-fit');
+
+    // Define scopes
+    const options = {
+      scopes: [
+        'https://www.googleapis.com/auth/fitness.activity.read',
+        'https://www.googleapis.com/auth/fitness.sleep.read',
+        'https://www.googleapis.com/auth/fitness.nutrition.read',
+        'https://www.googleapis.com/auth/fitness.heart_rate.read',
+      ],
+    };
+
+    // Authorize
+    const authResult = await GoogleFit.authorize(options);
+    if (!authResult.success) {
+      console.error('❌ Google Fit authorization failed');
+      return null;
+    }
+    console.log('✅ Google Fit authorized');
+
+    const healthData: HealthData = {};
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    // Fetch sleep data
+    if (settings.syncSleep) {
+      try {
+        const sleepData = await GoogleFit.getSleepData({
+          startDate: yesterday.toISOString(),
+          endDate: now.toISOString(),
+        });
+
+        if (sleepData && sleepData.length > 0) {
+          const totalHours = sleepData.reduce((sum: number, session: any) => {
+            const start = new Date(session.startDate).getTime();
+            const end = new Date(session.endDate).getTime();
+            return sum + (end - start) / (1000 * 60 * 60);
+          }, 0);
+          healthData.sleep_hours = totalHours;
+          console.log(`✅ Sleep data: ${healthData.sleep_hours.toFixed(2)} hours`);
+        }
+      } catch (err) {
+        console.warn('⚠️ Could not fetch sleep data:', err);
+      }
+    }
+
+    // Fetch steps
+    if (settings.syncSteps) {
+      try {
+        const stepsData = await GoogleFit.getDailyStepCountSamples({
+          startDate: yesterday.toISOString(),
+          endDate: now.toISOString(),
+        });
+
+        if (stepsData && stepsData.length > 0) {
+          const totalSteps = stepsData.reduce((sum: number, day: any) => {
+            return sum + (day.steps || 0);
+          }, 0);
+          healthData.steps = totalSteps;
+          console.log(`✅ Steps: ${healthData.steps}`);
+        }
+      } catch (err) {
+        console.warn('⚠️ Could not fetch steps data:', err);
+      }
+    }
+
+    // Fetch workouts/activities
+    if (settings.syncWorkouts) {
+      try {
+        const activities = await GoogleFit.getActivitySamples({
+          startDate: yesterday.toISOString(),
+          endDate: now.toISOString(),
+        });
+
+        if (activities && activities.length > 0) {
+          const totalMinutes = activities.reduce((sum: number, activity: any) => {
+            return sum + ((activity.end - activity.start) / (1000 * 60));
+          }, 0);
+          healthData.exercise_duration = totalMinutes / 60;
+          console.log(`✅ Exercise: ${healthData.exercise_duration.toFixed(2)} hours`);
+        }
+      } catch (err) {
+        console.warn('⚠️ Could not fetch activity data:', err);
+      }
+    }
+
+    // Fetch hydration
+    if (settings.syncNutrition) {
+      try {
+        const hydration = await GoogleFit.getHydrationSamples({
+          startDate: yesterday.toISOString(),
+          endDate: now.toISOString(),
+        });
+
+        if (hydration && hydration.length > 0) {
+          const totalML = hydration.reduce((sum: number, entry: any) => {
+            return sum + (entry.waterConsumed || 0);
+          }, 0);
+          healthData.water_intake = totalML / 1000; // Convert to liters
+          console.log(`✅ Water intake: ${healthData.water_intake.toFixed(2)}L`);
+        }
+      } catch (err) {
+        console.warn('⚠️ Could not fetch hydration data:', err);
+      }
+    }
+
+    // Fetch heart rate
+    if (settings.syncHeartRate) {
+      try {
+        const heartRateSamples = await GoogleFit.getHeartRateSamples({
+          startDate: yesterday.toISOString(),
+          endDate: now.toISOString(),
+        });
+
+        if (heartRateSamples && heartRateSamples.length > 0) {
+          const avgHeartRate = heartRateSamples.reduce((sum: number, sample: any) => {
+            return sum + (sample.value || 0);
+          }, 0) / heartRateSamples.length;
+          healthData.heart_rate_avg = Math.round(avgHeartRate);
+          console.log(`✅ Average heart rate: ${healthData.heart_rate_avg} bpm`);
+        }
+      } catch (err) {
+        console.warn('⚠️ Could not fetch heart rate data:', err);
+      }
+    }
+
+    return Object.keys(healthData).length > 0 ? healthData : null;
+  } catch (error) {
+    console.error('❌ Error fetching Android health data:', error);
+    return null;
+  }
+};
+
+/**
  * Fetch health data from device
- * Note: This is a placeholder. Actual implementation requires platform-specific packages:
- * - iOS: expo-apple-health-kit or react-native-health
- * - Android: expo-health-connect or react-native-google-fit
+ * Now with real implementations for iOS and Android
  */
 const fetchHealthDataFromDevice = async (settings: HealthSyncSettings): Promise<HealthData | null> => {
   try {
     console.log('📊 Fetching health data from device...');
 
-    // Placeholder - In production, this would use:
-    // - Apple HealthKit on iOS
-    // - Google Health Connect on Android
-    
-    // For now, simulate some data for demonstration
     if (Platform.OS === 'ios') {
-      // TODO: Integrate with Apple HealthKit
-      // const AppleHealthKit = require('react-native-health');
-      // const sleepData = await AppleHealthKit.getSleepSamples(...);
-      console.log('📱 iOS: Would fetch from Apple HealthKit');
+      console.log('📱 iOS: Fetching from Apple HealthKit');
+      return await fetchIOSHealthData(settings);
     } else if (Platform.OS === 'android') {
-      // TODO: Integrate with Google Health Connect
-      // const GoogleFit = require('react-native-google-fit');
-      // const sleepData = await GoogleFit.getSleepData(...);
-      console.log('🤖 Android: Would fetch from Google Health Connect');
+      console.log('🤖 Android: Fetching from Google Fit');
+      return await fetchAndroidHealthData(settings);
+    } else {
+      console.log('⚠️ Web platform - health data not available');
+      return null;
     }
-
-    // Return null for now - indicates no real data available yet
-    // Once health APIs are integrated, this will return actual data:
-    /*
-    return {
-      sleep_hours: sleepData.totalSleepHours,
-      steps: stepData.totalSteps,
-      exercise_duration: workoutData.totalMinutes / 60,
-      water_intake: nutritionData.waterIntake,
-      meal_times: nutritionData.mealTimes,
-    };
-    */
-
-    return null;
   } catch (error) {
     console.error('❌ Error fetching health data:', error);
     return null;
@@ -404,6 +680,34 @@ export const updateSyncInterval = async (hours: number): Promise<void> => {
   }
 };
 
+/**
+ * Fetch today's health data without syncing to backend
+ * Used for pre-filling manual entry forms
+ */
+export const fetchHealthDataForToday = async (): Promise<HealthData | null> => {
+  try {
+    const settings = await loadHealthSyncSettings();
+
+    if (!settings.enabled) {
+      console.log('⏸️ Health sync is disabled');
+      return null;
+    }
+
+    let healthData: HealthData | null = null;
+
+    if (Platform.OS === 'ios') {
+      healthData = await fetchIOSHealthData(settings);
+    } else if (Platform.OS === 'android') {
+      healthData = await fetchAndroidHealthData(settings);
+    }
+
+    return healthData;
+  } catch (error) {
+    console.error('❌ Error fetching health data for today:', error);
+    return null;
+  }
+};
+
 export default {
   initializeHealthSync,
   registerHealthSyncTask,
@@ -415,4 +719,5 @@ export default {
   saveHealthSyncSettings,
   getBackgroundFetchStatus,
   getLastSyncTime,
+  fetchHealthDataForToday,
 };

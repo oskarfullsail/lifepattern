@@ -84,7 +84,13 @@ func (h *InsightHandler) GetUserInsights(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Return insights
+	// Return insights in the format expected by frontend
+	response := map[string]interface{}{
+		"user_id":  userID.String(),
+		"insights": insights,
+		"count":    len(insights),
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(insights)
+	json.NewEncoder(w).Encode(response)
 }
