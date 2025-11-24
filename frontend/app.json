@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.oskarsanchez.lifepatternai",
-      "buildNumber": "5",
+      "buildNumber": "6",
       "infoPlist": {
         "NSHealthShareUsageDescription": "LifePattern needs access to your health data to provide personalized insights and recommendations.",
         "NSHealthUpdateUsageDescription": "LifePattern needs to update your health data to track your progress and sync with other devices.",
