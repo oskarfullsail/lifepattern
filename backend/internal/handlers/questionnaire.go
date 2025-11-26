@@ -167,20 +167,26 @@ func calculateAverageRating(req *UsabilitySurveyRequest) float64 {
 // SubmitScreening handles POST /api/screening
 func (h *QuestionnaireHandler) SubmitScreening(w http.ResponseWriter, r *http.Request) {
 	// Get user ID from context (set by auth middleware)
-	userIDValue := r.Context().Value("userID")
+	userIDValue := r.Context().Value("user_id")
 	if userIDValue == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	userID, ok := userIDValue.(uuid.UUID)
+	userIDStr, ok := userIDValue.(string)
 	if !ok {
-		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		http.Error(w, "Invalid user ID type", http.StatusBadRequest)
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		http.Error(w, "Invalid user ID format", http.StatusBadRequest)
 		return
 	}
 
 	var req ScreeningRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Printf("❌ Error decoding screening request: %v", err)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
@@ -241,7 +247,7 @@ func (h *QuestionnaireHandler) SubmitScreening(w http.ResponseWriter, r *http.Re
 		RETURNING id, created_at, updated_at
 	`
 
-	err := h.repo.GetDB().QueryRow(query,
+	err = h.repo.GetDB().QueryRow(query,
 		screening.ID, screening.UserID, screening.Age, screening.Gender,
 		screening.Occupation, screening.SmartphoneUsage, screening.DeviceType,
 		screening.SleepHours, screening.HabitTracking, screening.RoutineStructure,
@@ -265,15 +271,21 @@ func (h *QuestionnaireHandler) SubmitScreening(w http.ResponseWriter, r *http.Re
 // GetScreening handles GET /api/screening
 func (h *QuestionnaireHandler) GetScreening(w http.ResponseWriter, r *http.Request) {
 	// Get user ID from context
-	userIDValue := r.Context().Value("userID")
+	userIDValue := r.Context().Value("user_id")
 	if userIDValue == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	userID, ok := userIDValue.(uuid.UUID)
+	userIDStr, ok := userIDValue.(string)
 	if !ok {
-		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		http.Error(w, "Invalid user ID type", http.StatusBadRequest)
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		http.Error(w, "Invalid user ID format", http.StatusBadRequest)
 		return
 	}
 
@@ -287,7 +299,7 @@ func (h *QuestionnaireHandler) GetScreening(w http.ResponseWriter, r *http.Reque
 		WHERE user_id = $1
 	`
 
-	err := h.repo.GetDB().QueryRow(query, userID).Scan(
+	err = h.repo.GetDB().QueryRow(query, userID).Scan(
 		&screening.ID, &screening.UserID, &screening.Age, &screening.Gender,
 		&screening.Occupation, &screening.SmartphoneUsage, &screening.DeviceType,
 		&screening.SleepHours, &screening.HabitTracking, &screening.RoutineStructure,
@@ -313,20 +325,26 @@ func (h *QuestionnaireHandler) GetScreening(w http.ResponseWriter, r *http.Reque
 // SubmitUsabilitySurvey handles POST /api/usability-survey
 func (h *QuestionnaireHandler) SubmitUsabilitySurvey(w http.ResponseWriter, r *http.Request) {
 	// Get user ID from context
-	userIDValue := r.Context().Value("userID")
+	userIDValue := r.Context().Value("user_id")
 	if userIDValue == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	userID, ok := userIDValue.(uuid.UUID)
+	userIDStr, ok := userIDValue.(string)
 	if !ok {
-		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		http.Error(w, "Invalid user ID type", http.StatusBadRequest)
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		http.Error(w, "Invalid user ID format", http.StatusBadRequest)
 		return
 	}
 
 	var req UsabilitySurveyRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Printf("❌ Error decoding usability survey request: %v", err)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
@@ -384,7 +402,7 @@ func (h *QuestionnaireHandler) SubmitUsabilitySurvey(w http.ResponseWriter, r *h
 		RETURNING created_at, updated_at
 	`
 
-	err := h.repo.GetDB().QueryRow(query,
+	err = h.repo.GetDB().QueryRow(query,
 		survey.ID, survey.UserID, survey.EasyToUse, survey.FeltConfident,
 		survey.ClearDesign, survey.ResponsiveSmooth, survey.FeedbackUnderstandable,
 		survey.EasyToFind, survey.HelpedReflect, survey.WouldUseRegularly,
@@ -408,15 +426,21 @@ func (h *QuestionnaireHandler) SubmitUsabilitySurvey(w http.ResponseWriter, r *h
 // GetUsabilitySurveys handles GET /api/usability-surveys
 func (h *QuestionnaireHandler) GetUsabilitySurveys(w http.ResponseWriter, r *http.Request) {
 	// Get user ID from context
-	userIDValue := r.Context().Value("userID")
+	userIDValue := r.Context().Value("user_id")
 	if userIDValue == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	userID, ok := userIDValue.(uuid.UUID)
+	userIDStr, ok := userIDValue.(string)
 	if !ok {
-		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		http.Error(w, "Invalid user ID type", http.StatusBadRequest)
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		http.Error(w, "Invalid user ID format", http.StatusBadRequest)
 		return
 	}
 
