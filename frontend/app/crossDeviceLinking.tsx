@@ -89,7 +89,7 @@ export default function CrossDeviceLinking({ navigation }: Props) {
         [
           {
             text: 'OK',
-            onPress: () => navigation.navigate('Dashboard'),
+            onPress: () => navigation.navigate('UserDashboard'),
           },
         ]
       );

@@ -12,7 +12,12 @@ import {
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation';
-import { submitScreening, ScreeningRequest } from './api/endpoint';
+import { ScreeningRequest } from './api/endpoint';
+import {
+  savePendingScreeningData,
+  saveScreeningResult,
+  calculateQualificationScore
+} from './utils/screeningStorage';
 
 type ScreeningQuestionnaireScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -78,39 +83,48 @@ export default function ScreeningQuestionnaire({ navigation }: Props) {
         interest_reason: interestReason,
       };
 
-      const response = await submitScreening(payload);
+      // Calculate qualification score client-side
+      const { score, isQualified } = calculateQualificationScore(payload);
 
-      console.log('✅ Screening submitted successfully:', response);
+      // Save screening data and result to local storage
+      await savePendingScreeningData(payload);
+      await saveScreeningResult({
+        isQualified,
+        qualificationScore: score,
+        timestamp: new Date().toISOString(),
+      });
 
-      // Show qualification result
-      if (response.is_qualified_tester) {
+      console.log('✅ Screening data saved locally:', { score, isQualified });
+
+      // Show qualification result and suggest registration
+      if (isQualified) {
         Alert.alert(
-          'Welcome to LifePattern AI! 🎉',
-          `Thank you for completing the screening questionnaire!\n\nYou're a great fit for testing LifePattern AI. We're excited to have you on board!\n\nQualification Score: ${response.qualification_score}/12`,
+          'Great Match! 🎉',
+          `Thank you for completing the screening questionnaire!\n\nYou're a great fit for LifePattern AI! Your profile matches our ideal user persona.\n\nPlease create an account to get started.`,
           [
             {
-              text: 'Get Started',
-              onPress: () => navigation.replace('UserDashboard'),
+              text: 'Create Account',
+              onPress: () => navigation.replace('Register'),
             },
           ]
         );
       } else {
         Alert.alert(
           'Thank You! ✅',
-          `Thank you for your interest in LifePattern AI!\n\nWhile you may not be in our initial target testing group, you're still welcome to use the app.\n\nQualification Score: ${response.qualification_score}/12`,
+          `Thank you for your interest in LifePattern AI!\n\nYou're still welcome to use the app and benefit from its features.\n\nPlease create an account to continue.`,
           [
             {
-              text: 'Continue to App',
-              onPress: () => navigation.replace('UserDashboard'),
+              text: 'Create Account',
+              onPress: () => navigation.replace('Register'),
             },
           ]
         );
       }
     } catch (error: any) {
-      console.error('❌ Error submitting screening:', error);
+      console.error('❌ Error saving screening data:', error);
       Alert.alert(
-        'Submission Error',
-        error.response?.data?.message || 'Failed to submit questionnaire. Please try again.',
+        'Error',
+        'Failed to save your responses. Please try again.',
         [{ text: 'OK' }]
       );
     } finally {
@@ -127,7 +141,7 @@ export default function ScreeningQuestionnaire({ navigation }: Props) {
         {
           text: 'Skip',
           style: 'destructive',
-          onPress: () => navigation.replace('UserDashboard'),
+          onPress: () => navigation.replace('Register'),
         },
       ]
     );

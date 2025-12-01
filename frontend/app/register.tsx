@@ -12,8 +12,13 @@ import {
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation';
-import { register } from './api/endpoint';
+import { register, submitScreening } from './api/endpoint';
 import userManager from './utils/userManager';
+import {
+  getPendingScreeningData,
+  clearPendingScreeningData,
+  getScreeningResult,
+} from './utils/screeningStorage';
 
 type RegisterScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Register'>;
 
@@ -29,11 +34,21 @@ export default function Register({ navigation }: Props) {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [hasPendingScreening, setHasPendingScreening] = useState(false);
 
   useEffect(() => {
     initializeDeviceLabel();
     checkAuthStatus();
+    checkPendingScreening();
   }, []);
+
+  const checkPendingScreening = async () => {
+    const pendingData = await getPendingScreeningData();
+    setHasPendingScreening(!!pendingData);
+    if (pendingData) {
+      console.log('✅ Found pending screening data from questionnaire');
+    }
+  };
 
   const checkAuthStatus = async () => {
     const isAuthenticated = await userManager.isAuthenticated();
@@ -111,16 +126,71 @@ export default function Register({ navigation }: Props) {
       // Store tokens
       await userManager.storeTokens(response.access_token, response.refresh_token);
 
-      Alert.alert(
-        'Account Created!',
-        'Your account has been created successfully. Please complete a quick screening questionnaire to help us tailor your experience.',
-        [
-          {
-            text: 'Continue',
-            onPress: () => navigation.replace('ScreeningQuestionnaire'),
-          },
-        ]
-      );
+      // Check for pending screening data
+      const pendingScreening = await getPendingScreeningData();
+      const screeningResult = await getScreeningResult();
+
+      if (pendingScreening) {
+        console.log('📋 Submitting pending screening data to backend...');
+        try {
+          // Submit the screening data to the backend now that user is registered
+          const backendScreeningResult = await submitScreening(pendingScreening);
+          console.log('✅ Screening data submitted successfully');
+
+          // Clear pending data after successful submission
+          await clearPendingScreeningData();
+
+          // Show success message with backend qualification status
+          if (backendScreeningResult.is_qualified_tester) {
+            Alert.alert(
+              'Welcome to LifePattern AI! 🎉',
+              `Your account has been created successfully!\n\nBased on your screening questionnaire, you're a great fit for our platform.\n\nQualification Score: ${backendScreeningResult.qualification_score}/12`,
+              [
+                {
+                  text: 'Get Started',
+                  onPress: () => navigation.replace('UserDashboard'),
+                },
+              ]
+            );
+          } else {
+            Alert.alert(
+              'Account Created! ✅',
+              `Welcome to LifePattern AI!\n\nYour account has been created successfully. You can now start tracking your daily routines and getting AI insights.\n\nQualification Score: ${backendScreeningResult.qualification_score}/12`,
+              [
+                {
+                  text: 'Get Started',
+                  onPress: () => navigation.replace('UserDashboard'),
+                },
+              ]
+            );
+          }
+        } catch (screeningError) {
+          console.error('⚠️ Failed to submit screening data:', screeningError);
+          // Still let user proceed even if screening submission fails
+          Alert.alert(
+            'Account Created!',
+            'Your account has been created successfully. You can now start using LifePattern AI!',
+            [
+              {
+                text: 'Get Started',
+                onPress: () => navigation.replace('UserDashboard'),
+              },
+            ]
+          );
+        }
+      } else {
+        // No pending screening data, ask user to complete questionnaire
+        Alert.alert(
+          'Account Created!',
+          'Your account has been created successfully. Please complete a quick screening questionnaire to help us tailor your experience.',
+          [
+            {
+              text: 'Continue',
+              onPress: () => navigation.replace('ScreeningQuestionnaire'),
+            },
+          ]
+        );
+      }
     } catch (error: any) {
       console.error('❌ Registration failed:', error);
 
@@ -154,6 +224,16 @@ export default function Register({ navigation }: Props) {
         </View>
 
         <View style={styles.formContainer}>
+          {/* Screening Completed Banner */}
+          {hasPendingScreening && (
+            <View style={styles.screeningBanner}>
+              <Text style={styles.screeningBannerIcon}>✅</Text>
+              <Text style={styles.screeningBannerText}>
+                Screening questionnaire completed! Your responses will be saved when you create your account.
+              </Text>
+            </View>
+          )}
+
           {/* Username */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Username</Text>
@@ -346,6 +426,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  screeningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#d1fae5',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 20,
+  },
+  screeningBannerIcon: {
+    fontSize: 20,
+    marginRight: 10,
+  },
+  screeningBannerText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#065f46',
+    lineHeight: 18,
   },
   inputGroup: {
     marginBottom: 20,

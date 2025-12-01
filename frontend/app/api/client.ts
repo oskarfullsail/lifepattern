@@ -1,13 +1,13 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
-import { currentConfig } from '../config/environment';
+import { getCurrentConfig } from '../config/environment';
 import userManager from '../utils/userManager';
 import { refreshToken } from './endpoint';
 
 // Determine the correct backend URL based on the environment and platform
 const getBackendUrl = () => {
   // Use environment configuration (which already handles dev vs prod)
-  const config = currentConfig;
+  const config = getCurrentConfig();
   
   // For development mode only, use platform-specific local URLs
   if (__DEV__) {
@@ -42,7 +42,7 @@ let isRefreshingToken = false;
 
 const apiClient = axios.create({
   baseURL: BASE_URL,
-  timeout: currentConfig.apiTimeout,
+  timeout: getCurrentConfig().apiTimeout,
   headers: {
     'Content-Type': 'application/json',
   },

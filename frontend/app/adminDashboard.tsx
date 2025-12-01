@@ -117,21 +117,47 @@ export default function AdminDashboard({ navigation }: Props) {
     setIsLoading(true);
     try {
       // Load statistics
+      console.log('📊 Loading questionnaire stats...');
       const statsRes = await apiClient.get('/api/admin/questionnaire-stats');
+      console.log('✅ Stats loaded:', statsRes.data);
       setStats(statsRes.data);
 
       // Load screenings
+      console.log('📋 Loading screenings...');
       const screeningsRes = await apiClient.get('/api/admin/screenings');
+      console.log('✅ Screenings loaded:', screeningsRes.data?.length || 0, 'items');
       setScreenings(screeningsRes.data || []);
 
       // Load surveys
+      console.log('📝 Loading surveys...');
       const surveysRes = await apiClient.get('/api/admin/usability-surveys');
+      console.log('✅ Surveys response:', {
+        status: surveysRes.status,
+        dataType: typeof surveysRes.data,
+        dataLength: Array.isArray(surveysRes.data) ? surveysRes.data.length : 'not an array',
+        data: surveysRes.data
+      });
       setSurveys(surveysRes.data || []);
 
       console.log('✅ Admin data loaded successfully');
+      console.log('📊 Final state:', {
+        stats: !!stats,
+        screenings: screenings.length,
+        surveys: surveys.length
+      });
     } catch (error: any) {
-      console.error('❌ Error loading admin data:', error);
-      Alert.alert('Error', 'Failed to load admin data. Please try again.');
+      console.error('❌ Error loading admin data:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        config: {
+          url: error.config?.url,
+          method: error.config?.method,
+          baseURL: error.config?.baseURL
+        }
+      });
+      Alert.alert('Error', `Failed to load admin data: ${error.response?.data?.detail || error.message}`);
     } finally {
       setIsLoading(false);
     }

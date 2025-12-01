@@ -181,7 +181,7 @@ export default function SimpleCrossDeviceLinking({ navigation }: Props) {
           },
           {
             text: 'OK',
-            onPress: () => navigation.navigate('Dashboard'),
+            onPress: () => navigation.navigate('UserDashboard'),
           },
         ]
       );

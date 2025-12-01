@@ -211,8 +211,11 @@ export default function HomeScreen({ navigation }: Props) {
         {/* Bottom Action Section */}
         <View style={styles.bottomSection}>
           <Text style={styles.bottomTitle}>Ready to Start Your Journey?</Text>
-          <TouchableOpacity style={styles.getStartedButton} onPress={handleStartTracking}>
-            <Text style={styles.getStartedButtonText}>Get Started Now</Text>
+          <TouchableOpacity style={styles.getStartedButton} onPress={() => navigation.navigate('ScreeningQuestionnaire')}>
+            <Text style={styles.getStartedButtonText}>Take Screening Questionnaire</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.skipQuestionnaireButton} onPress={handleStartTracking}>
+            <Text style={styles.skipQuestionnaireButtonText}>Skip to Registration</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => navigation.navigate('Login')}>
             <Text style={styles.loginLink}>Already have an account? Log in</Text>
@@ -561,6 +564,20 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#ffffff',
+  },
+  skipQuestionnaireButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: '#8b5cf6',
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 60,
+    marginBottom: 16,
+  },
+  skipQuestionnaireButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#8b5cf6',
   },
   loginLink: {
     fontSize: 16,

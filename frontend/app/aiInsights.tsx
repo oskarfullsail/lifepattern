@@ -458,7 +458,7 @@ export default function AIInsights({ navigation, route }: Props) {
           <Text style={styles.navLabel}>Home</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity style={styles.navTab} onPress={() => navigation.navigate('Dashboard')}>
+        <TouchableOpacity style={styles.navTab} onPress={() => navigation.navigate('UserDashboard')}>
           <Text style={styles.navIcon}>📊</Text>
           <Text style={styles.navLabel}>Dashboard</Text>
         </TouchableOpacity>

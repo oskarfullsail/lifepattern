@@ -12,14 +12,16 @@ import {
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation';
-import { 
+import {
   getLinkStatus,
   syncWatchData,
   getDeviceInfo,
   getUserInsights,
+  getUserRoutineLogs,
   LinkStatusResponse,
   DeviceInfo,
-  WatchData
+  WatchData,
+  RoutineLogPayload
 } from './api/endpoint';
 import { testBackendConnection } from './api/client';
 import userManager from './utils/userManager';
@@ -40,15 +42,18 @@ export default function UserDashboard({ navigation }: Props) {
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
   const [linkStatus, setLinkStatus] = useState<LinkStatusResponse | null>(null);
   const [watchData, setWatchData] = useState<WatchData | null>(null);
-  
+  const [routineLogs, setRoutineLogs] = useState<RoutineLogPayload[]>([]);
+  const [insightsCount, setInsightsCount] = useState<number>(0);
+
   // Feature states
   const [watchDataEnabled, setWatchDataEnabled] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string>('');
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
-  
+
   // API call statuses
   const [deviceInfoStatus, setDeviceInfoStatus] = useState<'loading' | 'success' | 'error' | 'idle'>('idle');
   const [linkStatusStatus, setLinkStatusStatus] = useState<'loading' | 'success' | 'error' | 'idle'>('idle');
+  const [logsStatus, setLogsStatus] = useState<'loading' | 'success' | 'error' | 'idle'>('idle');
 
   useEffect(() => {
     checkAuthenticationAndInitialize();
@@ -105,6 +110,7 @@ export default function UserDashboard({ navigation }: Props) {
       await loadUserData();
       await loadDeviceInfo();
       await loadLinkStatus();
+      await loadRoutineLogsAndInsights();
     } catch (error) {
       console.error('Error initializing dashboard:', error);
       Alert.alert('Error', 'Failed to load dashboard data');
@@ -172,6 +178,46 @@ export default function UserDashboard({ navigation }: Props) {
     }
   };
 
+  const loadRoutineLogsAndInsights = async () => {
+    setLogsStatus('loading');
+    try {
+      const userId = currentUser?.userId || await userManager.getUserId();
+      if (!userId) {
+        console.log('⚠️ No user ID available');
+        setLogsStatus('error');
+        return;
+      }
+
+      console.log('📊 Loading routine logs and insights for user:', userId);
+
+      // Fetch routine logs
+      try {
+        const logsData = await getUserRoutineLogs(userId, 5); // Get last 5 logs
+        console.log(`✅ Loaded ${logsData.logs?.length || 0} routine logs`);
+        setRoutineLogs(logsData.logs || []);
+      } catch (logsError) {
+        console.error('❌ Error loading routine logs:', logsError);
+        setRoutineLogs([]);
+      }
+
+      // Fetch insights count
+      try {
+        const insightsData = await getUserInsights(userId, 1);
+        const count = insightsData?.count || 0;
+        console.log(`✅ User has ${count} AI insights`);
+        setInsightsCount(count);
+      } catch (insightsError) {
+        console.error('⚠️ Error loading insights:', insightsError);
+        setInsightsCount(0);
+      }
+
+      setLogsStatus('success');
+    } catch (error: any) {
+      console.error('❌ Error loading routine logs and insights:', error);
+      setLogsStatus('error');
+    }
+  };
+
   const handleRefresh = async () => {
     setRefreshing(true);
     await initializeDashboard();
@@ -233,7 +279,7 @@ export default function UserDashboard({ navigation }: Props) {
   };
 
   const handleViewData = () => {
-    navigation.navigate('DataVisualization');
+    navigation.navigate('DataVisualization', {});
   };
 
   const handleManageDevices = () => {
@@ -576,6 +622,78 @@ export default function UserDashboard({ navigation }: Props) {
               <Text style={styles.quickActionDesc}>View health analysis</Text>
             </TouchableOpacity>
           </View>
+        </View>
+
+        {/* Recent Activity Section */}
+        <View style={styles.activitySection}>
+          <View style={styles.activityHeader}>
+            <Text style={styles.sectionTitle}>Recent Activity</Text>
+            <TouchableOpacity onPress={handleViewData}>
+              <Text style={styles.viewAllText}>View All →</Text>
+            </TouchableOpacity>
+          </View>
+
+          {logsStatus === 'loading' ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator color="#4A90E2" />
+              <Text style={styles.loadingText}>Loading your data...</Text>
+            </View>
+          ) : routineLogs.length > 0 ? (
+            <>
+              {routineLogs.map((log, index) => {
+                const logDate = new Date(log.log_date);
+                const formattedDate = logDate.toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                });
+
+                return (
+                  <View key={index} style={styles.activityCard}>
+                    <View style={styles.activityLeft}>
+                      <View style={styles.activityIconContainer}>
+                        <Text style={styles.activityIcon}>📊</Text>
+                      </View>
+                      <View>
+                        <Text style={styles.activityTitle}>{formattedDate}</Text>
+                        <Text style={styles.activitySubtitle}>
+                          Sleep: {log.sleep_hours}h | Exercise: {log.exercise_duration}min
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.activityRight}>
+                      <View style={styles.activityBadge}>
+                        <Text style={styles.activityBadgeText}>Logged</Text>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+              <View style={styles.activityStats}>
+                <View style={styles.statItem}>
+                  <Text style={styles.statIcon}>📈</Text>
+                  <Text style={styles.statLabel}>Total Logs</Text>
+                  <Text style={styles.statValue}>{routineLogs.length}</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statIcon}>🤖</Text>
+                  <Text style={styles.statLabel}>AI Insights</Text>
+                  <Text style={styles.statValue}>{insightsCount}</Text>
+                </View>
+              </View>
+            </>
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateIcon}>📝</Text>
+              <Text style={styles.emptyStateTitle}>No Activity Yet</Text>
+              <Text style={styles.emptyStateDesc}>
+                Start logging your daily routines to see your activity here
+              </Text>
+              <TouchableOpacity style={styles.emptyStateButton} onPress={handleImportData}>
+                <Text style={styles.emptyStateButtonText}>Log Activity</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         {/* Debug Info */}
@@ -1182,5 +1300,136 @@ const styles = StyleSheet.create({
     fontSize: 28,
     color: '#ffffff',
     fontWeight: 'bold',
+  },
+  // Recent Activity Section
+  activitySection: {
+    margin: 20,
+    padding: 20,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  activityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  viewAllText: {
+    fontSize: 14,
+    color: '#4A90E2',
+    fontWeight: '600',
+  },
+  activityCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    marginBottom: 10,
+  },
+  activityLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  activityIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#e3f2fd',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  activityIcon: {
+    fontSize: 20,
+  },
+  activityTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  activitySubtitle: {
+    fontSize: 13,
+    color: '#6b7280',
+  },
+  activityRight: {
+    marginLeft: 12,
+  },
+  activityBadge: {
+    backgroundColor: '#dcfce7',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  activityBadgeText: {
+    fontSize: 12,
+    color: '#166534',
+    fontWeight: '600',
+  },
+  activityStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statIcon: {
+    fontSize: 24,
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginBottom: 4,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1f2937',
+  },
+  emptyState: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyStateIcon: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 8,
+  },
+  emptyStateDesc: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  emptyStateButton: {
+    backgroundColor: '#4A90E2',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  emptyStateButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 }); 

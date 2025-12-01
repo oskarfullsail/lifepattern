@@ -205,7 +205,7 @@ export default function EnhancedCrossDeviceLinking({ navigation }: Props) {
           },
           {
             text: 'OK',
-            onPress: () => navigation.navigate('Dashboard'),
+            onPress: () => navigation.navigate('UserDashboard'),
           },
         ]
       );
