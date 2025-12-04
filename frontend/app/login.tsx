@@ -8,7 +8,9 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  Platform,
 } from 'react-native';
+import * as LocalAuthentication from 'expo-local-authentication';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation';
 import userManager, { UserCredentials } from './utils/userManager';
@@ -26,17 +28,20 @@ export default function Login({ navigation }: Props) {
   const [isLoading, setIsLoading] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [userCredentials, setUserCredentials] = useState<UserCredentials | null>(null);
+  const [isBiometricSupported, setIsBiometricSupported] = useState(false);
+  const [biometricType, setBiometricType] = useState<string>('');
 
   useEffect(() => {
     initializeLogin();
+    checkBiometricSupport();
   }, []);
 
   const initializeLogin = async () => {
     try {
       setIsInitializing(true);
-      
+
       console.log('🔄 Initializing login screen...');
-      
+
       // Check if user already has credentials
       const credentials = await userManager.getUserCredentials();
       if (credentials) {
@@ -44,23 +49,137 @@ export default function Login({ navigation }: Props) {
         setUserCredentials(credentials);
         setUsername(credentials.username);
       }
-      
+
       // Check if user is already authenticated
       const isAuthenticated = await userManager.isAuthenticated();
       console.log('🔐 Authentication status:', isAuthenticated);
-      
+
       if (isAuthenticated) {
         console.log('✅ User already authenticated, redirecting to dashboard');
         navigation.replace('UserDashboard');
         return;
       }
-      
+
       console.log('ℹ️ User not authenticated, showing login form');
-      
+
     } catch (error) {
       console.error('❌ Error initializing login:', error);
     } finally {
       setIsInitializing(false);
+    }
+  };
+
+  const checkBiometricSupport = async () => {
+    try {
+      // Only check on mobile platforms
+      if (Platform.OS === 'web') {
+        setIsBiometricSupported(false);
+        return;
+      }
+
+      const compatible = await LocalAuthentication.hasHardwareAsync();
+      console.log('🔐 Biometric hardware available:', compatible);
+
+      if (!compatible) {
+        setIsBiometricSupported(false);
+        return;
+      }
+
+      const enrolled = await LocalAuthentication.isEnrolledAsync();
+      console.log('🔐 Biometric enrolled:', enrolled);
+
+      if (!enrolled) {
+        setIsBiometricSupported(false);
+        return;
+      }
+
+      // Get supported authentication types
+      const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
+      console.log('🔐 Supported auth types:', types);
+
+      // Determine biometric type
+      let typeLabel = 'Biometric';
+      if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
+        typeLabel = Platform.OS === 'ios' ? 'Face ID' : 'Face Recognition';
+      } else if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
+        typeLabel = 'Fingerprint';
+      } else if (types.includes(LocalAuthentication.AuthenticationType.IRIS)) {
+        typeLabel = 'Iris';
+      }
+
+      setBiometricType(typeLabel);
+      setIsBiometricSupported(true);
+      console.log(`✅ Biometric authentication available: ${typeLabel}`);
+
+    } catch (error) {
+      console.error('❌ Error checking biometric support:', error);
+      setIsBiometricSupported(false);
+    }
+  };
+
+  const handleBiometricLogin = async () => {
+    try {
+      // Must have stored credentials to use biometric login
+      if (!userCredentials) {
+        Alert.alert(
+          'Setup Required',
+          'Please log in with your username and password first to enable biometric authentication.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      setIsLoading(true);
+      console.log('🔐 Attempting biometric authentication...');
+
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: `Login to LifePattern AI`,
+        fallbackLabel: 'Use Password',
+        cancelLabel: 'Cancel',
+        disableDeviceFallback: false,
+      });
+
+      if (result.success) {
+        console.log('✅ Biometric authentication successful');
+
+        // Use stored credentials to authenticate
+        const success = await userManager.authenticateUser(
+          userCredentials.username,
+          userCredentials.passphrase
+        );
+
+        if (success) {
+          console.log('✅ Login successful with biometrics, navigating to UserDashboard');
+          navigation.replace('UserDashboard');
+        } else {
+          console.log('❌ Authentication failed - credentials may have changed');
+          Alert.alert(
+            'Authentication Failed',
+            'Your stored credentials are no longer valid. Please log in with your password.',
+            [{ text: 'OK' }]
+          );
+        }
+      } else {
+        console.log('❌ Biometric authentication failed:', result.error);
+        if (result.error === 'user_cancel') {
+          // User cancelled, do nothing
+          return;
+        }
+        Alert.alert(
+          'Authentication Failed',
+          'Biometric authentication was not successful. Please try again or use your password.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('❌ Biometric login error:', error);
+      Alert.alert(
+        'Error',
+        'Failed to authenticate with biometrics. Please use your password.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -210,6 +329,22 @@ export default function Login({ navigation }: Props) {
           />
         </View>
 
+        {/* Biometric Login Button - Only show if supported and user has credentials */}
+        {isBiometricSupported && userCredentials && (
+          <TouchableOpacity
+            style={[styles.biometricButton, isLoading && styles.disabledButton]}
+            onPress={handleBiometricLogin}
+            disabled={isLoading}
+          >
+            <Text style={styles.biometricIcon}>
+              {biometricType.includes('Face') ? '👤' : '👆'}
+            </Text>
+            <Text style={styles.biometricButtonText}>
+              Login with {biometricType}
+            </Text>
+          </TouchableOpacity>
+        )}
+
         <TouchableOpacity
           style={[styles.loginButton, isLoading && styles.disabledButton]}
           onPress={handleLogin}
@@ -218,7 +353,9 @@ export default function Login({ navigation }: Props) {
           {isLoading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.loginButtonText}>Sign In</Text>
+            <Text style={styles.loginButtonText}>
+              {isBiometricSupported && userCredentials ? 'Sign In with Password' : 'Sign In'}
+            </Text>
           )}
         </TouchableOpacity>
 
@@ -371,6 +508,29 @@ const styles = StyleSheet.create({
     padding: 16,
     fontSize: 16,
     color: '#2c3e50',
+  },
+  biometricButton: {
+    backgroundColor: '#34C759',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginTop: 10,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    shadowColor: '#34C759',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
+  },
+  biometricIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  biometricButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
   loginButton: {
     backgroundColor: '#4A90E2',
