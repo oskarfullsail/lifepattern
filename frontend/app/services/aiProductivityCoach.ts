@@ -150,62 +150,56 @@ export const getAIProductivityInsights = async (): Promise<AIProductivityInsight
       day_of_week: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getDay()],
     };
 
-    // Call AI service with the most recent routine log + context
-    const latestLog = recentLogs[0];
-    const aiResponse = await apiClient.post('/api/ai/analyze-enhanced', {
-      sleep_hours: latestLog.sleep_hours || 7,
-      meal_times: latestLog.meal_times || [],
-      screen_time: (todayScreenTime?.totalSocialMediaTime || 0) / 60, // Convert to hours
-      exercise_duration: latestLog.exercise_duration || 0,
-      wake_up_time: latestLog.wake_up_time || '07:00',
-      bed_time: latestLog.bed_time || '23:00',
-      water_intake: latestLog.water_intake || 2,
-      stress_level: latestLog.stress_level || 5,
-      // Add productivity context
-      productivity_context: {
-        screen_time_progress: todayScreenTime?.totalSocialMediaTime / (screenTimeGoals.socialMediaDailyLimit * 60),
-        day_of_week: analysisRequest.day_of_week,
-        time_of_day: now.getHours() < 12 ? 'morning' : now.getHours() < 18 ? 'afternoon' : 'evening',
-      }
+    // Get AI insights from existing user insights endpoint
+    // This retrieves previously generated AI analysis instead of creating new logs
+    const aiInsightsResponse = await apiClient.get('/api/user-insights', {
+      params: { user_id: userId, limit: 5 }
     });
 
-    // Transform AI service response into productivity insights
+    // Transform backend AI insights into productivity insights
     const insights: AIProductivityInsight[] = [];
 
-    // Add enhanced recommendations from AI
-    if (aiResponse.data.enhanced_recommendations) {
-      aiResponse.data.enhanced_recommendations.forEach((rec: any, index: number) => {
-        insights.push({
-          id: `ai_rec_${Date.now()}_${index}`,
-          type: rec.priority >= 4 ? 'warning' : 'suggestion',
-          priority: rec.priority || 3,
-          title: rec.title,
-          description: rec.description,
-          action: rec.action_url || 'View details',
-          estimatedImpact: rec.estimated_impact?.toLowerCase() || 'medium',
-          timeSensitive: rec.time_sensitive || false,
-          category: detectCategory(rec.type),
-          createdAt: new Date().toISOString(),
-          acknowledged: false,
-        });
+    // Process AI insights from backend
+    if (aiInsightsResponse.data.insights && Array.isArray(aiInsightsResponse.data.insights)) {
+      aiInsightsResponse.data.insights.forEach((insight: any, index: number) => {
+        const aiReport = insight.ai_report;
+
+        if (aiReport && aiReport.recommendations) {
+          // Create insights from AI recommendations
+          aiReport.recommendations.forEach((rec: string, recIndex: number) => {
+            insights.push({
+              id: `ai_insight_${insight.routine_log?.id || index}_${recIndex}`,
+              type: aiReport.is_anomaly ? 'warning' : 'suggestion',
+              priority: aiReport.is_anomaly ? 4 : 3,
+              title: aiReport.is_anomaly ? '⚠️ Routine Anomaly Detected' : '💡 AI Recommendation',
+              description: rec,
+              action: 'View Details',
+              estimatedImpact: aiReport.confidence_score > 0.8 ? 'high' : 'medium',
+              timeSensitive: aiReport.is_anomaly,
+              category: detectCategoryFromAnomaly(aiReport.anomaly_type),
+              createdAt: insight.routine_log?.log_date || new Date().toISOString(),
+              acknowledged: false,
+            });
+          });
+        }
       });
     }
 
-    // Add screen time specific insights if relevant
-    if (todayScreenTime && todayScreenTime.totalSocialMediaTime > 0) {
+    // Add screen time specific insights if relevant and no AI insights available
+    if (insights.length === 0 && todayScreenTime && todayScreenTime.totalSocialMediaTime > 0) {
       const percentUsed = todayScreenTime.totalSocialMediaTime / (screenTimeGoals.socialMediaDailyLimit * 60);
 
-      if (percentUsed > 0.9 && aiResponse.data.behavioral_contexts?.includes('high_stress')) {
+      if (percentUsed > 0.9) {
         insights.push({
-          id: `ai_stress_${Date.now()}`,
+          id: `screen_time_${Date.now()}`,
           type: 'warning',
-          priority: 5,
-          title: '🧠 AI Detected: Stress + Screen Time Pattern',
-          description: 'Your elevated stress levels combined with high social media use may indicate escapism. Consider a mindful break or brief exercise instead.',
-          action: 'Try 5-min meditation',
+          priority: 4,
+          title: '📱 High Screen Time Alert',
+          description: `You've used ${Math.round(percentUsed * 100)}% of your daily social media limit. Consider taking a break to maintain productivity.`,
+          action: 'View screen time stats',
           estimatedImpact: 'high',
           timeSensitive: true,
-          category: 'overall',
+          category: 'screen_time',
           createdAt: new Date().toISOString(),
           acknowledged: false,
         });
@@ -238,9 +232,11 @@ export const getAIProductivityInsights = async (): Promise<AIProductivityInsight
 };
 
 /**
- * Detect category from recommendation type
+ * Detect category from anomaly type
  */
-const detectCategory = (type: string): AIProductivityInsight['category'] => {
+const detectCategoryFromAnomaly = (anomalyType: string): AIProductivityInsight['category'] => {
+  if (!anomalyType) return 'overall';
+  const type = anomalyType.toLowerCase();
   if (type.includes('sleep') || type.includes('rest')) return 'sleep';
   if (type.includes('exercise') || type.includes('activity')) return 'exercise';
   if (type.includes('screen') || type.includes('social')) return 'screen_time';
