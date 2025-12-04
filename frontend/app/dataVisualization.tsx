@@ -9,6 +9,7 @@ import {
   Dimensions,
   Alert,
 } from 'react-native';
+import Svg, { Circle, Path, G, Text as SvgText, Line, Polyline } from 'react-native-svg';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation';
@@ -82,53 +83,278 @@ export default function DataVisualization({ navigation, route }: Props) {
     }
   };
 
+  // Circular Progress Ring Component
+  const CircularProgress = ({
+    value,
+    maxValue,
+    color,
+    label,
+    unit,
+    size = 100
+  }: {
+    value: number;
+    maxValue: number;
+    color: string;
+    label: string;
+    unit: string;
+    size?: number;
+  }) => {
+    const percentage = Math.min((value / maxValue) * 100, 100);
+    const radius = 35;
+    const strokeWidth = 8;
+    const center = size / 2;
+    const circumference = 2 * Math.PI * radius;
+    const strokeDashoffset = circumference - (percentage / 100) * circumference;
+
+    return (
+      <View style={styles.circularProgressContainer}>
+        <Svg width={size} height={size}>
+          {/* Background Circle */}
+          <Circle
+            cx={center}
+            cy={center}
+            r={radius}
+            stroke="#f0f0f0"
+            strokeWidth={strokeWidth}
+            fill="none"
+          />
+          {/* Progress Circle */}
+          <Circle
+            cx={center}
+            cy={center}
+            r={radius}
+            stroke={color}
+            strokeWidth={strokeWidth}
+            fill="none"
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+            rotation="-90"
+            origin={`${center}, ${center}`}
+          />
+          {/* Center Text */}
+          <SvgText
+            x={center}
+            y={center - 5}
+            textAnchor="middle"
+            fontSize="18"
+            fontWeight="bold"
+            fill="#333"
+          >
+            {value}
+          </SvgText>
+          <SvgText
+            x={center}
+            y={center + 12}
+            textAnchor="middle"
+            fontSize="12"
+            fill="#666"
+          >
+            {unit}
+          </SvgText>
+        </Svg>
+        <Text style={styles.circularLabel}>{label}</Text>
+        <Text style={styles.circularTarget}>
+          Target: {maxValue}{unit}
+        </Text>
+      </View>
+    );
+  };
+
+  // Line Chart Component for Trends
+  const TrendLineChart = ({
+    data,
+    label,
+    color,
+    unit
+  }: {
+    data: number[];
+    label: string;
+    color: string;
+    unit: string;
+  }) => {
+    if (data.length === 0) return null;
+
+    const chartWidth = width - 80;
+    const chartHeight = 120;
+    const maxValue = Math.max(...data, 1);
+    const minValue = Math.min(...data, 0);
+    const range = maxValue - minValue || 1;
+
+    // Generate points for the line
+    const points = data.map((value, index) => {
+      const x = 40 + (index / (data.length - 1 || 1)) * chartWidth;
+      const y = chartHeight - 20 - ((value - minValue) / range) * (chartHeight - 40);
+      return `${x},${y}`;
+    }).join(' ');
+
+    return (
+      <View style={styles.trendChartContainer}>
+        <Text style={styles.trendChartTitle}>{label}</Text>
+        <Svg width={width - 40} height={chartHeight + 20}>
+          {/* Grid lines */}
+          <Line x1="40" y1="20" x2={chartWidth + 40} y2="20" stroke="#e0e0e0" strokeWidth="1" />
+          <Line x1="40" y1={chartHeight / 2} x2={chartWidth + 40} y2={chartHeight / 2} stroke="#e0e0e0" strokeWidth="1" />
+          <Line x1="40" y1={chartHeight} x2={chartWidth + 40} y2={chartHeight} stroke="#e0e0e0" strokeWidth="1" />
+
+          {/* Y-axis labels */}
+          <SvgText x="5" y="25" fontSize="10" fill="#999">{maxValue.toFixed(1)}</SvgText>
+          <SvgText x="5" y={chartHeight / 2 + 5} fontSize="10" fill="#999">{((maxValue + minValue) / 2).toFixed(1)}</SvgText>
+          <SvgText x="5" y={chartHeight + 5} fontSize="10" fill="#999">{minValue.toFixed(1)}</SvgText>
+
+          {/* Line */}
+          <Polyline
+            points={points}
+            fill="none"
+            stroke={color}
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+
+          {/* Data points */}
+          {data.map((value, index) => {
+            const x = 40 + (index / (data.length - 1 || 1)) * chartWidth;
+            const y = chartHeight - 20 - ((value - minValue) / range) * (chartHeight - 40);
+            return (
+              <Circle
+                key={index}
+                cx={x}
+                cy={y}
+                r="4"
+                fill={color}
+              />
+            );
+          })}
+        </Svg>
+        <Text style={styles.trendChartUnit}>Average: {(data.reduce((a, b) => a + b, 0) / data.length).toFixed(1)} {unit}</Text>
+      </View>
+    );
+  };
+
   const renderSleepChart = () => (
     <View style={styles.chartContainer}>
       <Text style={styles.chartTitle}>Sleep Pattern</Text>
-      <View style={styles.sleepBar}>
-        <View style={[styles.sleepFill, { width: `${(currentData.sleep_hours / 8) * 100}%` }]} />
+      <View style={styles.metricsRow}>
+        <CircularProgress
+          value={currentData.sleep_hours}
+          maxValue={8}
+          color="#4CAF50"
+          label="Sleep"
+          unit="h"
+        />
+        {routineLogs.length > 1 && (
+          <View style={{ flex: 1, marginLeft: 20 }}>
+            <TrendLineChart
+              data={routineLogs.slice(0, selectedPeriod === 'week' ? 7 : selectedPeriod === 'month' ? 30 : 365).map((log: any) => log.sleep_hours || 0).reverse()}
+              label="7-Day Trend"
+              color="#4CAF50"
+              unit="h"
+            />
+          </View>
+        )}
       </View>
-      <Text style={styles.chartValue}>{currentData.sleep_hours}h / 8h recommended</Text>
     </View>
   );
 
   const renderExerciseChart = () => (
     <View style={styles.chartContainer}>
       <Text style={styles.chartTitle}>Exercise Duration</Text>
-      <View style={styles.exerciseBar}>
-        <View style={[styles.exerciseFill, { width: `${(currentData.exercise_duration / 2) * 100}%` }]} />
+      <View style={styles.metricsRow}>
+        <CircularProgress
+          value={currentData.exercise_duration}
+          maxValue={120}
+          color="#2196F3"
+          label="Exercise"
+          unit="min"
+        />
+        {routineLogs.length > 1 && (
+          <View style={{ flex: 1, marginLeft: 20 }}>
+            <TrendLineChart
+              data={routineLogs.slice(0, selectedPeriod === 'week' ? 7 : selectedPeriod === 'month' ? 30 : 365).map((log: any) => log.exercise_duration || 0).reverse()}
+              label="Activity Trend"
+              color="#2196F3"
+              unit="min"
+            />
+          </View>
+        )}
       </View>
-      <Text style={styles.chartValue}>{currentData.exercise_duration}h / 2h recommended</Text>
     </View>
   );
 
   const renderWaterIntakeChart = () => (
     <View style={styles.chartContainer}>
       <Text style={styles.chartTitle}>Water Intake</Text>
-      <View style={styles.waterBar}>
-        <View style={[styles.waterFill, { width: `${(currentData.water_intake / 3) * 100}%` }]} />
+      <View style={styles.metricsRow}>
+        <CircularProgress
+          value={currentData.water_intake}
+          maxValue={3}
+          color="#00BCD4"
+          label="Hydration"
+          unit="L"
+        />
+        {routineLogs.length > 1 && (
+          <View style={{ flex: 1, marginLeft: 20 }}>
+            <TrendLineChart
+              data={routineLogs.slice(0, selectedPeriod === 'week' ? 7 : selectedPeriod === 'month' ? 30 : 365).map((log: any) => log.water_intake || 0).reverse()}
+              label="Hydration Trend"
+              color="#00BCD4"
+              unit="L"
+            />
+          </View>
+        )}
       </View>
-      <Text style={styles.chartValue}>{currentData.water_intake}L / 3L recommended</Text>
     </View>
   );
 
   const renderStressLevelChart = () => (
     <View style={styles.chartContainer}>
       <Text style={styles.chartTitle}>Stress Level</Text>
-      <View style={styles.stressBar}>
-        <View style={[styles.stressFill, { width: `${(currentData.stress_level / 10) * 100}%` }]} />
+      <View style={styles.metricsRow}>
+        <CircularProgress
+          value={currentData.stress_level}
+          maxValue={10}
+          color="#FF9800"
+          label="Stress"
+          unit="/10"
+        />
+        {routineLogs.length > 1 && (
+          <View style={{ flex: 1, marginLeft: 20 }}>
+            <TrendLineChart
+              data={routineLogs.slice(0, selectedPeriod === 'week' ? 7 : selectedPeriod === 'month' ? 30 : 365).map((log: any) => log.stress_level || 0).reverse()}
+              label="Stress Trend"
+              color="#FF9800"
+              unit="/10"
+            />
+          </View>
+        )}
       </View>
-      <Text style={styles.chartValue}>{currentData.stress_level}/10 (Lower is better)</Text>
+      <Text style={styles.chartNote}>Lower is better</Text>
     </View>
   );
 
   const renderScreenTimeChart = () => (
     <View style={styles.chartContainer}>
       <Text style={styles.chartTitle}>Screen Time</Text>
-      <View style={styles.screenBar}>
-        <View style={[styles.screenFill, { width: `${(currentData.screen_time / 6) * 100}%` }]} />
+      <View style={styles.metricsRow}>
+        <CircularProgress
+          value={currentData.screen_time}
+          maxValue={6}
+          color="#9C27B0"
+          label="Screen"
+          unit="h"
+        />
+        {routineLogs.length > 1 && (
+          <View style={{ flex: 1, marginLeft: 20 }}>
+            <TrendLineChart
+              data={routineLogs.slice(0, selectedPeriod === 'week' ? 7 : selectedPeriod === 'month' ? 30 : 365).map((log: any) => log.screen_time || 0).reverse()}
+              label="Usage Trend"
+              color="#9C27B0"
+              unit="h"
+            />
+          </View>
+        )}
       </View>
-      <Text style={styles.chartValue}>{currentData.screen_time}h / 6h limit</Text>
     </View>
   );
 
@@ -400,69 +626,46 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 12,
   },
-  sleepBar: {
-    height: 20,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 10,
-    overflow: 'hidden',
-    marginBottom: 8,
+  metricsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
   },
-  sleepFill: {
-    height: '100%',
-    backgroundColor: '#4CAF50',
-    borderRadius: 10,
+  circularProgressContainer: {
+    alignItems: 'center',
+    minWidth: 120,
   },
-  exerciseBar: {
-    height: 20,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 10,
-    overflow: 'hidden',
-    marginBottom: 8,
-  },
-  exerciseFill: {
-    height: '100%',
-    backgroundColor: '#2196F3',
-    borderRadius: 10,
-  },
-  waterBar: {
-    height: 20,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 10,
-    overflow: 'hidden',
-    marginBottom: 8,
-  },
-  waterFill: {
-    height: '100%',
-    backgroundColor: '#00BCD4',
-    borderRadius: 10,
-  },
-  stressBar: {
-    height: 20,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 10,
-    overflow: 'hidden',
-    marginBottom: 8,
-  },
-  stressFill: {
-    height: '100%',
-    backgroundColor: '#FF9800',
-    borderRadius: 10,
-  },
-  screenBar: {
-    height: 20,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 10,
-    overflow: 'hidden',
-    marginBottom: 8,
-  },
-  screenFill: {
-    height: '100%',
-    backgroundColor: '#9C27B0',
-    borderRadius: 10,
-  },
-  chartValue: {
+  circularLabel: {
     fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginTop: 8,
+  },
+  circularTarget: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 4,
+  },
+  trendChartContainer: {
+    flex: 1,
+  },
+  trendChartTitle: {
+    fontSize: 12,
+    fontWeight: '600',
     color: '#666',
+    marginBottom: 8,
+  },
+  trendChartUnit: {
+    fontSize: 11,
+    color: '#999',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  chartNote: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
   mealContainer: {
     backgroundColor: '#fff',
