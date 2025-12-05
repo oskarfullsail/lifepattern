@@ -87,18 +87,21 @@ func (h *DailyAnalysisHandler) AnalyzeDay(w http.ResponseWriter, r *http.Request
 	}
 
 	// Extract userID from context (set by auth middleware)
-	// For now, we'll use a placeholder - in production, this comes from auth middleware
-	userIDStr := r.Header.Get("X-User-ID")
-	if userIDStr == "" {
-		// Fallback: try to get from context if middleware sets it
-		// In production, use: userID := r.Context().Value("userID").(uuid.UUID)
-		http.Error(w, "Unauthorized: user ID required", http.StatusUnauthorized)
+	userIDValue := r.Context().Value("user_id")
+	if userIDValue == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	userIDStr, ok := userIDValue.(string)
+	if !ok {
+		http.Error(w, "Invalid user ID type", http.StatusBadRequest)
 		return
 	}
 
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
-		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		http.Error(w, "Invalid user ID format", http.StatusBadRequest)
 		return
 	}
 

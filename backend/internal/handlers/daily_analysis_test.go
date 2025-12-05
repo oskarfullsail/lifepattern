@@ -101,7 +101,9 @@ func TestAnalyzeDay(t *testing.T) {
 	body, _ := json.Marshal(requestBody)
 	req := httptest.NewRequest("POST", "/api/v1/routines/analyze-day", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-User-ID", "550e8400-e29b-41d4-a716-446655440000") // Mock user ID
+	// Set user_id in context (as auth middleware does)
+	ctx := context.WithValue(req.Context(), "user_id", "550e8400-e29b-41d4-a716-446655440000")
+	req = req.WithContext(ctx)
 
 	// Create response recorder
 	rr := httptest.NewRecorder()
@@ -155,7 +157,7 @@ func TestAnalyzeDay_MissingUserID(t *testing.T) {
 	body, _ := json.Marshal(requestBody)
 	req := httptest.NewRequest("POST", "/api/v1/routines/analyze-day", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
-	// No X-User-ID header
+	// No user_id in context (simulating unauthenticated request)
 
 	rr := httptest.NewRecorder()
 	handler.AnalyzeDay(rr, req)

@@ -23,7 +23,13 @@ func SetupProtectedRoutes(router *mux.Router, container *container.Container) {
 	// Daily analysis endpoint (v1 API)
 	v1Router := protectedRouter.PathPrefix("/v1/routines").Subrouter()
 	v1Router.HandleFunc("/analyze-day", container.Handlers.DailyAnalysisHandler.AnalyzeDay).Methods("POST", "OPTIONS")
+	v1Router.HandleFunc("/week-summary", container.Handlers.WeeklySummaryHandler.GetWeekSummary).Methods("GET", "OPTIONS")
 	log.Println("✅ Routine log routes registered")
+	
+	// AI heartbeat endpoint (v1 API) - can be public or protected
+	aiRouter := protectedRouter.PathPrefix("/v1/ai").Subrouter()
+	aiRouter.HandleFunc("/heartbeat", container.Handlers.HeartbeatHandler.GetHeartbeat).Methods("GET", "OPTIONS")
+	log.Println("✅ AI routes registered")
 
 	// Insight endpoints
 	protectedRouter.HandleFunc("/insights", container.Handlers.InsightHandler.GetInsight).Methods("GET", "OPTIONS")

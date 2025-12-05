@@ -65,20 +65,34 @@ func NewAIService(baseURL string) *AIService {
 }
 
 // makeRequestWithRetry makes an HTTP request with retry logic for rate limits (429)
-func (s *AIService) makeRequestWithRetry(url string, requestJSON []byte, maxRetries int) (*http.Response, []byte, error) {
+// ctx is used for request timeout/cancellation
+func (s *AIService) makeRequestWithRetry(ctx context.Context, url string, requestJSON []byte, maxRetries int) (*http.Response, []byte, error) {
 	var resp *http.Response
 	var body []byte
-	var err error
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
 			// Exponential backoff: 2s, 4s, 8s
 			waitTime := time.Duration(2<<uint(attempt-1)) * time.Second
 			log.Printf("⏳ Rate limited (429), retrying in %v... (attempt %d/%d)", waitTime, attempt+1, maxRetries+1)
-			time.Sleep(waitTime)
+
+			// Check if context is cancelled during backoff
+			select {
+			case <-ctx.Done():
+				return nil, nil, ctx.Err()
+			case <-time.After(waitTime):
+				// Continue with retry
+			}
 		}
 
-		resp, err = s.httpClient.Post(url, "application/json", bytes.NewBuffer(requestJSON))
+		// Create request with context to respect timeout
+		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(requestJSON))
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err = s.httpClient.Do(req)
 		if err != nil {
 			// Network error, don't retry
 			return nil, nil, err
@@ -162,8 +176,9 @@ func (s *AIService) AnalyzeRoutine(routineLog database.RoutineLog) (*AIServiceRe
 
 	log.Printf("📤 Sending request to AI service: %s", string(requestJSON))
 
-	// Use retry logic for rate limits
-	resp, body, err := s.makeRequestWithRetry(s.baseURL+"/predict", requestJSON, 3)
+	// Use retry logic for rate limits (no context timeout for this legacy method)
+	ctx := context.Background()
+	resp, body, err := s.makeRequestWithRetry(ctx, s.baseURL+"/predict", requestJSON, 3)
 	if err != nil {
 		log.Printf("❌ Failed to call AI service after retries: %v", err)
 		return nil, fmt.Errorf("failed to call AI service: %w", err)
@@ -243,8 +258,9 @@ func (s *AIService) AnalyzeRoutineWithHistory(routineLog database.RoutineLog, hi
 
 	log.Printf("📤 Sending request to AI service (with %d historical records for context): %s", len(historicalData), string(requestJSON))
 
-	// Use retry logic for rate limits
-	resp, body, err := s.makeRequestWithRetry(s.baseURL+"/predict", requestJSON, 3)
+	// Use retry logic for rate limits (no context timeout for this legacy method)
+	ctx := context.Background()
+	resp, body, err := s.makeRequestWithRetry(ctx, s.baseURL+"/predict", requestJSON, 3)
 	if err != nil {
 		log.Printf("❌ Failed to call AI service after retries: %v", err)
 		return nil, fmt.Errorf("failed to call AI service: %w", err)
@@ -322,6 +338,55 @@ func (s *AIService) CheckHealth() error {
 	return nil
 }
 
+// CheckHeartbeat calls the AI service's /status/heartbeat endpoint
+// This method handles the heartbeat and greeting feature
+func (s *AIService) CheckHeartbeat(ctx context.Context) (*HeartbeatResponse, error) {
+	log.Printf("💓 Checking AI service heartbeat at %s/status/heartbeat", s.baseURL)
+
+	// Create HTTP request with context and short timeout
+	req, err := http.NewRequestWithContext(ctx, "GET", s.baseURL+"/status/heartbeat", nil)
+	if err != nil {
+		log.Printf("❌ Failed to create heartbeat request: %v", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Make request
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		log.Printf("❌ Heartbeat request failed: %v", err)
+		return nil, fmt.Errorf("heartbeat request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Read response
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("❌ Failed to read heartbeat response: %v", err)
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("❌ AI service heartbeat returned status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("AI service heartbeat failed with status %d", resp.StatusCode)
+	}
+
+	var heartbeatResponse HeartbeatResponse
+	if err := json.Unmarshal(body, &heartbeatResponse); err != nil {
+		log.Printf("❌ Failed to unmarshal heartbeat response: %v", err)
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	log.Printf("✅ AI service heartbeat successful: %s", heartbeatResponse.Greeting)
+	return &heartbeatResponse, nil
+}
+
+// HeartbeatResponse represents the response from AI service
+type HeartbeatResponse struct {
+	Status    string `json:"status"`
+	Timestamp string `json:"timestamp"`
+	Greeting  string `json:"greeting"`
+}
+
 // AnalyzeDailyRoutine calls the AI service's /analyze/day endpoint
 // This method handles the new daily analysis feature
 // Note: ctx parameter is for future use with context.WithTimeout
@@ -367,8 +432,8 @@ func (s *AIService) AnalyzeDailyRoutine(ctx context.Context, req DailyAnalysisRe
 
 	log.Printf("📤 Sending daily analysis request: %s", string(requestJSON))
 
-	// Use retry logic for rate limits
-	resp, body, err := s.makeRequestWithRetry(s.baseURL+"/analyze/day", requestJSON, 3)
+	// Use retry logic for rate limits with context timeout
+	resp, body, err := s.makeRequestWithRetry(ctx, s.baseURL+"/analyze/day", requestJSON, 3)
 	if err != nil {
 		log.Printf("❌ Failed to call AI service after retries: %v", err)
 		return nil, fmt.Errorf("failed to call AI service: %w", err)
@@ -420,10 +485,10 @@ type DailyAnalysisRequest struct {
 
 // DailyAnalysisResponse represents the response from AI service
 type DailyAnalysisResponse struct {
-	UserID         string `json:"user_id"`
-	Date           string `json:"date"`
-	DailyScore     float64 `json:"daily_score"`
-	Anomalies      []struct {
+	UserID     string  `json:"user_id"`
+	Date       string  `json:"date"`
+	DailyScore float64 `json:"daily_score"`
+	Anomalies  []struct {
 		Code        string `json:"code"`
 		Description string `json:"description"`
 		Severity    string `json:"severity"`
@@ -434,4 +499,82 @@ type DailyAnalysisResponse struct {
 		SuggestedAction string `json:"suggested_action"`
 		TimeHorizon     string `json:"time_horizon,omitempty"`
 	} `json:"recommendations"`
+}
+
+// AnalyzeWeeklySummary calls the AI service's /analyze/week-summary endpoint
+// This method handles the weekly pattern analysis feature
+func (s *AIService) AnalyzeWeeklySummary(ctx context.Context, userID string, endDate string) (*WeeklySummaryResponse, error) {
+	// Wake up AI service if sleeping
+	if err := s.ensureAIServiceAwake(); err != nil {
+		log.Printf("⚠️ Failed to wake AI service: %v", err)
+		// Continue anyway, might still work
+	}
+
+	log.Printf("🤖 Sending weekly analysis request to AI service at %s/analyze/week-summary", s.baseURL)
+
+	// Build URL with query parameters
+	url := fmt.Sprintf("%s/analyze/week-summary?user_id=%s&end_date=%s", s.baseURL, userID, endDate)
+
+	// Create HTTP request with context
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		log.Printf("❌ Failed to create weekly summary request: %v", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	log.Printf("📤 Sending weekly summary request: %s", url)
+
+	// Make request with timeout
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		log.Printf("❌ Failed to call AI service: %v", err)
+		return nil, fmt.Errorf("failed to call AI service: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Read response
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("❌ Failed to read response: %v", err)
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	log.Printf("📥 Received weekly summary response (status: %d): %s", resp.StatusCode, string(body))
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("❌ AI service returned error status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("AI service error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	var aiResponse WeeklySummaryResponse
+	if err := json.Unmarshal(body, &aiResponse); err != nil {
+		log.Printf("❌ Failed to unmarshal AI service response: %v", err)
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	log.Printf("✅ Successfully processed weekly summary - Trends: %d, Insights: %d, Goals: %d",
+		len(aiResponse.Trends), len(aiResponse.Insights), len(aiResponse.MicroGoals))
+
+	return &aiResponse, nil
+}
+
+// WeeklySummaryResponse represents the response from AI service
+type WeeklySummaryResponse struct {
+	UserID    string             `json:"user_id"`
+	WeekStart string             `json:"week_start"`
+	WeekEnd   string             `json:"week_end"`
+	Summary   map[string]float64 `json:"summary"`
+	Trends    []struct {
+		Metric    string `json:"metric"`
+		Direction string `json:"direction"`
+		Comment   string `json:"comment"`
+	} `json:"trends"`
+	Insights   []string `json:"insights"`
+	MicroGoals []struct {
+		Title           string `json:"title"`
+		Reason          string `json:"reason"`
+		SuggestedAction string `json:"suggested_action"`
+		TimeHorizon     string `json:"time_horizon,omitempty"`
+	} `json:"micro_goals"`
 }

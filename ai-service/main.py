@@ -1,7 +1,8 @@
 import logging
 import os
 from datetime import datetime
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+from datetime import timedelta
 import time # Added for model retraining
 import numpy as np
 
@@ -13,6 +14,7 @@ from pydantic import BaseModel, Field
 from models.anomaly_detector import AnomalyDetector
 from models.behavioral_analyzer import BehavioralAnalyzer, RecommendationType, BehavioralContext
 from models.daily_analyzer import DailyAnalyzer
+from models.weekly_analyzer import WeeklyAnalyzer
 from utils.content_manager import ContentManager
 from models.drift_detector_alt import DriftDetectorAlt as DriftDetector
 from utils.data_generator import generate_mock_dataset
@@ -50,6 +52,7 @@ drift_detector = DriftDetector()
 behavioral_analyzer = BehavioralAnalyzer()
 content_manager = ContentManager()
 daily_analyzer = DailyAnalyzer()
+weekly_analyzer = WeeklyAnalyzer()
 
 # Pydantic models for request/response
 class DailyRoutineData(BaseModel):
@@ -822,6 +825,210 @@ async def analyze_day(data: DailyAnalysisRequest):
     except Exception as e:
         logger.error(f"Daily analysis error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+# Pydantic models for weekly analysis endpoint
+class WeeklyTrendResponse(BaseModel):
+    metric: str
+    direction: str  # "improving" | "declining" | "stable"
+    comment: str
+
+class WeeklyMicroGoalResponse(BaseModel):
+    title: str
+    reason: str
+    suggested_action: str
+    time_horizon: str = None
+
+class WeeklySummaryResponse(BaseModel):
+    user_id: str
+    week_start: str
+    week_end: str
+    summary: dict
+    trends: list[WeeklyTrendResponse]
+    insights: list[str]
+    micro_goals: list[WeeklyMicroGoalResponse]
+
+@app.get("/analyze/week-summary", response_model=WeeklySummaryResponse)
+async def analyze_week_summary(user_id: str, end_date: str):
+    """
+    Analyze the last 7 days of routine data and generate weekly summary, trends, insights, and micro-goals.
+    
+    This endpoint:
+    - Takes the last 7 days up to end_date
+    - Computes averages and trends
+    - Generates 3 key insights
+    - Proposes 1-3 micro-goals for the upcoming week
+    """
+    try:
+        logger.info(f"Received weekly analysis request for user {user_id}, end_date: {end_date}")
+        
+        # Validate date format
+        try:
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid date format. Use YYYY-MM-DD format"
+            )
+        
+        # For now, we'll use mock data or expect data to be passed
+        # In production, this would fetch from database via backend
+        # For now, generate mock weekly data for demonstration
+        daily_records = _generate_mock_weekly_data(end_date)
+        
+        # Perform weekly analysis
+        result = weekly_analyzer.analyze_week(daily_records)
+        
+        # Convert to response format
+        response = WeeklySummaryResponse(
+            user_id=user_id,
+            week_start=result["week_start"],
+            week_end=result["week_end"],
+            summary=result["summary"],
+            trends=[
+                WeeklyTrendResponse(
+                    metric=trend["metric"],
+                    direction=trend["direction"],
+                    comment=trend["comment"]
+                )
+                for trend in result["trends"]
+            ],
+            insights=result["insights"],
+            micro_goals=[
+                WeeklyMicroGoalResponse(
+                    title=goal["title"],
+                    reason=goal["reason"],
+                    suggested_action=goal["suggested_action"],
+                    time_horizon=goal.get("time_horizon")
+                )
+                for goal in result["micro_goals"]
+            ]
+        )
+        
+        logger.info(f"Weekly analysis completed for user {user_id}: {len(result['trends'])} trends, {len(result['insights'])} insights, {len(result['micro_goals'])} goals")
+        return response
+        
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(f"Weekly analysis validation error: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Weekly analysis error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+def _generate_mock_weekly_data(end_date: str) -> List[Dict[str, Any]]:
+    """
+    Generate mock weekly data for testing/demonstration.
+    In production, this data would come from the backend database.
+    """
+    try:
+        end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+        records = []
+        
+        # Generate 7 days of data with some variation
+        for i in range(6, -1, -1):  # Last 7 days
+            date = end_dt - timedelta(days=i)
+            date_str = date.strftime("%Y-%m-%d")
+            
+            # Create realistic variation
+            # Days 0-3: Better patterns
+            # Days 4-6: Slightly declining (simulating work week stress)
+            if i >= 4:
+                sleep = 7.5 + (i - 4) * 0.2  # Slightly less sleep
+                steps = 8500 - (i - 4) * 200  # Fewer steps
+                workout = 30 - (i - 4) * 5
+                screen_time = 180 + (i - 4) * 20
+                mood = 4.0 - (i - 4) * 0.1
+                stress = 3.0 + (i - 4) * 0.3
+            else:
+                sleep = 8.0 - i * 0.1
+                steps = 9000 - i * 100
+                workout = 35 - i * 2
+                screen_time = 150 + i * 10
+                mood = 4.2 - i * 0.05
+                stress = 2.5 + i * 0.1
+            
+            records.append({
+                "date": date_str,
+                "sleep_hours": round(sleep, 1),
+                "steps": int(steps),
+                "workout_minutes": int(workout),
+                "screen_time_minutes": int(screen_time),
+                "mood": int(round(mood)),
+                "stress_level": int(round(stress))
+            })
+        
+        return records
+    except Exception as e:
+        logger.error(f"Error generating mock weekly data: {str(e)}")
+        # Return minimal data
+        return [
+            {
+                "date": end_date,
+                "sleep_hours": 7.5,
+                "steps": 8000,
+                "workout_minutes": 30,
+                "screen_time_minutes": 200,
+                "mood": 4,
+                "stress_level": 3
+            }
+        ]
+
+# Pydantic models for heartbeat endpoint
+class HeartbeatResponse(BaseModel):
+    status: str  # "ok" | "degraded"
+    timestamp: str
+    greeting: str
+
+@app.get("/status/heartbeat", response_model=HeartbeatResponse)
+async def heartbeat(user_id: Optional[str] = None):
+    """
+    Heartbeat endpoint that returns service status and a positive greeting.
+    
+    This endpoint:
+    - Checks service health
+    - Returns a random positive greeting
+    - Can be personalized by user_id in the future
+    """
+    try:
+        # List of positive greetings
+        greetings = [
+            "You're building great habits, one day at a time.",
+            "Small steps today create big changes tomorrow.",
+            "You showed up — that's already a win.",
+            "Progress, not perfection. You've got this.",
+            "Every day is a fresh start. Keep going!",
+            "Your consistency is paying off. Well done!",
+            "You're making progress, even when it doesn't feel like it.",
+            "One day at a time, one habit at a time. You've got this!",
+            "Your future self will thank you for today's choices.",
+            "Every small action adds up to big results."
+        ]
+        
+        import random
+        selected_greeting = random.choice(greetings)
+        
+        # For now, assume service is healthy
+        # In production, add actual health checks here
+        status = "ok"
+        
+        response = HeartbeatResponse(
+            status=status,
+            timestamp=datetime.now().isoformat(),
+            greeting=selected_greeting
+        )
+        
+        logger.info(f"Heartbeat check: status={status}, greeting='{selected_greeting[:30]}...'")
+        return response
+        
+    except Exception as e:
+        logger.error(f"Heartbeat error: {str(e)}")
+        # Even on error, return a fallback response
+        return HeartbeatResponse(
+            status="degraded",
+            timestamp=datetime.now().isoformat(),
+            greeting="Welcome back! We're here to support your journey."
+        )
 
 if __name__ == "__main__":
     uvicorn.run(

@@ -41,6 +41,8 @@ type Handlers struct {
 	DeviceHandler        *handlers.DeviceHandler
 	QuestionnaireHandler *handlers.QuestionnaireHandler
 	DailyAnalysisHandler *handlers.DailyAnalysisHandler
+	WeeklySummaryHandler *handlers.WeeklySummaryHandler
+	HeartbeatHandler     *handlers.HeartbeatHandler
 }
 
 // Middleware holds all HTTP middleware
@@ -86,6 +88,8 @@ func NewContainer(cfg *config.Config, db *sql.DB) *Container {
 		DeviceHandler:        handlers.NewDeviceHandler(),
 		QuestionnaireHandler: handlers.NewQuestionnaireHandler(repo),
 		DailyAnalysisHandler: handlers.NewDailyAnalysisHandler(services.AIService),
+		WeeklySummaryHandler: handlers.NewWeeklySummaryHandler(services.AIService),
+		HeartbeatHandler:     handlers.NewHeartbeatHandler(services.AIService),
 	}
 	log.Println("✅ All handlers created")
 
