@@ -321,3 +321,117 @@ func (s *AIService) CheckHealth() error {
 	log.Printf("✅ AI service is healthy")
 	return nil
 }
+
+// AnalyzeDailyRoutine calls the AI service's /analyze/day endpoint
+// This method handles the new daily analysis feature
+// Note: ctx parameter is for future use with context.WithTimeout
+func (s *AIService) AnalyzeDailyRoutine(ctx context.Context, req DailyAnalysisRequest) (*DailyAnalysisResponse, error) {
+	// Wake up AI service if sleeping
+	if err := s.ensureAIServiceAwake(); err != nil {
+		log.Printf("⚠️ Failed to wake AI service: %v", err)
+		// Continue anyway, might still work
+	}
+
+	log.Printf("🤖 Sending daily analysis request to AI service at %s/analyze/day", s.baseURL)
+
+	// Convert to AI service request format
+	aiRequest := map[string]interface{}{
+		"user_id":             req.UserID,
+		"date":                req.Date,
+		"sleep_hours":         req.SleepHours,
+		"bedtime":             req.Bedtime,
+		"wake_time":           req.WakeTime,
+		"steps":               req.Steps,
+		"workout_minutes":     req.WorkoutMinutes,
+		"screen_time_minutes": req.ScreenTimeMinutes,
+		"meals": map[string]bool{
+			"breakfast": req.Meals.Breakfast,
+			"lunch":     req.Meals.Lunch,
+			"dinner":    req.Meals.Dinner,
+		},
+		"mood":         req.Mood,
+		"stress_level": req.StressLevel,
+		"goal_context": map[string]interface{}{
+			"sleep_target_hours":      req.GoalContext.SleepTargetHours,
+			"daily_step_target":       req.GoalContext.DailyStepTarget,
+			"max_screen_time_minutes": req.GoalContext.MaxScreenTimeMinutes,
+		},
+		"history_window_days": req.HistoryWindowDays,
+	}
+
+	requestJSON, err := json.Marshal(aiRequest)
+	if err != nil {
+		log.Printf("❌ Failed to marshal daily analysis request: %v", err)
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	log.Printf("📤 Sending daily analysis request: %s", string(requestJSON))
+
+	// Use retry logic for rate limits
+	resp, body, err := s.makeRequestWithRetry(s.baseURL+"/analyze/day", requestJSON, 3)
+	if err != nil {
+		log.Printf("❌ Failed to call AI service after retries: %v", err)
+		return nil, fmt.Errorf("failed to call AI service: %w", err)
+	}
+
+	log.Printf("📥 Received daily analysis response (status: %d): %s", resp.StatusCode, string(body))
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("❌ AI service returned error status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("AI service error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	var aiResponse DailyAnalysisResponse
+	if err := json.Unmarshal(body, &aiResponse); err != nil {
+		log.Printf("❌ Failed to unmarshal AI service response: %v", err)
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	log.Printf("✅ Successfully processed daily analysis - Score: %.1f, Anomalies: %d, Recommendations: %d",
+		aiResponse.DailyScore, len(aiResponse.Anomalies), len(aiResponse.Recommendations))
+
+	return &aiResponse, nil
+}
+
+// DailyAnalysisRequest represents the request to AI service
+type DailyAnalysisRequest struct {
+	UserID            string
+	Date              string
+	SleepHours        float64
+	Bedtime           string
+	WakeTime          string
+	Steps             int
+	WorkoutMinutes    int
+	ScreenTimeMinutes int
+	Meals             struct {
+		Breakfast bool
+		Lunch     bool
+		Dinner    bool
+	}
+	Mood        int
+	StressLevel int
+	GoalContext struct {
+		SleepTargetHours     float64
+		DailyStepTarget      int
+		MaxScreenTimeMinutes int
+	}
+	HistoryWindowDays int
+}
+
+// DailyAnalysisResponse represents the response from AI service
+type DailyAnalysisResponse struct {
+	UserID         string `json:"user_id"`
+	Date           string `json:"date"`
+	DailyScore     float64 `json:"daily_score"`
+	Anomalies      []struct {
+		Code        string `json:"code"`
+		Description string `json:"description"`
+		Severity    string `json:"severity"`
+	} `json:"anomalies"`
+	Recommendations []struct {
+		Title           string `json:"title"`
+		Reason          string `json:"reason"`
+		SuggestedAction string `json:"suggested_action"`
+		TimeHorizon     string `json:"time_horizon,omitempty"`
+	} `json:"recommendations"`
+}

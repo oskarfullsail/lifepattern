@@ -10,11 +10,18 @@ import {
   ScrollView,
   Platform,
 } from 'react-native';
-import * as LocalAuthentication from 'expo-local-authentication';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation';
 import userManager, { UserCredentials } from './utils/userManager';
 import { requestPasswordRecovery } from './api/endpoint';
+import {
+  checkBiometricSupport,
+  loginWithBiometrics,
+  isBiometricLoginEnabled,
+  setBiometricLoginEnabled,
+  tryBiometricAutoLogin,
+  BiometricCapabilities,
+} from './utils/biometricAuth';
 
 type LoginScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
@@ -28,13 +35,49 @@ export default function Login({ navigation }: Props) {
   const [isLoading, setIsLoading] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [userCredentials, setUserCredentials] = useState<UserCredentials | null>(null);
-  const [isBiometricSupported, setIsBiometricSupported] = useState(false);
-  const [biometricType, setBiometricType] = useState<string>('');
+  const [biometricCapabilities, setBiometricCapabilities] = useState<BiometricCapabilities>({
+    isSupported: false,
+    isEnrolled: false,
+    types: [],
+    typeLabel: '',
+  });
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
 
   useEffect(() => {
     initializeLogin();
-    checkBiometricSupport();
+    initializeBiometrics();
   }, []);
+
+  const initializeBiometrics = async () => {
+    try {
+      // Check biometric support
+      const capabilities = await checkBiometricSupport();
+      setBiometricCapabilities(capabilities);
+
+      // Check if biometric login is enabled
+      const enabled = await isBiometricLoginEnabled();
+      setBiometricEnabled(enabled);
+
+      // If enabled and user has tokens, try auto-login
+      if (enabled && capabilities.isSupported && capabilities.isEnrolled) {
+        const hasTokens = await userManager.getRefreshToken();
+        if (hasTokens) {
+          console.log('🔄 Attempting biometric auto-login...');
+          const autoLoginResult = await tryBiometricAutoLogin();
+          
+          if (autoLoginResult.success) {
+            console.log('✅ Biometric auto-login successful');
+            navigation.replace('UserDashboard');
+            return;
+          } else {
+            console.log('ℹ️ Biometric auto-login not available:', autoLoginResult.error);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error initializing biometrics:', error);
+    }
+  };
 
   const initializeLogin = async () => {
     try {
@@ -69,109 +112,47 @@ export default function Login({ navigation }: Props) {
     }
   };
 
-  const checkBiometricSupport = async () => {
-    try {
-      // Only check on mobile platforms
-      if (Platform.OS === 'web') {
-        setIsBiometricSupported(false);
-        return;
-      }
-
-      const compatible = await LocalAuthentication.hasHardwareAsync();
-      console.log('🔐 Biometric hardware available:', compatible);
-
-      if (!compatible) {
-        setIsBiometricSupported(false);
-        return;
-      }
-
-      const enrolled = await LocalAuthentication.isEnrolledAsync();
-      console.log('🔐 Biometric enrolled:', enrolled);
-
-      if (!enrolled) {
-        setIsBiometricSupported(false);
-        return;
-      }
-
-      // Get supported authentication types
-      const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
-      console.log('🔐 Supported auth types:', types);
-
-      // Determine biometric type
-      let typeLabel = 'Biometric';
-      if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
-        typeLabel = Platform.OS === 'ios' ? 'Face ID' : 'Face Recognition';
-      } else if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
-        typeLabel = 'Fingerprint';
-      } else if (types.includes(LocalAuthentication.AuthenticationType.IRIS)) {
-        typeLabel = 'Iris';
-      }
-
-      setBiometricType(typeLabel);
-      setIsBiometricSupported(true);
-      console.log(`✅ Biometric authentication available: ${typeLabel}`);
-
-    } catch (error) {
-      console.error('❌ Error checking biometric support:', error);
-      setIsBiometricSupported(false);
-    }
-  };
 
   const handleBiometricLogin = async () => {
     try {
-      // Must have stored credentials to use biometric login
-      if (!userCredentials) {
-        Alert.alert(
-          'Setup Required',
-          'Please log in with your username and password first to enable biometric authentication.',
-          [{ text: 'OK' }]
-        );
-        return;
-      }
-
       setIsLoading(true);
-      console.log('🔐 Attempting biometric authentication...');
+      console.log('🔐 Attempting biometric login...');
 
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: `Login to LifePattern AI`,
-        fallbackLabel: 'Use Password',
-        cancelLabel: 'Cancel',
-        disableDeviceFallback: false,
-      });
+      const result = await loginWithBiometrics();
 
       if (result.success) {
-        console.log('✅ Biometric authentication successful');
-
-        // Use stored credentials to authenticate
-        const success = await userManager.authenticateUser(
-          userCredentials.username,
-          userCredentials.passphrase
-        );
-
-        if (success) {
-          console.log('✅ Login successful with biometrics, navigating to UserDashboard');
-          navigation.replace('UserDashboard');
+        console.log('✅ Biometric login successful, navigating to UserDashboard');
+        navigation.replace('UserDashboard');
+      } else {
+        if (result.needsPassword) {
+          // User needs to login with password first
+          Alert.alert(
+            'Setup Required',
+            result.error || 'Please log in with your username and password first to enable biometric authentication.',
+            [
+              { text: 'OK' },
+              {
+                text: 'Enable Biometric Login',
+                onPress: async () => {
+                  // After successful password login, enable biometric
+                  // This will be handled in handleLogin
+                },
+              },
+            ]
+          );
+        } else if (result.error === 'Authentication cancelled' || result.error?.includes('cancel')) {
+          // User cancelled, do nothing
+          console.log('ℹ️ User cancelled biometric authentication');
+          return;
         } else {
-          console.log('❌ Authentication failed - credentials may have changed');
           Alert.alert(
             'Authentication Failed',
-            'Your stored credentials are no longer valid. Please log in with your password.',
+            result.error || 'Biometric authentication was not successful. Please try again or use your password.',
             [{ text: 'OK' }]
           );
         }
-      } else {
-        console.log('❌ Biometric authentication failed:', result.error);
-        if (result.error === 'user_cancel') {
-          // User cancelled, do nothing
-          return;
-        }
-        Alert.alert(
-          'Authentication Failed',
-          'Biometric authentication was not successful. Please try again or use your password.',
-          [{ text: 'OK' }]
-        );
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Biometric login error:', error);
       Alert.alert(
         'Error',
@@ -197,9 +178,35 @@ export default function Login({ navigation }: Props) {
       const success = await userManager.authenticateUser(username.trim(), passphrase.trim());
       
       if (success) {
-        console.log('✅ Login successful, navigating to UserDashboard');
-        // Navigate directly without showing alert
-        navigation.replace('UserDashboard');
+        console.log('✅ Login successful');
+        
+        // If biometrics are available and not yet enabled, offer to enable
+        if (biometricCapabilities.isSupported && biometricCapabilities.isEnrolled && !biometricEnabled) {
+          Alert.alert(
+            'Enable Biometric Login?',
+            `Would you like to enable ${biometricCapabilities.typeLabel} for faster login next time?`,
+            [
+              {
+                text: 'Not Now',
+                style: 'cancel',
+                onPress: () => {
+                  navigation.replace('UserDashboard');
+                },
+              },
+              {
+                text: 'Enable',
+                onPress: async () => {
+                  await setBiometricLoginEnabled(true);
+                  setBiometricEnabled(true);
+                  console.log(`✅ ${biometricCapabilities.typeLabel} login enabled`);
+                  navigation.replace('UserDashboard');
+                },
+              },
+            ]
+          );
+        } else {
+          navigation.replace('UserDashboard');
+        }
       } else {
         console.log('❌ Login failed - invalid credentials');
         Alert.alert('Error', 'Invalid username or passphrase. Please try again.');
@@ -329,18 +336,18 @@ export default function Login({ navigation }: Props) {
           />
         </View>
 
-        {/* Biometric Login Button - Only show if supported and user has credentials */}
-        {isBiometricSupported && userCredentials && (
+        {/* Biometric Login Button - Show if supported and enrolled */}
+        {biometricCapabilities.isSupported && biometricCapabilities.isEnrolled && (
           <TouchableOpacity
             style={[styles.biometricButton, isLoading && styles.disabledButton]}
             onPress={handleBiometricLogin}
             disabled={isLoading}
           >
             <Text style={styles.biometricIcon}>
-              {biometricType.includes('Face') ? '👤' : '👆'}
+              {biometricCapabilities.typeLabel.includes('Face') ? '👤' : '👆'}
             </Text>
             <Text style={styles.biometricButtonText}>
-              Login with {biometricType}
+              Login with {biometricCapabilities.typeLabel}
             </Text>
           </TouchableOpacity>
         )}
@@ -354,7 +361,7 @@ export default function Login({ navigation }: Props) {
             <ActivityIndicator color="#fff" />
           ) : (
             <Text style={styles.loginButtonText}>
-              {isBiometricSupported && userCredentials ? 'Sign In with Password' : 'Sign In'}
+              {biometricCapabilities.isSupported && biometricCapabilities.isEnrolled ? 'Sign In with Password' : 'Sign In'}
             </Text>
           )}
         </TouchableOpacity>

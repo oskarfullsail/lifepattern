@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,11 +6,19 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  Switch,
+  Platform,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CommonActions } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation';
 import userManager from './utils/userManager';
+import {
+  checkBiometricSupport,
+  isBiometricLoginEnabled,
+  setBiometricLoginEnabled,
+  BiometricCapabilities,
+} from './utils/biometricAuth';
 
 type SettingsScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Settings'>;
 
@@ -19,6 +27,59 @@ interface Props {
 }
 
 export default function Settings({ navigation }: Props) {
+  const [biometricEnabled, setBiometricEnabledState] = useState(false);
+  const [biometricCapabilities, setBiometricCapabilities] = useState<BiometricCapabilities>({
+    isSupported: false,
+    isEnrolled: false,
+    types: [],
+    typeLabel: '',
+  });
+
+  useEffect(() => {
+    loadBiometricSettings();
+  }, []);
+
+  const loadBiometricSettings = async () => {
+    try {
+      const capabilities = await checkBiometricSupport();
+      setBiometricCapabilities(capabilities);
+
+      if (capabilities.isSupported && capabilities.isEnrolled) {
+        const enabled = await isBiometricLoginEnabled();
+        setBiometricEnabledState(enabled);
+      }
+    } catch (error) {
+      console.error('Error loading biometric settings:', error);
+    }
+  };
+
+  const handleBiometricToggle = async (value: boolean) => {
+    try {
+      if (value) {
+        // Enable biometric login
+        await setBiometricLoginEnabled(true);
+        setBiometricEnabledState(true);
+        Alert.alert(
+          'Biometric Login Enabled',
+          `You can now use ${biometricCapabilities.typeLabel} to log in quickly.`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        // Disable biometric login
+        await setBiometricLoginEnabled(false);
+        setBiometricEnabledState(false);
+        Alert.alert(
+          'Biometric Login Disabled',
+          'You will need to use your password to log in.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error toggling biometric login:', error);
+      Alert.alert('Error', 'Failed to update biometric login setting.');
+    }
+  };
+
   const handleLogout = () => {
     Alert.alert(
       'Logout',
@@ -88,6 +149,44 @@ export default function Settings({ navigation }: Props) {
       </View>
 
       <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Security</Text>
+        
+        {biometricCapabilities.isSupported && biometricCapabilities.isEnrolled && (
+          <View style={styles.settingItem}>
+            <Text style={styles.settingIcon}>
+              {biometricCapabilities.typeLabel.includes('Face') ? '👤' : '👆'}
+            </Text>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>
+                {biometricCapabilities.typeLabel} Login
+              </Text>
+              <Text style={styles.settingDescription}>
+                Use {biometricCapabilities.typeLabel} for quick and secure login
+              </Text>
+            </View>
+            <Switch
+              value={biometricEnabled}
+              onValueChange={handleBiometricToggle}
+              trackColor={{ false: '#767577', true: '#34C759' }}
+              thumbColor={biometricEnabled ? '#fff' : '#f4f3f4'}
+            />
+          </View>
+        )}
+
+        {Platform.OS === 'web' && (
+          <View style={styles.settingItem}>
+            <Text style={styles.settingIcon}>🔐</Text>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>Biometric Login</Text>
+              <Text style={styles.settingDescription}>
+                Not available on web platform
+              </Text>
+            </View>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.section}>
         <Text style={styles.sectionTitle}>Account</Text>
         
         <TouchableOpacity style={styles.settingItem}>
@@ -95,15 +194,6 @@ export default function Settings({ navigation }: Props) {
           <View style={styles.settingContent}>
             <Text style={styles.settingTitle}>Profile</Text>
             <Text style={styles.settingDescription}>Manage your profile information</Text>
-          </View>
-          <Text style={styles.settingArrow}>→</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.settingItem}>
-          <Text style={styles.settingIcon}>🔐</Text>
-          <View style={styles.settingContent}>
-            <Text style={styles.settingTitle}>Security</Text>
-            <Text style={styles.settingDescription}>Manage authentication methods</Text>
           </View>
           <Text style={styles.settingArrow}>→</Text>
         </TouchableOpacity>

@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from models.anomaly_detector import AnomalyDetector
 from models.behavioral_analyzer import BehavioralAnalyzer, RecommendationType, BehavioralContext
+from models.daily_analyzer import DailyAnalyzer
 from utils.content_manager import ContentManager
 from models.drift_detector_alt import DriftDetectorAlt as DriftDetector
 from utils.data_generator import generate_mock_dataset
@@ -48,6 +49,7 @@ drift_detector = DriftDetector()
 # Initialize enhanced behavioral analysis components
 behavioral_analyzer = BehavioralAnalyzer()
 content_manager = ContentManager()
+daily_analyzer = DailyAnalyzer()
 
 # Pydantic models for request/response
 class DailyRoutineData(BaseModel):
@@ -118,6 +120,50 @@ class EnhancedPredictionResponse(BaseModel):
     timestamp: str
     drift_analysis: dict = None
     baseline_comparison: dict = None
+
+# Pydantic models for daily analysis endpoint
+class MealsData(BaseModel):
+    breakfast: bool = Field(default=False, description="Had breakfast")
+    lunch: bool = Field(default=False, description="Had lunch")
+    dinner: bool = Field(default=False, description="Had dinner")
+
+class GoalContext(BaseModel):
+    sleep_target_hours: float = Field(default=7.5, ge=4, le=12, description="Target sleep hours")
+    daily_step_target: int = Field(default=8000, ge=0, description="Daily step target")
+    max_screen_time_minutes: int = Field(default=180, ge=0, le=1440, description="Max screen time in minutes")
+
+class DailyAnalysisRequest(BaseModel):
+    user_id: str = Field(..., description="User identifier")
+    date: str = Field(..., description="Date in YYYY-MM-DD format")
+    sleep_hours: float = Field(..., ge=0, le=24, description="Hours of sleep")
+    bedtime: str = Field(..., description="Bedtime in HH:MM format")
+    wake_time: str = Field(..., description="Wake time in HH:MM format")
+    steps: int = Field(..., ge=0, description="Daily step count")
+    workout_minutes: int = Field(..., ge=0, le=1440, description="Minutes of exercise")
+    screen_time_minutes: int = Field(..., ge=0, le=1440, description="Minutes of screen time")
+    meals: MealsData = Field(..., description="Meal information")
+    mood: int = Field(..., ge=1, le=5, description="Mood score (1-5, higher is better)")
+    stress_level: int = Field(..., ge=1, le=10, description="Stress level (1-10, lower is better)")
+    goal_context: GoalContext = Field(..., description="User's goal context")
+    history_window_days: int = Field(default=14, ge=0, le=90, description="History window for analysis")
+
+class AnomalyResponse(BaseModel):
+    code: str
+    description: str
+    severity: str
+
+class RecommendationResponse(BaseModel):
+    title: str
+    reason: str
+    suggested_action: str
+    time_horizon: str = None
+
+class DailyAnalysisResponse(BaseModel):
+    user_id: str
+    date: str
+    daily_score: float
+    anomalies: list[AnomalyResponse]
+    recommendations: list[RecommendationResponse]
 
 @app.on_event("startup")
 async def startup_event():
@@ -686,6 +732,96 @@ def generate_recommendations(data: DailyRoutineData, is_anomaly: bool, anomaly_t
         recommendations.append("Try to have 3 regular meals per day for better metabolism.")
     
     return recommendations
+
+@app.post("/analyze/day", response_model=DailyAnalysisResponse)
+async def analyze_day(data: DailyAnalysisRequest):
+    """
+    Analyze a single day's routine data and compute daily score, detect anomalies, and generate recommendations.
+    
+    This endpoint provides comprehensive daily analysis including:
+    - Daily routine score (0-100)
+    - Anomaly detection (sleep, activity, screen time, etc.)
+    - Actionable recommendations with time horizons
+    """
+    try:
+        logger.info(f"Received daily analysis request for user {data.user_id} on {data.date}")
+        
+        # Validate time formats
+        try:
+            datetime.strptime(data.bedtime, "%H:%M")
+            datetime.strptime(data.wake_time, "%H:%M")
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid time format. Use HH:MM format for bedtime and wake_time"
+            )
+        
+        # Validate date format
+        try:
+            datetime.strptime(data.date, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid date format. Use YYYY-MM-DD format"
+            )
+        
+        # Perform daily analysis using the DailyAnalyzer
+        result = daily_analyzer.analyze_day(
+            user_id=data.user_id,
+            date=data.date,
+            sleep_hours=data.sleep_hours,
+            bedtime=data.bedtime,
+            wake_time=data.wake_time,
+            steps=data.steps,
+            workout_minutes=data.workout_minutes,
+            screen_time_minutes=data.screen_time_minutes,
+            meals={
+                "breakfast": data.meals.breakfast,
+                "lunch": data.meals.lunch,
+                "dinner": data.meals.dinner
+            },
+            mood=data.mood,
+            stress_level=data.stress_level,
+            goal_context={
+                "sleep_target_hours": data.goal_context.sleep_target_hours,
+                "daily_step_target": data.goal_context.daily_step_target,
+                "max_screen_time_minutes": data.goal_context.max_screen_time_minutes
+            },
+            history_window_days=data.history_window_days
+        )
+        
+        # Convert to response format
+        response = DailyAnalysisResponse(
+            user_id=result["user_id"],
+            date=result["date"],
+            daily_score=result["daily_score"],
+            anomalies=[
+                AnomalyResponse(
+                    code=anomaly["code"],
+                    description=anomaly["description"],
+                    severity=anomaly["severity"]
+                )
+                for anomaly in result["anomalies"]
+            ],
+            recommendations=[
+                RecommendationResponse(
+                    title=rec["title"],
+                    reason=rec["reason"],
+                    suggested_action=rec["suggested_action"],
+                    time_horizon=rec.get("time_horizon")
+                )
+                for rec in result["recommendations"]
+            ]
+        )
+        
+        logger.info(f"Daily analysis completed for user {data.user_id}: score={result['daily_score']}, anomalies={len(result['anomalies'])}")
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Daily analysis error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 if __name__ == "__main__":
     uvicorn.run(

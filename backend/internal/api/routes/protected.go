@@ -19,6 +19,10 @@ func SetupProtectedRoutes(router *mux.Router, container *container.Container) {
 	// Routine log endpoints
 	protectedRouter.HandleFunc("/log", container.Handlers.LogHandler.CreateRoutineLog).Methods("POST", "OPTIONS")
 	protectedRouter.HandleFunc("/logs", container.Handlers.LogHandler.GetUserRoutineLogs).Methods("GET", "OPTIONS")
+	
+	// Daily analysis endpoint (v1 API)
+	v1Router := protectedRouter.PathPrefix("/v1/routines").Subrouter()
+	v1Router.HandleFunc("/analyze-day", container.Handlers.DailyAnalysisHandler.AnalyzeDay).Methods("POST", "OPTIONS")
 	log.Println("✅ Routine log routes registered")
 
 	// Insight endpoints
