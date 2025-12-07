@@ -144,42 +144,111 @@ export default function DataImport({ navigation, route }: Props) {
       const userId = await userManager.getUserId();
       if (!userId) {
         Alert.alert('Error', 'Please log in to import health data');
+        setIsLoading(false);
         return;
       }
 
-      setLoadingMessage('Fetching health data...');
-
-      // Import the health sync service
-      const healthSync = require('./services/healthSync').default;
-
-      // Check if health sync is available
-      const status = await healthSync.getBackgroundFetchStatus();
-
-      if (status !== 'Available') {
+      // Check platform
+      if (Platform.OS === 'web') {
         Alert.alert(
-          'Health Sync Not Available',
-          'Background fetch is not available on this device. Health data import requires:\n\n' +
-          '• iOS: Apple Health permissions\n' +
-          '• Android: Google Health Connect\n\n' +
-          'Please enable these in your device settings.',
+          'Not Available on Web',
+          'Health app integration is only available on iOS and Android devices.\n\n' +
+          'Please use the mobile app to import health data, or try manual entry.',
           [
             { text: 'OK' },
             {
-              text: 'Try Manual Entry',
-              onPress: () => navigation.navigate('DataImport', { source: 'manual' })
+              text: 'Manual Entry',
+              onPress: () => setShowManualForm(true)
             }
           ]
         );
+        setIsLoading(false);
         return;
       }
 
-      // Attempt to sync health data
-      setLoadingMessage('Syncing with Health App...');
+      setLoadingMessage('Checking health app availability...');
+
+      // Import the health sync service dynamically
+      const healthSync = require('./services/healthSync').default;
+
+      // Step 1: Check if health data source is available on this device
+      setLoadingMessage(Platform.OS === 'ios' 
+        ? 'Checking Apple Health...' 
+        : 'Checking Health Connect...');
+      
+      const isAvailable = await healthSync.isHealthDataAvailable();
+      console.log('📊 Health data available:', isAvailable);
+
+      if (!isAvailable) {
+        // Platform-specific setup instructions
+        const platformMessage = Platform.OS === 'ios'
+          ? '📱 Apple Health Setup Required:\n\n' +
+            '1. This feature requires a custom app build\n' +
+            '2. The app needs to be built with native HealthKit support\n\n' +
+            'Build commands:\n' +
+            '• npx expo prebuild\n' +
+            '• npx expo run:ios\n\n' +
+            'For now, please use Manual Entry.'
+          : '🤖 Health Connect Setup Required:\n\n' +
+            '1. Install "Health Connect by Google" from Play Store\n' +
+            '2. Open Health Connect and grant permissions\n' +
+            '3. This app needs a custom build:\n\n' +
+            'Build commands:\n' +
+            '• npx expo prebuild\n' +
+            '• npx expo run:android\n\n' +
+            'For now, please use Manual Entry.';
+
+        Alert.alert(
+          'Health App Not Available',
+          platformMessage,
+          [
+            { text: 'OK' },
+            {
+              text: 'Use Manual Entry',
+              onPress: () => setShowManualForm(true)
+            }
+          ]
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      // Step 2: Request permissions
+      setLoadingMessage('Requesting health permissions...');
+      const permissionStatus = await healthSync.requestHealthPermissions();
+      console.log('📊 Permission status:', permissionStatus);
+
+      if (!permissionStatus.isAuthorized) {
+        Alert.alert(
+          'Permissions Required',
+          `${permissionStatus.message}\n\n` +
+          (permissionStatus.missingPermissions.length > 0 
+            ? `Missing: ${permissionStatus.missingPermissions.join(', ')}\n\n` 
+            : '') +
+          'Please grant health data access in your device settings.',
+          [
+            { text: 'OK' },
+            {
+              text: 'Try Again',
+              onPress: () => handleHealthAppImport()
+            },
+            {
+              text: 'Manual Entry',
+              onPress: () => setShowManualForm(true)
+            }
+          ]
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      // Step 3: Fetch and sync health data
+      setLoadingMessage('Fetching health data...');
       const success = await healthSync.manualHealthSync();
 
       if (success) {
         Alert.alert(
-          'Success',
+          '✅ Success!',
           'Health data imported and synced to your account!',
           [
             {
@@ -559,19 +628,56 @@ export default function DataImport({ navigation, route }: Props) {
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Health App Integration</Text>
       <Text style={styles.sectionDescription}>
-        Import data from Apple Health, Google Fit, or other health apps
+        Import data from {Platform.OS === 'ios' ? 'Apple Health' : Platform.OS === 'android' ? 'Google Fit' : 'your health app'}
       </Text>
       
+      {Platform.OS === 'web' && (
+        <View style={styles.warningBox}>
+          <Text style={styles.warningIcon}>⚠️</Text>
+          <Text style={styles.warningText}>
+            Health app integration is only available on iOS and Android. Please use the mobile app or try manual entry.
+          </Text>
+        </View>
+      )}
+
+      {Platform.OS !== 'web' && (
+        <View style={styles.infoBox}>
+          <Text style={styles.infoIcon}>ℹ️</Text>
+          <Text style={styles.infoBoxText}>
+            {Platform.OS === 'ios' 
+              ? 'Requires Apple Health access. Make sure LifePattern has permission in Settings > Privacy > Health.'
+              : 'Requires Google Fit access. Make sure Google Fit is installed and permissions are granted.'}
+          </Text>
+        </View>
+      )}
+      
       <TouchableOpacity 
-        style={styles.importButton}
+        style={[styles.importButton, Platform.OS === 'web' && styles.disabledButton]}
         onPress={handleHealthAppImport}
-        disabled={isLoading}
+        disabled={isLoading || Platform.OS === 'web'}
       >
         {isLoading ? (
-          <ActivityIndicator color="#fff" />
+          <View style={styles.loadingRow}>
+            <ActivityIndicator color="#fff" />
+            <Text style={styles.loadingText}>{loadingMessage}</Text>
+          </View>
         ) : (
-          <Text style={styles.importButtonText}>Import from Health App</Text>
+          <Text style={styles.importButtonText}>
+            {Platform.OS === 'ios' ? '🍎 Import from Apple Health' : 
+             Platform.OS === 'android' ? '🏃 Import from Google Fit' : 
+             'Import from Health App'}
+          </Text>
         )}
+      </TouchableOpacity>
+
+      <TouchableOpacity 
+        style={styles.alternativeButton}
+        onPress={() => setShowManualForm(true)}
+        disabled={isLoading}
+      >
+        <Text style={styles.alternativeButtonText}>
+          Or enter data manually →
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -983,6 +1089,69 @@ const styles = StyleSheet.create({
   importButtonText: {
     color: '#fff',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  disabledButton: {
+    backgroundColor: '#94a3b8',
+    opacity: 0.7,
+  },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  loadingText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  warningBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#fef3c7',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: '#f59e0b',
+  },
+  warningIcon: {
+    fontSize: 20,
+    marginRight: 10,
+  },
+  warningText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#92400e',
+    lineHeight: 20,
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#e0f2fe',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: '#0ea5e9',
+  },
+  infoIcon: {
+    fontSize: 20,
+    marginRight: 10,
+  },
+  infoBoxText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#0369a1',
+    lineHeight: 20,
+  },
+  alternativeButton: {
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  alternativeButtonText: {
+    color: '#7c3aed',
+    fontSize: 15,
     fontWeight: '600',
   },
   csvFormat: {

@@ -54,28 +54,54 @@ export default function AIProductivityInsights({ navigation }: Props) {
   });
 
   useEffect(() => {
-    // Subscribe to AI service status updates
-    const unsubscribe = aiWakeupService.subscribeToStatus((status) => {
-      setAiServiceStatus(status);
-      
-      // If service just became available, reload data
-      if (status.isAvailable && status.greeting) {
-        setHeartbeat({
-          status: 'ok',
-          timestamp: new Date().toISOString(),
-          greeting: status.greeting,
-        });
-      }
-    });
-
-    // Start background polling to keep AI service warm
-    aiWakeupService.startBackgroundPolling();
+    let unsubscribe: (() => void) | null = null;
+    let isMounted = true;
     
-    // Load data
-    loadData();
+    try {
+      // Subscribe to AI service status updates
+      unsubscribe = aiWakeupService.subscribeToStatus((status) => {
+        if (!isMounted) return;
+        
+        try {
+          setAiServiceStatus(status);
+          
+          // If service just became available, update heartbeat
+          if (status.isAvailable && status.greeting) {
+            setHeartbeat({
+              status: 'ok',
+              timestamp: new Date().toISOString(),
+              greeting: status.greeting,
+            });
+          }
+        } catch (error) {
+          console.error('Error handling AI service status update:', error);
+        }
+      });
+
+      // Load data first, then start background polling
+      loadData().finally(() => {
+        if (isMounted) {
+          try {
+            aiWakeupService.startBackgroundPolling();
+          } catch (error) {
+            console.error('Error starting background polling:', error);
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Error initializing AI productivity insights:', error);
+      setIsLoading(false);
+    }
 
     return () => {
-      unsubscribe();
+      isMounted = false;
+      if (unsubscribe) {
+        try {
+          unsubscribe();
+        } catch (error) {
+          console.error('Error unsubscribing from AI service status:', error);
+        }
+      }
       // Don't stop polling on unmount - keep service warm
     };
   }, []);
@@ -91,11 +117,19 @@ export default function AIProductivityInsights({ navigation }: Props) {
         // If AI service is not available, trigger wake-up
         if (heartbeatData.status !== 'ok') {
           console.log('🌅 AI service not ready, triggering wake-up...');
-          aiWakeupService.wakeUpAIService();
+          try {
+            aiWakeupService.wakeUpAIService().catch(() => {});
+          } catch (e) {
+            console.log('Wake-up call failed');
+          }
         }
       } catch (error) {
         console.log('⚠️ Could not fetch AI heartbeat, triggering wake-up:', error);
-        aiWakeupService.wakeUpAIService();
+        try {
+          aiWakeupService.wakeUpAIService().catch(() => {});
+        } catch (e) {
+          console.log('Wake-up call failed');
+        }
       }
 
       // Load AI coach tips from backend
@@ -360,8 +394,8 @@ export default function AIProductivityInsights({ navigation }: Props) {
 
         <View style={styles.content}>
           {/* AI Service Status Card */}
-          {aiServiceStatus.isWakingUp ? (
-            // Show waking up indicator
+          {aiServiceStatus.isWakingUp && aiServiceStatus.retryCount > 0 ? (
+            // Show waking up indicator - only when actually waking up with retries
             <View style={[styles.greetingCard, styles.greetingCardWakingUp]}>
               <ActivityIndicator size="small" color="#7c3aed" style={styles.wakingUpSpinner} />
               <View style={styles.greetingContent}>

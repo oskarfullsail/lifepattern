@@ -112,7 +112,8 @@ apiClient.interceptors.response.use(
         console.log('🚫 Invalid token detected, clearing session and redirecting to login');
         
         try {
-          await userManager.clearSession();
+          // Pass true to skip backend call - we already know the token is invalid
+          await userManager.clearSession(true);
         } catch (clearError) {
           console.error('❌ Failed to clear session:', clearError);
         }
@@ -187,8 +188,9 @@ apiClient.interceptors.response.use(
         console.log('🔐 Redirecting to login due to authentication failure');
         
         // Clear stored tokens on refresh failure
+        // Pass true to skip backend call - we already know auth is failing
         try {
-          await userManager.clearSession();
+          await userManager.clearSession(true);
         } catch (clearError) {
           console.error('❌ Failed to clear session:', clearError);
         }

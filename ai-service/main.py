@@ -836,16 +836,16 @@ class WeeklyMicroGoalResponse(BaseModel):
     title: str
     reason: str
     suggested_action: str
-    time_horizon: str = None
+    time_horizon: Optional[str] = None
 
 class WeeklySummaryResponse(BaseModel):
     user_id: str
     week_start: str
     week_end: str
-    summary: dict
-    trends: list[WeeklyTrendResponse]
-    insights: list[str]
-    micro_goals: list[WeeklyMicroGoalResponse]
+    summary: Dict[str, Any]
+    trends: List[WeeklyTrendResponse]
+    insights: List[str]
+    micro_goals: List[WeeklyMicroGoalResponse]
 
 @app.get("/analyze/week-summary", response_model=WeeklySummaryResponse)
 async def analyze_week_summary(user_id: str, end_date: str):
@@ -865,6 +865,7 @@ async def analyze_week_summary(user_id: str, end_date: str):
         try:
             end_dt = datetime.strptime(end_date, "%Y-%m-%d")
         except ValueError:
+            logger.error(f"Invalid date format: {end_date}")
             raise HTTPException(
                 status_code=400,
                 detail="Invalid date format. Use YYYY-MM-DD format"
@@ -873,47 +874,54 @@ async def analyze_week_summary(user_id: str, end_date: str):
         # For now, we'll use mock data or expect data to be passed
         # In production, this would fetch from database via backend
         # For now, generate mock weekly data for demonstration
+        logger.info(f"Generating mock weekly data for end_date: {end_date}")
         daily_records = _generate_mock_weekly_data(end_date)
+        logger.info(f"Generated {len(daily_records)} daily records")
         
         # Perform weekly analysis
+        logger.info("Starting weekly analysis...")
         result = weekly_analyzer.analyze_week(daily_records)
+        logger.info(f"Analysis result keys: {result.keys()}")
         
         # Convert to response format
+        logger.info("Building response...")
         response = WeeklySummaryResponse(
             user_id=user_id,
-            week_start=result["week_start"],
-            week_end=result["week_end"],
-            summary=result["summary"],
+            week_start=result.get("week_start", ""),
+            week_end=result.get("week_end", ""),
+            summary=result.get("summary", {}),
             trends=[
                 WeeklyTrendResponse(
-                    metric=trend["metric"],
-                    direction=trend["direction"],
-                    comment=trend["comment"]
+                    metric=trend.get("metric", ""),
+                    direction=trend.get("direction", "stable"),
+                    comment=trend.get("comment", "")
                 )
-                for trend in result["trends"]
+                for trend in result.get("trends", [])
             ],
-            insights=result["insights"],
+            insights=result.get("insights", []),
             micro_goals=[
                 WeeklyMicroGoalResponse(
-                    title=goal["title"],
-                    reason=goal["reason"],
-                    suggested_action=goal["suggested_action"],
+                    title=goal.get("title", ""),
+                    reason=goal.get("reason", ""),
+                    suggested_action=goal.get("suggested_action", ""),
                     time_horizon=goal.get("time_horizon")
                 )
-                for goal in result["micro_goals"]
+                for goal in result.get("micro_goals", [])
             ]
         )
         
-        logger.info(f"Weekly analysis completed for user {user_id}: {len(result['trends'])} trends, {len(result['insights'])} insights, {len(result['micro_goals'])} goals")
+        logger.info(f"Weekly analysis completed for user {user_id}: {len(result.get('trends', []))} trends, {len(result.get('insights', []))} insights, {len(result.get('micro_goals', []))} goals")
         return response
         
     except HTTPException:
         raise
     except ValueError as e:
-        logger.error(f"Weekly analysis validation error: {str(e)}")
+        logger.error(f"Weekly analysis validation error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Weekly analysis error: {str(e)}")
+        logger.error(f"Weekly analysis error: {str(e)}", exc_info=True)
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 def _generate_mock_weekly_data(end_date: str) -> List[Dict[str, Any]]:

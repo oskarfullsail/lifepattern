@@ -22,6 +22,7 @@ export interface AIServiceStatus {
   lastChecked: Date | null;
   retryCount: number;
   greeting?: string;
+  error?: string;
 }
 
 type StatusCallback = (status: AIServiceStatus) => void;
@@ -37,14 +38,38 @@ let currentStatus: AIServiceStatus = {
   retryCount: 0,
 };
 
-let pollingInterval: NodeJS.Timeout | null = null;
-let wakeupInterval: NodeJS.Timeout | null = null;
+let pollingInterval: ReturnType<typeof setInterval> | null = null;
+let wakeupTimeout: ReturnType<typeof setTimeout> | null = null;
+let isWakeupInProgress = false; // Separate flag to prevent race conditions
 let statusCallbacks: StatusCallback[] = [];
 
 // Configuration
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes - keep service warm
 const WAKEUP_RETRY_INTERVAL_MS = 5 * 1000; // 5 seconds - retry when waking up
 const MAX_WAKEUP_RETRIES = 20; // Max ~100 seconds of retrying
+const WAKEUP_OVERALL_TIMEOUT_MS = 120 * 1000; // 2 minutes max for entire wakeup
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+const updateStatus = (updates: Partial<AIServiceStatus>): void => {
+  currentStatus = { ...currentStatus, ...updates };
+  notifyListeners();
+};
+
+const notifyListeners = (): void => {
+  const statusCopy = { ...currentStatus };
+  statusCallbacks.forEach(callback => {
+    try {
+      callback(statusCopy);
+    } catch (error) {
+      console.error('Error in status callback:', error);
+    }
+  });
+};
+
+const delay = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
 
 // ============================================================================
 // Core Functions
@@ -61,42 +86,39 @@ export const checkAIService = async (): Promise<AiHeartbeatResponse> => {
     
     if (!quickCheck) {
       // Service is sleeping, return waking_up status
-      currentStatus = {
+      updateStatus({
         isAvailable: false,
-        isWakingUp: true,
+        isWakingUp: false, // Not actively waking up yet
         lastChecked: new Date(),
-        retryCount: 0,
-        greeting: 'AI service is waking up...',
-      };
-      notifyListeners();
+        greeting: 'AI service is currently sleeping...',
+      });
       
       return {
-        status: 'waking_up',
+        status: 'unreachable',
         timestamp: new Date().toISOString(),
-        greeting: 'AI service is waking up... This may take 30-60 seconds.',
+        greeting: 'AI service is sleeping. Tap to wake it up.',
       };
     }
     
     // Service is awake, get full heartbeat
     const response = await fetchAiHeartbeat();
     
-    currentStatus = {
+    updateStatus({
       isAvailable: response.status === 'ok',
-      isWakingUp: response.status === 'waking_up',
+      isWakingUp: false,
       lastChecked: new Date(),
       retryCount: 0,
       greeting: response.greeting,
-    };
+      error: undefined,
+    });
     
-    notifyListeners();
     return response;
-  } catch (error) {
-    currentStatus = {
-      ...currentStatus,
+  } catch (error: any) {
+    updateStatus({
       isAvailable: false,
       lastChecked: new Date(),
-    };
-    notifyListeners();
+      error: error?.message || 'Connection failed',
+    });
     throw error;
   }
 };
@@ -108,27 +130,49 @@ export const checkAIService = async (): Promise<AiHeartbeatResponse> => {
 export const wakeUpAIService = async (
   onProgress?: (attempt: number, maxRetries: number) => void
 ): Promise<boolean> => {
-  if (currentStatus.isWakingUp) {
+  // Prevent concurrent wake-up attempts
+  if (isWakeupInProgress) {
     console.log('🔄 AI service wake-up already in progress...');
     return false;
   }
 
+  isWakeupInProgress = true;
   console.log('🌅 Starting AI service wake-up via direct health endpoint...');
   
-  currentStatus = {
-    ...currentStatus,
+  // Initialize status - start at attempt 1
+  updateStatus({
     isWakingUp: true,
-    retryCount: 0,
-  };
-  notifyListeners();
+    retryCount: 1,
+    greeting: 'Waking up AI service... (attempt 1/' + MAX_WAKEUP_RETRIES + ')',
+  });
 
-  return new Promise((resolve) => {
-    const attemptWakeup = async () => {
-      currentStatus.retryCount++;
+  // Set overall timeout to prevent infinite waiting
+  const overallTimeoutPromise = new Promise<boolean>((resolve) => {
+    wakeupTimeout = setTimeout(() => {
+      console.log('❌ Overall wake-up timeout reached');
+      isWakeupInProgress = false;
+      updateStatus({
+        isWakingUp: false,
+        error: 'Wake-up timed out. AI service may be unavailable.',
+      });
+      resolve(false);
+    }, WAKEUP_OVERALL_TIMEOUT_MS);
+  });
+
+  const wakeupPromise = (async (): Promise<boolean> => {
+    for (let attempt = 1; attempt <= MAX_WAKEUP_RETRIES; attempt++) {
+      // Check if we've been cancelled
+      if (!isWakeupInProgress) {
+        return false;
+      }
+
+      console.log(`🔄 Wake-up attempt ${attempt}/${MAX_WAKEUP_RETRIES}...`);
+      onProgress?.(attempt, MAX_WAKEUP_RETRIES);
       
-      console.log(`🔄 Wake-up attempt ${currentStatus.retryCount}/${MAX_WAKEUP_RETRIES}...`);
-      onProgress?.(currentStatus.retryCount, MAX_WAKEUP_RETRIES);
-      notifyListeners();
+      updateStatus({
+        retryCount: attempt,
+        greeting: `Waking up AI service... (attempt ${attempt}/${MAX_WAKEUP_RETRIES})`,
+      });
 
       try {
         // Use direct wake-up call to AI service health endpoint
@@ -138,82 +182,146 @@ export const wakeUpAIService = async (
           console.log('✅ AI service is now awake!');
           
           // Now get the full heartbeat with greeting
-          const response = await fetchAiHeartbeat();
-          
-          currentStatus = {
-            isAvailable: true,
-            isWakingUp: false,
-            lastChecked: new Date(),
-            retryCount: 0,
-            greeting: response.greeting,
-          };
-          notifyListeners();
-          
-          if (wakeupInterval) {
-            clearInterval(wakeupInterval);
-            wakeupInterval = null;
+          try {
+            const response = await fetchAiHeartbeat();
+            
+            updateStatus({
+              isAvailable: true,
+              isWakingUp: false,
+              lastChecked: new Date(),
+              retryCount: 0,
+              greeting: response.greeting,
+              error: undefined,
+            });
+          } catch (heartbeatError) {
+            // Service is awake but heartbeat failed - still consider it success
+            updateStatus({
+              isAvailable: true,
+              isWakingUp: false,
+              lastChecked: new Date(),
+              retryCount: 0,
+              greeting: 'AI service is ready!',
+              error: undefined,
+            });
           }
           
-          resolve(true);
-          return;
+          // Clear timeout
+          if (wakeupTimeout) {
+            clearTimeout(wakeupTimeout);
+            wakeupTimeout = null;
+          }
+          
+          isWakeupInProgress = false;
+          return true;
         }
-      } catch (error) {
-        console.log(`⏳ AI service not ready yet (attempt ${currentStatus.retryCount})`);
+      } catch (error: any) {
+        console.log(`⏳ AI service not ready yet (attempt ${attempt}): ${error?.message || 'Unknown error'}`);
       }
 
-      // Check if max retries reached
-      if (currentStatus.retryCount >= MAX_WAKEUP_RETRIES) {
-        console.log('❌ Max wake-up retries reached');
-        currentStatus = {
-          ...currentStatus,
-          isWakingUp: false,
-        };
-        notifyListeners();
-        
-        if (wakeupInterval) {
-          clearInterval(wakeupInterval);
-          wakeupInterval = null;
-        }
-        
-        resolve(false);
+      // Wait before next attempt (except for last attempt)
+      if (attempt < MAX_WAKEUP_RETRIES) {
+        await delay(WAKEUP_RETRY_INTERVAL_MS);
       }
-    };
+    }
 
-    // Start immediately
-    attemptWakeup();
+    // Max retries reached
+    console.log('❌ Max wake-up retries reached');
+    updateStatus({
+      isWakingUp: false,
+      error: 'Could not wake up AI service after ' + MAX_WAKEUP_RETRIES + ' attempts.',
+    });
     
-    // Then retry at intervals
-    wakeupInterval = setInterval(attemptWakeup, WAKEUP_RETRY_INTERVAL_MS);
+    // Clear timeout
+    if (wakeupTimeout) {
+      clearTimeout(wakeupTimeout);
+      wakeupTimeout = null;
+    }
+    
+    isWakeupInProgress = false;
+    return false;
+  })();
+
+  // Race between actual wakeup and timeout
+  return Promise.race([wakeupPromise, overallTimeoutPromise]);
+};
+
+/**
+ * Cancel any ongoing wake-up attempt
+ */
+export const cancelWakeup = (): void => {
+  isWakeupInProgress = false;
+  
+  if (wakeupTimeout) {
+    clearTimeout(wakeupTimeout);
+    wakeupTimeout = null;
+  }
+  
+  updateStatus({
+    isWakingUp: false,
   });
+  
+  console.log('🛑 Wake-up cancelled');
 };
 
 /**
  * Start background polling to keep AI service warm
  */
 export const startBackgroundPolling = (): void => {
-  if (pollingInterval) {
-    console.log('📡 Background polling already active');
-    return;
-  }
-
-  console.log('📡 Starting background polling to keep AI service warm...');
-  
-  // Initial check
-  checkAIService().catch(() => {
-    // If initial check fails, start wake-up process
-    wakeUpAIService();
-  });
-
-  // Keep polling
-  pollingInterval = setInterval(async () => {
-    try {
-      await checkAIService();
-      console.log('💓 AI service heartbeat OK');
-    } catch (error) {
-      console.log('💔 AI service unreachable, attempting wake-up...');
-      wakeUpAIService();
+  try {
+    if (pollingInterval) {
+      console.log('📡 Background polling already active');
+      return;
     }
-  }, POLL_INTERVAL_MS);
+
+    console.log('📡 Starting background polling to keep AI service warm...');
+    
+    // Initial check (delayed to not block app startup)
+    setTimeout(async () => {
+      try {
+        const result = await checkAIService();
+        if (result.status !== 'ok') {
+          // Service is sleeping, try to wake it up
+          console.log('🌅 AI service sleeping, starting wake-up...');
+          wakeUpAIService().catch(() => {
+            console.log('❌ Background wake-up failed');
+          });
+        }
+      } catch (error: any) {
+        console.log('❌ Initial AI service check failed:', error?.message || 'Unknown error');
+        // Try wake-up process
+        wakeUpAIService().catch(() => {
+          console.log('❌ Initial wake-up attempt failed');
+        });
+      }
+    }, 2000); // Delay initial check by 2 seconds
+
+    // Keep polling every 5 minutes
+    pollingInterval = setInterval(async () => {
+      // Skip polling check if wake-up is in progress
+      if (isWakeupInProgress) {
+        console.log('⏳ Skipping poll - wake-up in progress');
+        return;
+      }
+      
+      try {
+        const result = await checkAIService();
+        if (result.status === 'ok') {
+          console.log('💓 AI service heartbeat OK');
+        } else {
+          console.log('💔 AI service not ready, attempting wake-up...');
+          wakeUpAIService().catch(() => {});
+        }
+      } catch (error: any) {
+        console.log('💔 AI service unreachable:', error?.message || 'Unknown error');
+        // Try to wake up
+        wakeUpAIService().catch(() => {
+          console.log('❌ Wake-up failed during polling');
+        });
+      }
+    }, POLL_INTERVAL_MS);
+  } catch (error) {
+    console.error('❌ Error starting background polling:', error);
+  }
 };
 
 /**
@@ -226,10 +334,7 @@ export const stopBackgroundPolling = (): void => {
     console.log('📡 Background polling stopped');
   }
   
-  if (wakeupInterval) {
-    clearInterval(wakeupInterval);
-    wakeupInterval = null;
-  }
+  cancelWakeup();
 };
 
 // ============================================================================
@@ -243,7 +348,11 @@ export const subscribeToStatus = (callback: StatusCallback): (() => void) => {
   statusCallbacks.push(callback);
   
   // Immediately notify with current status
-  callback(currentStatus);
+  try {
+    callback({ ...currentStatus });
+  } catch (error) {
+    console.error('Error in initial status callback:', error);
+  }
   
   // Return unsubscribe function
   return () => {
@@ -258,13 +367,6 @@ export const getAIServiceStatus = (): AIServiceStatus => {
   return { ...currentStatus };
 };
 
-/**
- * Notify all listeners of status change
- */
-const notifyListeners = (): void => {
-  statusCallbacks.forEach(callback => callback({ ...currentStatus }));
-};
-
 // ============================================================================
 // Export
 // ============================================================================
@@ -272,9 +374,9 @@ const notifyListeners = (): void => {
 export default {
   checkAIService,
   wakeUpAIService,
+  cancelWakeup,
   startBackgroundPolling,
   stopBackgroundPolling,
   subscribeToStatus,
   getAIServiceStatus,
 };
-

@@ -395,19 +395,53 @@ export class UserManager {
     }
   }
 
+  // Flag to prevent recursive clearSession calls
+  private isClearingSession = false;
+
   // Clear user session (logout)
-  async clearSession(): Promise<void> {
+  // skipBackendCall: true when called from 401 handler to avoid infinite loop
+  async clearSession(skipBackendCall: boolean = false): Promise<void> {
+    // Prevent recursive calls
+    if (this.isClearingSession) {
+      console.log('⚠️ clearSession already in progress, skipping');
+      return;
+    }
+    
+    this.isClearingSession = true;
+    
     try {
-      console.log('🚪 Logging out user...');
+      console.log('🚪 Clearing user session...');
       
-      // Call backend logout endpoint to revoke session
-      try {
-        const { default: apiClient } = await import('../api/client');
-        await apiClient.post('/api/auth/logout');
-        console.log('✅ Backend session revoked');
-      } catch (error) {
-        console.warn('⚠️ Failed to revoke backend session:', error);
-        // Continue with local cleanup even if backend fails
+      // Only call backend logout if we have a token AND not skipping
+      if (!skipBackendCall) {
+        const accessToken = await secureStorage.getItemAsync('accessToken');
+        if (accessToken) {
+          try {
+            // Use axios directly to avoid interceptor loops
+            const axios = require('axios').default;
+            const { getCurrentConfig } = await import('../config/environment');
+            const config = getCurrentConfig();
+            
+            await axios.post(`${config.backendUrl}/api/auth/logout`, {}, {
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+              },
+              timeout: 5000 // Short timeout for logout
+            });
+            console.log('✅ Backend session revoked');
+          } catch (error: any) {
+            // Don't log error if it's just a 401 (already logged out on backend)
+            if (error?.response?.status !== 401) {
+              console.warn('⚠️ Failed to revoke backend session:', error?.message || error);
+            }
+            // Continue with local cleanup even if backend fails
+          }
+        } else {
+          console.log('ℹ️ No access token - skipping backend logout');
+        }
+      } else {
+        console.log('ℹ️ Skipping backend logout call (called from 401 handler)');
       }
       
       // Clear local session data
@@ -417,9 +451,11 @@ export class UserManager {
       await secureStorage.deleteItemAsync('refreshToken');
       await secureStorage.deleteItemAsync('userCredentials');
       
-      console.log('✅ Logout successful - all data cleared');
+      console.log('✅ Session cleared - all local data removed');
     } catch (error) {
-      console.error('❌ Error during logout:', error);
+      console.error('❌ Error during session clear:', error);
+    } finally {
+      this.isClearingSession = false;
     }
   }
 
@@ -642,7 +678,8 @@ export class UserManager {
       
       if (!refreshToken) {
         console.log('❌ No refresh token - needs login');
-        await this.clearSession();
+        // Skip backend call - we have no valid token anyway
+        await this.clearSession(true);
         return { isValid: false, needsLogin: true, wasRefreshed: false };
       }
       
@@ -653,7 +690,8 @@ export class UserManager {
         
         if (!refreshed) {
           console.log('❌ Token refresh failed - needs login');
-          await this.clearSession();
+          // Skip backend call - token refresh already failed
+          await this.clearSession(true);
           return { isValid: false, needsLogin: true, wasRefreshed: false };
         }
         
@@ -666,7 +704,8 @@ export class UserManager {
       
     } catch (error) {
       console.error('❌ Session initialization failed:', error);
-      await this.clearSession();
+      // Skip backend call - we're in an error state
+      await this.clearSession(true);
       return { isValid: false, needsLogin: true, wasRefreshed: false };
     }
   }
@@ -686,8 +725,8 @@ export class UserManager {
         // Continue with local cleanup
       }
       
-      // Clear all local data
-      await this.clearSession();
+      // Clear all local data - skip backend call since we already called logout above
+      await this.clearSession(true);
       
       console.log('✅ Logout complete');
     } catch (error) {

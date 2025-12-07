@@ -74,7 +74,10 @@ let lastWarmupTime: Date | null = null;
 const checkBackendHealth = async (timeout: number = WARMUP_TIMEOUT): Promise<boolean> => {
   try {
     console.log('🔄 Checking backend health...');
-    const response = await axios.get(BACKEND_HEALTH_URL, { timeout });
+    const response = await axios.get(BACKEND_HEALTH_URL, { 
+      timeout,
+      validateStatus: (status) => status < 500, // Don't throw on 4xx errors
+    });
     
     if (response.data?.status === 'healthy') {
       console.log('✅ Backend is healthy:', response.data);
@@ -84,7 +87,8 @@ const checkBackendHealth = async (timeout: number = WARMUP_TIMEOUT): Promise<boo
     console.log('⚠️ Backend responded but not healthy:', response.data);
     return false;
   } catch (error: any) {
-    console.log('❌ Backend health check failed:', error.message);
+    // Don't log full error to avoid crashes from error serialization
+    console.log('❌ Backend health check failed:', error?.message || 'Unknown error');
     return false;
   }
 };
@@ -95,7 +99,10 @@ const checkBackendHealth = async (timeout: number = WARMUP_TIMEOUT): Promise<boo
 const checkAiServiceHealth = async (timeout: number = WARMUP_TIMEOUT): Promise<boolean> => {
   try {
     console.log('🔄 Checking AI service health...');
-    const response = await axios.get(AI_SERVICE_HEALTH_URL, { timeout });
+    const response = await axios.get(AI_SERVICE_HEALTH_URL, { 
+      timeout,
+      validateStatus: (status) => status < 500, // Don't throw on 4xx errors
+    });
     
     if (response.data?.status === 'healthy' && response.data?.model_loaded) {
       console.log('✅ AI service is healthy:', response.data);
@@ -105,7 +112,8 @@ const checkAiServiceHealth = async (timeout: number = WARMUP_TIMEOUT): Promise<b
     console.log('⚠️ AI service responded but not fully ready:', response.data);
     return false;
   } catch (error: any) {
-    console.log('❌ AI service health check failed:', error.message);
+    // Don't log full error to avoid crashes from error serialization
+    console.log('❌ AI service health check failed:', error?.message || 'Unknown error');
     return false;
   }
 };

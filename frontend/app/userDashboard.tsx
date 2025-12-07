@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation';
 import {
   getLinkStatus,
@@ -25,7 +26,7 @@ import {
 } from './api/endpoint';
 import { testBackendConnection } from './api/client';
 import userManager from './utils/userManager';
-import { getServiceStatus, WarmupProgress, ServiceStatus } from './services/serviceWarmup';
+import { getServiceStatus, ServiceStatus } from './services/serviceWarmup';
 
 type UserDashboardScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'UserDashboard'>;
 
@@ -62,23 +63,46 @@ export default function UserDashboard({ navigation }: Props) {
   useEffect(() => {
     checkAuthenticationAndInitialize();
     
-    // Check service warm-up status
-    const status = getServiceStatus();
-    setServiceStatus(status);
+    // Check service warm-up status (with error handling to prevent crashes)
+    let statusInterval: NodeJS.Timeout | null = null;
     
-    // Poll for status updates every 3 seconds while services are warming up
-    const statusInterval = setInterval(() => {
-      const currentStatus = getServiceStatus();
-      setServiceStatus(currentStatus);
+    try {
+      const status = getServiceStatus();
+      setServiceStatus(status);
       
-      // Stop polling once both services are warm
-      if (currentStatus.backend === 'warm' && currentStatus.aiService === 'warm') {
-        clearInterval(statusInterval);
-      }
-    }, 3000);
+      // Poll for status updates every 3 seconds while services are warming up
+      statusInterval = setInterval(() => {
+        try {
+          const currentStatus = getServiceStatus();
+          setServiceStatus(currentStatus);
+          
+          // Stop polling once both services are warm
+          if (currentStatus.backend === 'warm' && currentStatus.aiService === 'warm') {
+            if (statusInterval) clearInterval(statusInterval);
+          }
+        } catch (error) {
+          console.error('Error checking service status:', error);
+        }
+      }, 3000);
+    } catch (error) {
+      console.error('Error initializing service status:', error);
+    }
     
-    return () => clearInterval(statusInterval);
+    return () => {
+      if (statusInterval) clearInterval(statusInterval);
+    };
   }, []);
+
+  // Refresh data when screen comes into focus (e.g., after returning from DataImport)
+  useFocusEffect(
+    useCallback(() => {
+      // Only refresh if user is already authenticated and data was loaded before
+      if (currentUser && !isLoading) {
+        console.log('📊 Screen focused - refreshing routine logs...');
+        loadRoutineLogsAndInsights();
+      }
+    }, [currentUser, isLoading])
+  );
 
   const checkAuthenticationAndInitialize = async () => {
     setIsLoading(true);

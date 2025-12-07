@@ -89,35 +89,51 @@ export default function Navigation() {
 
   // Subscribe to auth events for session expiry handling
   useEffect(() => {
-    const unsubscribe = authEvents.subscribe((event, message) => {
-      console.log(`🔐 Auth event received in Navigation: ${event}`);
-      
-      if (event === 'sessionExpired' || event === 'loginRequired') {
-        // Show alert and navigate to login
-        if (Platform.OS === 'web') {
-          window.alert(message || 'Your session has expired. Please log in again.');
-        } else {
-          Alert.alert(
-            'Session Expired',
-            message || 'Your session has expired. Please log in again.',
-            [{ text: 'OK' }]
-          );
+    let unsubscribe: (() => void) | null = null;
+    
+    try {
+      unsubscribe = authEvents.subscribe((event, message) => {
+        try {
+          console.log(`🔐 Auth event received in Navigation: ${event}`);
+          
+          if (event === 'sessionExpired' || event === 'loginRequired') {
+            // Show alert and navigate to login
+            if (Platform.OS === 'web') {
+              window.alert(message || 'Your session has expired. Please log in again.');
+            } else {
+              Alert.alert(
+                'Session Expired',
+                message || 'Your session has expired. Please log in again.',
+                [{ text: 'OK' }]
+              );
+            }
+            
+            // Navigate to login screen
+            if (navigationRef.current) {
+              navigationRef.current.dispatch(
+                CommonActions.reset({
+                  index: 0,
+                  routes: [{ name: 'Login' }],
+                })
+              );
+            }
+          }
+        } catch (error) {
+          console.error('Error handling auth event:', error);
         }
-        
-        // Navigate to login screen
-        if (navigationRef.current) {
-          navigationRef.current.dispatch(
-            CommonActions.reset({
-              index: 0,
-              routes: [{ name: 'Login' }],
-            })
-          );
-        }
-      }
-    });
+      });
+    } catch (error) {
+      console.error('Error subscribing to auth events:', error);
+    }
 
     return () => {
-      unsubscribe();
+      if (unsubscribe) {
+        try {
+          unsubscribe();
+        } catch (error) {
+          console.error('Error unsubscribing from auth events:', error);
+        }
+      }
     };
   }, []);
 

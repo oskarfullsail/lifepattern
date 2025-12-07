@@ -78,10 +78,14 @@ export default function Login({ navigation }: Props) {
             console.log('✅ Biometric auto-login successful');
             
             // Start warming up backend services in the background
-            console.log('🌅 Starting background service warm-up after auto-login...');
-            startBackgroundWarmup((progress) => {
-              console.log(`📊 Service warm-up: ${progress.message} (${progress.progress}%)`);
-            });
+            try {
+              console.log('🌅 Starting background service warm-up after auto-login...');
+              startBackgroundWarmup((progress) => {
+                console.log(`📊 Service warm-up: ${progress.message} (${progress.progress}%)`);
+              });
+            } catch (error) {
+              console.error('❌ Error starting background warm-up:', error);
+            }
             
             navigation.replace('UserDashboard');
             return; // Don't continue to show login form
@@ -147,10 +151,14 @@ export default function Login({ navigation }: Props) {
         console.log('✅ Biometric login successful, navigating to UserDashboard');
         
         // Start warming up backend services in the background
-        console.log('🌅 Starting background service warm-up after biometric login...');
-        startBackgroundWarmup((progress) => {
-          console.log(`📊 Service warm-up: ${progress.message} (${progress.progress}%)`);
-        });
+        try {
+          console.log('🌅 Starting background service warm-up after biometric login...');
+          startBackgroundWarmup((progress) => {
+            console.log(`📊 Service warm-up: ${progress.message} (${progress.progress}%)`);
+          });
+        } catch (error) {
+          console.error('❌ Error starting background warm-up:', error);
+        }
         
         navigation.replace('UserDashboard');
       } else {
@@ -212,10 +220,14 @@ export default function Login({ navigation }: Props) {
         
         // Start warming up backend services in the background
         // This ensures both services are ready when user needs them
-        console.log('🌅 Starting background service warm-up...');
-        startBackgroundWarmup((progress) => {
-          console.log(`📊 Service warm-up: ${progress.message} (${progress.progress}%)`);
-        });
+        try {
+          console.log('🌅 Starting background service warm-up...');
+          startBackgroundWarmup((progress) => {
+            console.log(`📊 Service warm-up: ${progress.message} (${progress.progress}%)`);
+          });
+        } catch (error) {
+          console.error('❌ Error starting background warm-up:', error);
+        }
         
         // If biometrics are available and not yet enabled, offer to enable
         if (biometricCapabilities.isSupported && biometricCapabilities.isEnrolled && !biometricEnabled) {

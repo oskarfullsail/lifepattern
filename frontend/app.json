@@ -2,7 +2,7 @@
   "expo": {
     "name": "LifePattern AI",
     "slug": "lifepattern-ai",
-    "version": "1.0.7",
+    "version": "1.0.9",
     "orientation": "portrait",
     "icon": "./assets/icon-optimized.png",
     "userInterfaceStyle": "automatic",
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.oskarsanchez.lifepatternai",
-      "buildNumber": "9",
+      "buildNumber": "11",
       "infoPlist": {
         "NSHealthShareUsageDescription": "LifePattern needs access to your health data to provide personalized insights and recommendations.",
         "NSHealthUpdateUsageDescription": "LifePattern needs to update your health data to track your progress and sync with other devices.",
@@ -47,7 +47,7 @@
         "foregroundImage": "./assets/adaptive-icon-optimized.png",
         "backgroundColor": "#5BA8DB"
       },
-      "versionCode": 14,
+      "versionCode": 16,
       "package": "com.oskarsanchez.lifepatternai",
       "compileSdkVersion": 35,
       "targetSdkVersion": 35,
@@ -94,11 +94,30 @@
           "android": {
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,
-            "minSdkVersion": 24
+            "minSdkVersion": 26
           },
           "ios": {
             "deploymentTarget": "15.1"
           }
+        }
+      ],
+      [
+        "expo-health-connect",
+        {
+          "permissions": [
+            "read:Steps",
+            "read:SleepSession",
+            "read:HeartRate",
+            "read:ExerciseSession",
+            "read:Hydration",
+            "read:ActiveCaloriesBurned"
+          ]
+        }
+      ],
+      [
+        "react-native-health",
+        {
+          "isClinicalDataEnabled": false
         }
       ]
     ],
