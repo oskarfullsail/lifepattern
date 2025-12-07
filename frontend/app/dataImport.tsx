@@ -49,6 +49,91 @@ export default function DataImport({ navigation, route }: Props) {
     meal_times: '',
   });
   const [loadingMessage, setLoadingMessage] = useState<string>('Loading...');
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
+
+  // ===== INPUT VALIDATION HELPERS =====
+  
+  // Validate and sanitize decimal number input (for hours/liters)
+  const validateDecimalInput = (text: string, fieldName: string, min: number = 0, max: number = 24): string => {
+    if (!text) {
+      setErrors(prev => ({ ...prev, [fieldName]: '' }));
+      return '';
+    }
+    
+    // Only allow numbers and one decimal point
+    const sanitized = text.replace(/[^0-9.]/g, '');
+    const parts = sanitized.split('.');
+    let cleanValue = parts[0];
+    if (parts.length > 1) {
+      cleanValue += '.' + parts[1].slice(0, 1);
+    }
+    
+    const numValue = parseFloat(cleanValue);
+    if (!isNaN(numValue)) {
+      if (numValue < min) {
+        setErrors(prev => ({ ...prev, [fieldName]: `Minimum is ${min}` }));
+      } else if (numValue > max) {
+        setErrors(prev => ({ ...prev, [fieldName]: `Maximum is ${max}` }));
+      } else {
+        setErrors(prev => ({ ...prev, [fieldName]: '' }));
+      }
+    }
+    
+    return cleanValue;
+  };
+
+  // Validate integer input (for stress level)
+  const validateIntegerInput = (text: string, fieldName: string, min: number = 1, max: number = 10): string => {
+    if (!text) {
+      setErrors(prev => ({ ...prev, [fieldName]: '' }));
+      return '';
+    }
+    
+    const sanitized = text.replace(/[^0-9]/g, '');
+    const numValue = parseInt(sanitized, 10);
+    
+    if (!isNaN(numValue)) {
+      if (numValue < min) {
+        setErrors(prev => ({ ...prev, [fieldName]: `Minimum is ${min}` }));
+      } else if (numValue > max) {
+        setErrors(prev => ({ ...prev, [fieldName]: `Maximum is ${max}` }));
+      } else {
+        setErrors(prev => ({ ...prev, [fieldName]: '' }));
+      }
+    }
+    
+    return sanitized;
+  };
+
+  // Validate time format (HH:MM)
+  const validateTimeInput = (text: string, fieldName: string): string => {
+    const sanitized = text.replace(/[^0-9:]/g, '');
+    
+    if (sanitized.length === 2 && !sanitized.includes(':')) {
+      return sanitized + ':';
+    }
+    
+    if (sanitized.length > 5) {
+      return sanitized.slice(0, 5);
+    }
+    
+    if (sanitized.length === 5) {
+      const [hours, minutes] = sanitized.split(':').map(Number);
+      if (hours > 23 || minutes > 59) {
+        setErrors(prev => ({ ...prev, [fieldName]: 'Invalid time (00:00 - 23:59)' }));
+      } else {
+        setErrors(prev => ({ ...prev, [fieldName]: '' }));
+      }
+    }
+    
+    return sanitized;
+  };
+
+  // Field change handlers
+  const handleFieldChange = (field: string, value: string, validator?: (text: string, field: string) => string) => {
+    const validatedValue = validator ? validator(value, field) : value;
+    setManualData(prev => ({ ...prev, [field]: validatedValue }));
+  };
 
   const handleHealthAppImport = async () => {
     setIsLoading(true);
@@ -288,14 +373,54 @@ export default function DataImport({ navigation, route }: Props) {
         ? manualData.meal_times.split(',').map(t => t.trim()).filter(t => t)
         : [];
       
+      // ===== VALIDATION & CONVERSION =====
+      // Backend expects:
+      // - exercise_duration: INTEGER (minutes)
+      // - screen_time: INTEGER (minutes)
+      // - stress_level: INTEGER (1-10)
+      // - sleep_hours: DECIMAL (hours, e.g., 7.5)
+      // - water_intake: DECIMAL (liters, e.g., 2.5)
+      
+      const sleepHoursValue = parseFloat(manualData.sleep_hours);
+      const exerciseHoursValue = parseFloat(manualData.exercise_duration);
+      const screenTimeHoursValue = manualData.screen_time ? parseFloat(manualData.screen_time) : 0;
+      const waterIntakeValue = manualData.water_intake ? parseFloat(manualData.water_intake) : 0;
+      const stressLevelValue = manualData.stress_level ? parseInt(manualData.stress_level, 10) : 5;
+      
+      // Validate values
+      if (isNaN(sleepHoursValue) || sleepHoursValue < 0 || sleepHoursValue > 24) {
+        Alert.alert('Validation Error', 'Sleep hours must be between 0 and 24');
+        return;
+      }
+      
+      if (isNaN(exerciseHoursValue) || exerciseHoursValue < 0 || exerciseHoursValue > 24) {
+        Alert.alert('Validation Error', 'Exercise duration must be between 0 and 24 hours');
+        return;
+      }
+      
+      if (isNaN(stressLevelValue) || stressLevelValue < 1 || stressLevelValue > 10) {
+        Alert.alert('Validation Error', 'Stress level must be an integer between 1 and 10');
+        return;
+      }
+      
+      // Convert hours to minutes (backend expects INTEGER minutes)
+      const exerciseMinutes = Math.round(exerciseHoursValue * 60);
+      const screenTimeMinutes = Math.round(screenTimeHoursValue * 60);
+      
+      console.log('📊 Data conversion:', {
+        exercise: { input: exerciseHoursValue + ' hours', output: exerciseMinutes + ' minutes' },
+        screenTime: { input: screenTimeHoursValue + ' hours', output: screenTimeMinutes + ' minutes' },
+        stressLevel: stressLevelValue,
+      });
+      
       // Prepare payload for backend
       const payload: RoutineLogPayload = {
         user_id: userId,
-        sleep_hours: parseFloat(manualData.sleep_hours),
-        exercise_duration: parseFloat(manualData.exercise_duration),
-        screen_time: manualData.screen_time ? parseFloat(manualData.screen_time) : 0,
-        water_intake: manualData.water_intake ? parseFloat(manualData.water_intake) : 0,
-        stress_level: manualData.stress_level ? Math.round(parseFloat(manualData.stress_level)) : 5,
+        sleep_hours: Math.round(sleepHoursValue * 10) / 10, // Round to 1 decimal
+        exercise_duration: exerciseMinutes, // Backend expects INTEGER minutes
+        screen_time: screenTimeMinutes, // Backend expects INTEGER minutes
+        water_intake: Math.round(waterIntakeValue * 10) / 10, // Round to 1 decimal
+        stress_level: stressLevelValue, // Backend expects INTEGER 1-10
         wake_up_time: manualData.wake_up_time || '07:00',
         bed_time: manualData.bed_time || '23:00',
         meal_times: mealTimesArray.length > 0 ? mealTimesArray : ['08:00', '12:00', '18:00'],
@@ -327,11 +452,11 @@ export default function DataImport({ navigation, route }: Props) {
       });
       
       // Navigate to AI Insights if we have AI analysis
-      if (response.ai_response) {
+      if (response.has_ai && response.ai_result) {
         navigation.navigate('AIInsights', {
-          aiResponse: response.ai_response,
+          aiResponse: response.ai_result,
           logId: response.log_id,
-          userId: response.user_id,
+          userId: userId, // Use the userId we already have
         });
       } else {
         // Fallback to simple success message if no AI response
@@ -512,85 +637,101 @@ export default function DataImport({ navigation, route }: Props) {
       ) : (
         <View style={styles.formContainer}>
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Sleep Hours *</Text>
+            <Text style={styles.inputLabel}>Sleep Hours * (0-24)</Text>
             <TextInput
-              style={styles.textInput}
-              placeholder="e.g., 7.5"
+              style={[styles.textInput, errors.sleep_hours ? styles.inputError : null]}
+              placeholder="e.g., 7.5 (hours)"
               keyboardType="decimal-pad"
               value={manualData.sleep_hours}
-              onChangeText={(text) => setManualData({...manualData, sleep_hours: text})}
+              onChangeText={(text) => handleFieldChange('sleep_hours', text, (t, f) => validateDecimalInput(t, f, 0, 24))}
+              maxLength={4}
             />
+            {errors.sleep_hours ? <Text style={styles.errorText}>{errors.sleep_hours}</Text> : null}
+            <Text style={styles.inputHint}>Enter hours (e.g., 7.5 = 7h 30min)</Text>
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Exercise Duration (hours) *</Text>
+            <Text style={styles.inputLabel}>Exercise Duration (hours) * (0-24)</Text>
             <TextInput
-              style={styles.textInput}
-              placeholder="e.g., 1.5"
+              style={[styles.textInput, errors.exercise_duration ? styles.inputError : null]}
+              placeholder="e.g., 1.5 (hours)"
               keyboardType="decimal-pad"
               value={manualData.exercise_duration}
-              onChangeText={(text) => setManualData({...manualData, exercise_duration: text})}
+              onChangeText={(text) => handleFieldChange('exercise_duration', text, (t, f) => validateDecimalInput(t, f, 0, 24))}
+              maxLength={4}
             />
+            {errors.exercise_duration ? <Text style={styles.errorText}>{errors.exercise_duration}</Text> : null}
+            <Text style={styles.inputHint}>Enter hours (e.g., 0.5 = 30min, 1.5 = 1h 30min). Will be converted to minutes.</Text>
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Screen Time (hours)</Text>
+            <Text style={styles.inputLabel}>Screen Time (hours) (0-24)</Text>
             <TextInput
-              style={styles.textInput}
-              placeholder="e.g., 4.0"
+              style={[styles.textInput, errors.screen_time ? styles.inputError : null]}
+              placeholder="e.g., 4.0 (hours)"
               keyboardType="decimal-pad"
               value={manualData.screen_time}
-              onChangeText={(text) => setManualData({...manualData, screen_time: text})}
+              onChangeText={(text) => handleFieldChange('screen_time', text, (t, f) => validateDecimalInput(t, f, 0, 24))}
+              maxLength={4}
             />
+            {errors.screen_time ? <Text style={styles.errorText}>{errors.screen_time}</Text> : null}
+            <Text style={styles.inputHint}>Enter hours of screen time. Will be converted to minutes.</Text>
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Water Intake (liters)</Text>
+            <Text style={styles.inputLabel}>Water Intake (liters) (0-10)</Text>
             <TextInput
-              style={styles.textInput}
-              placeholder="e.g., 2.5"
+              style={[styles.textInput, errors.water_intake ? styles.inputError : null]}
+              placeholder="e.g., 2.5 (liters)"
               keyboardType="decimal-pad"
               value={manualData.water_intake}
-              onChangeText={(text) => setManualData({...manualData, water_intake: text})}
+              onChangeText={(text) => handleFieldChange('water_intake', text, (t, f) => validateDecimalInput(t, f, 0, 10))}
+              maxLength={4}
             />
+            {errors.water_intake ? <Text style={styles.errorText}>{errors.water_intake}</Text> : null}
+            <Text style={styles.inputHint}>Enter liters of water consumed</Text>
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Stress Level (1-10) *</Text>
+            <Text style={styles.inputLabel}>Stress Level * (1-10)</Text>
             <TextInput
-              style={styles.textInput}
-              placeholder="e.g., 5"
+              style={[styles.textInput, errors.stress_level ? styles.inputError : null]}
+              placeholder="e.g., 5 (integer only)"
               keyboardType="number-pad"
               value={manualData.stress_level}
-              onChangeText={(text) => {
-                // Only allow integers 1-10
-                const numValue = parseInt(text);
-                if (text === '' || (!isNaN(numValue) && numValue >= 1 && numValue <= 10)) {
-                  setManualData({...manualData, stress_level: text});
-                }
-              }}
+              onChangeText={(text) => handleFieldChange('stress_level', text, (t, f) => validateIntegerInput(t, f, 1, 10))}
+              maxLength={2}
             />
-            <Text style={styles.inputHint}>Integer value between 1 and 10</Text>
+            {errors.stress_level ? <Text style={styles.errorText}>{errors.stress_level}</Text> : null}
+            <Text style={styles.inputHint}>Integer value between 1 (low stress) and 10 (high stress)</Text>
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Wake Up Time</Text>
+            <Text style={styles.inputLabel}>Wake Up Time (HH:MM)</Text>
             <TextInput
-              style={styles.textInput}
+              style={[styles.textInput, errors.wake_up_time ? styles.inputError : null]}
               placeholder="e.g., 07:00"
               value={manualData.wake_up_time}
-              onChangeText={(text) => setManualData({...manualData, wake_up_time: text})}
+              onChangeText={(text) => handleFieldChange('wake_up_time', text, validateTimeInput)}
+              maxLength={5}
+              keyboardType="numbers-and-punctuation"
             />
+            {errors.wake_up_time ? <Text style={styles.errorText}>{errors.wake_up_time}</Text> : null}
+            <Text style={styles.inputHint}>24-hour format (00:00 - 23:59)</Text>
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Bed Time</Text>
+            <Text style={styles.inputLabel}>Bed Time (HH:MM)</Text>
             <TextInput
-              style={styles.textInput}
+              style={[styles.textInput, errors.bed_time ? styles.inputError : null]}
               placeholder="e.g., 23:00"
               value={manualData.bed_time}
-              onChangeText={(text) => setManualData({...manualData, bed_time: text})}
+              onChangeText={(text) => handleFieldChange('bed_time', text, validateTimeInput)}
+              maxLength={5}
+              keyboardType="numbers-and-punctuation"
             />
+            {errors.bed_time ? <Text style={styles.errorText}>{errors.bed_time}</Text> : null}
+            <Text style={styles.inputHint}>24-hour format (00:00 - 23:59)</Text>
           </View>
 
           <View style={styles.inputGroup}>
@@ -601,6 +742,7 @@ export default function DataImport({ navigation, route }: Props) {
               value={manualData.meal_times}
               onChangeText={(text) => setManualData({...manualData, meal_times: text})}
             />
+            <Text style={styles.inputHint}>Enter times in HH:MM format, separated by commas</Text>
           </View>
 
           <TouchableOpacity 
@@ -928,6 +1070,17 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
     color: '#333',
+  },
+  inputError: {
+    borderColor: '#ef4444',
+    borderWidth: 2,
+    backgroundColor: '#fef2f2',
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#ef4444',
+    marginTop: 2,
+    marginBottom: 2,
   },
   inputHint: {
     fontSize: 12,

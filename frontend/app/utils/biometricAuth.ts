@@ -255,13 +255,32 @@ export async function isBiometricLoginEnabled(): Promise<boolean> {
 
 /**
  * Enable or disable biometric login
+ * When enabling, also verifies that valid tokens exist for future auto-login
  */
 export async function setBiometricLoginEnabled(enabled: boolean): Promise<void> {
   try {
     if (enabled) {
+      // Verify we have tokens before enabling biometric login
+      const accessToken = await SecureStore.getItemAsync('accessToken');
+      const refreshToken = await SecureStore.getItemAsync('refreshToken');
+      
+      if (!refreshToken) {
+        console.error('❌ Cannot enable biometric login: No refresh token stored');
+        throw new Error('Please log in with your password first before enabling biometric login');
+      }
+      
+      console.log('✅ Enabling biometric login - tokens verified');
+      console.log(`   Access token exists: ${!!accessToken}`);
+      console.log(`   Refresh token exists: ${!!refreshToken}`);
+      
       await SecureStore.setItemAsync('biometricLoginEnabled', 'true');
+      
+      // Store timestamp of when biometric was enabled (for debugging)
+      await SecureStore.setItemAsync('biometricEnabledAt', new Date().toISOString());
     } else {
+      console.log('🔒 Disabling biometric login');
       await SecureStore.deleteItemAsync('biometricLoginEnabled');
+      await SecureStore.deleteItemAsync('biometricEnabledAt');
     }
   } catch (error) {
     console.error('Error setting biometric login preference:', error);
@@ -279,8 +298,12 @@ export async function tryBiometricAutoLogin(): Promise<{
   error?: string;
 }> {
   try {
+    console.log('🔄 Starting biometric auto-login check...');
+    
     // Check if biometric login is enabled
     const isEnabled = await isBiometricLoginEnabled();
+    console.log(`   Biometric login enabled: ${isEnabled}`);
+    
     if (!isEnabled) {
       return {
         success: false,
@@ -288,26 +311,42 @@ export async function tryBiometricAutoLogin(): Promise<{
       };
     }
 
+    // Check when biometric was enabled (for debugging)
+    const enabledAt = await SecureStore.getItemAsync('biometricEnabledAt');
+    console.log(`   Biometric enabled at: ${enabledAt || 'unknown'}`);
+
     // Check if user has tokens
     const refreshToken = await SecureStore.getItemAsync('refreshToken');
+    const accessToken = await SecureStore.getItemAsync('accessToken');
+    console.log(`   Has refresh token: ${!!refreshToken}`);
+    console.log(`   Has access token: ${!!accessToken}`);
+    
     if (!refreshToken) {
+      console.log('❌ No refresh token found - clearing biometric preference');
+      // If no tokens but biometric is enabled, something went wrong - clear the preference
+      await SecureStore.deleteItemAsync('biometricLoginEnabled');
       return {
         success: false,
         needsPassword: true,
-        error: 'No stored session found',
+        error: 'No stored session found. Please log in with password.',
       };
     }
 
     // Check biometric capabilities
     const capabilities = await checkBiometricSupport();
+    console.log(`   Biometric supported: ${capabilities.isSupported}`);
+    console.log(`   Biometric enrolled: ${capabilities.isEnrolled}`);
+    console.log(`   Biometric type: ${capabilities.typeLabel}`);
+    
     if (!capabilities.isSupported || !capabilities.isEnrolled) {
       return {
         success: false,
-        error: 'Biometrics not available',
+        error: 'Biometrics not available on this device',
       };
     }
 
     // Attempt biometric login
+    console.log('🔐 Prompting for biometric authentication...');
     return await loginWithBiometrics();
   } catch (error: any) {
     console.error('❌ Biometric auto-login error:', error);

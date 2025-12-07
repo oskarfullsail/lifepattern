@@ -25,6 +25,7 @@ import {
 } from './api/endpoint';
 import { testBackendConnection } from './api/client';
 import userManager from './utils/userManager';
+import { getServiceStatus, WarmupProgress, ServiceStatus } from './services/serviceWarmup';
 
 type UserDashboardScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'UserDashboard'>;
 
@@ -54,9 +55,29 @@ export default function UserDashboard({ navigation }: Props) {
   const [deviceInfoStatus, setDeviceInfoStatus] = useState<'loading' | 'success' | 'error' | 'idle'>('idle');
   const [linkStatusStatus, setLinkStatusStatus] = useState<'loading' | 'success' | 'error' | 'idle'>('idle');
   const [logsStatus, setLogsStatus] = useState<'loading' | 'success' | 'error' | 'idle'>('idle');
+  
+  // Service warm-up status
+  const [serviceStatus, setServiceStatus] = useState<ServiceStatus | null>(null);
 
   useEffect(() => {
     checkAuthenticationAndInitialize();
+    
+    // Check service warm-up status
+    const status = getServiceStatus();
+    setServiceStatus(status);
+    
+    // Poll for status updates every 3 seconds while services are warming up
+    const statusInterval = setInterval(() => {
+      const currentStatus = getServiceStatus();
+      setServiceStatus(currentStatus);
+      
+      // Stop polling once both services are warm
+      if (currentStatus.backend === 'warm' && currentStatus.aiService === 'warm') {
+        clearInterval(statusInterval);
+      }
+    }, 3000);
+    
+    return () => clearInterval(statusInterval);
   }, []);
 
   const checkAuthenticationAndInitialize = async () => {
@@ -348,6 +369,16 @@ export default function UserDashboard({ navigation }: Props) {
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
       >
+        {/* Service Warm-up Banner */}
+        {serviceStatus && (serviceStatus.backend === 'warming' || serviceStatus.aiService === 'warming') && (
+          <View style={styles.warmupBanner}>
+            <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
+            <Text style={styles.warmupText}>
+              ⏳ Waking up services... This may take 30-60 seconds
+            </Text>
+          </View>
+        )}
+        
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerTop}>
@@ -533,94 +564,6 @@ export default function UserDashboard({ navigation }: Props) {
               <Text style={styles.quickActionTitle}>AI Coach</Text>
               <Text style={styles.quickActionDesc}>Productivity insights</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity style={styles.quickActionCard} onPress={async () => {
-              try {
-                // Fetch the latest AI insights for the user
-                const userId = currentUser?.userId || await userManager.getUserId();
-                if (!userId) {
-                  Alert.alert('Error', 'Unable to retrieve user ID. Please log in again.');
-                  return;
-                }
-
-                setIsLoading(true);
-                const insights = await getUserInsights(userId, 1); // Get the latest insight
-                
-                // Check if insights is null or undefined
-                if (!insights) {
-                  console.log('No insights returned from API');
-                  Alert.alert(
-                    'No Insights Yet',
-                    'Submit health data to see AI-powered insights and drift detection. Your analysis will appear here automatically.',
-                    [
-                      { text: 'Submit Data', onPress: handleImportData },
-                      { text: 'OK', style: 'cancel' }
-                    ]
-                  );
-                  return;
-                }
-                
-                if (insights.insights && insights.insights.length > 0) {
-                  const latestInsight = insights.insights[0];
-                  
-                  // Parse the AI service response
-                  let aiResponse;
-                  try {
-                    aiResponse = typeof latestInsight.ai_report.ai_service_response === 'string'
-                      ? JSON.parse(latestInsight.ai_report.ai_service_response)
-                      : latestInsight.ai_report.ai_service_response;
-                  } catch (parseError) {
-                    console.error('Error parsing AI response:', parseError);
-                    aiResponse = {
-                      is_anomaly: latestInsight.ai_report.is_anomaly,
-                      confidence_score: latestInsight.ai_report.confidence_score,
-                      anomaly_type: latestInsight.ai_report.anomaly_type,
-                      recommendations: latestInsight.ai_report.recommendations,
-                      enhanced_recommendations: [],
-                      behavioral_contexts: [],
-                      timestamp: new Date().toISOString(),
-                      drift_analysis: {},
-                      baseline_comparison: {},
-                    };
-                  }
-                  
-                  // Navigate to AI Insights screen
-                  navigation.navigate('AIInsights', {
-                    aiResponse,
-                    logId: latestInsight.routine_log.log_id || latestInsight.routine_log.id || 0,
-                    userId,
-                  });
-                } else {
-                  // No insights available yet
-                  Alert.alert(
-                    'No Insights Yet',
-                    'Submit health data to see AI-powered insights and drift detection. Your analysis will appear here automatically.',
-                    [
-                      { text: 'Submit Data', onPress: handleImportData },
-                      { text: 'OK', style: 'cancel' }
-                    ]
-                  );
-                }
-              } catch (error) {
-                console.error('Error fetching AI insights:', error);
-                Alert.alert(
-                  'No Insights Available',
-                  'Submit health data to see AI-powered insights and drift detection.',
-                  [
-                    { text: 'Submit Data', onPress: handleImportData },
-                    { text: 'OK', style: 'cancel' }
-                  ]
-                );
-              } finally {
-                setIsLoading(false);
-              }
-            }}>
-              <View style={[styles.quickActionIcon, { backgroundColor: '#ddd6fe' }]}>
-                <Text style={styles.quickActionIconText}>🤖</Text>
-              </View>
-              <Text style={styles.quickActionTitle}>AI Insights</Text>
-              <Text style={styles.quickActionDesc}>View health analysis</Text>
-            </TouchableOpacity>
           </View>
         </View>
 
@@ -677,7 +620,7 @@ export default function UserDashboard({ navigation }: Props) {
                 </View>
                 <View style={styles.statItem}>
                   <Text style={styles.statIcon}>🤖</Text>
-                  <Text style={styles.statLabel}>AI Insights</Text>
+                  <Text style={styles.statLabel}>AI Sessions</Text>
                   <Text style={styles.statValue}>{insightsCount}</Text>
                 </View>
               </View>
@@ -822,6 +765,20 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: '#666',
+  },
+  // Service Warm-up Banner
+  warmupBanner: {
+    backgroundColor: '#7c3aed',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  warmupText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '500',
   },
   // Header
   header: {

@@ -50,6 +50,97 @@ export default function QuickLog({ navigation }: Props) {
   const [stressLevel, setStressLevel] = useState<number>(5);
   const [wakeUpTime, setWakeUpTime] = useState<string>('');
   const [bedTime, setBedTime] = useState<string>('');
+  
+  // Validation error states
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
+
+  // ===== INPUT VALIDATION HELPERS =====
+  
+  // Validate and sanitize decimal number input (for hours/liters)
+  const validateDecimalInput = (text: string, fieldName: string, min: number = 0, max: number = 24): string => {
+    // Allow empty input
+    if (!text) {
+      setErrors(prev => ({ ...prev, [fieldName]: '' }));
+      return '';
+    }
+    
+    // Only allow numbers and one decimal point
+    const sanitized = text.replace(/[^0-9.]/g, '');
+    
+    // Prevent multiple decimal points
+    const parts = sanitized.split('.');
+    let cleanValue = parts[0];
+    if (parts.length > 1) {
+      cleanValue += '.' + parts[1].slice(0, 1); // Only 1 decimal place
+    }
+    
+    // Validate range
+    const numValue = parseFloat(cleanValue);
+    if (!isNaN(numValue)) {
+      if (numValue < min) {
+        setErrors(prev => ({ ...prev, [fieldName]: `Minimum is ${min}` }));
+      } else if (numValue > max) {
+        setErrors(prev => ({ ...prev, [fieldName]: `Maximum is ${max}` }));
+      } else {
+        setErrors(prev => ({ ...prev, [fieldName]: '' }));
+      }
+    }
+    
+    return cleanValue;
+  };
+
+  // Validate time format (HH:MM)
+  const validateTimeInput = (text: string, fieldName: string): string => {
+    // Allow partial input while typing
+    const sanitized = text.replace(/[^0-9:]/g, '');
+    
+    // Auto-add colon after 2 digits
+    if (sanitized.length === 2 && !sanitized.includes(':')) {
+      return sanitized + ':';
+    }
+    
+    // Limit to HH:MM format
+    if (sanitized.length > 5) {
+      return sanitized.slice(0, 5);
+    }
+    
+    // Validate complete time
+    if (sanitized.length === 5) {
+      const [hours, minutes] = sanitized.split(':').map(Number);
+      if (hours > 23 || minutes > 59) {
+        setErrors(prev => ({ ...prev, [fieldName]: 'Invalid time (use 00:00 - 23:59)' }));
+      } else {
+        setErrors(prev => ({ ...prev, [fieldName]: '' }));
+      }
+    }
+    
+    return sanitized;
+  };
+
+  // Wrapper functions for each field
+  const handleSleepHoursChange = (text: string) => {
+    setSleepHours(validateDecimalInput(text, 'sleepHours', 0, 24));
+  };
+
+  const handleExerciseDurationChange = (text: string) => {
+    setExerciseDuration(validateDecimalInput(text, 'exerciseDuration', 0, 24));
+  };
+
+  const handleScreenTimeChange = (text: string) => {
+    setScreenTime(validateDecimalInput(text, 'screenTime', 0, 24));
+  };
+
+  const handleWaterIntakeChange = (text: string) => {
+    setWaterIntake(validateDecimalInput(text, 'waterIntake', 0, 10));
+  };
+
+  const handleWakeUpTimeChange = (text: string) => {
+    setWakeUpTime(validateTimeInput(text, 'wakeUpTime'));
+  };
+
+  const handleBedTimeChange = (text: string) => {
+    setBedTime(validateTimeInput(text, 'bedTime'));
+  };
 
   useEffect(() => {
     autoFillFromHealthData();
@@ -162,26 +253,68 @@ export default function QuickLog({ navigation }: Props) {
       return;
     }
 
+    // ===== VALIDATION =====
+    const sleepHoursNum = parseFloat(sleepHours);
+    const exerciseDurationNum = parseFloat(exerciseDuration);
+    const screenTimeNum = screenTime ? parseFloat(screenTime) : 0;
+    const waterIntakeNum = waterIntake ? parseFloat(waterIntake) : 0;
+    
+    if (isNaN(sleepHoursNum) || sleepHoursNum < 0 || sleepHoursNum > 24) {
+      Alert.alert('Validation Error', 'Sleep hours must be between 0 and 24');
+      return;
+    }
+    
+    if (isNaN(exerciseDurationNum) || exerciseDurationNum < 0 || exerciseDurationNum > 24) {
+      Alert.alert('Validation Error', 'Exercise duration must be between 0 and 24 hours');
+      return;
+    }
+    
+    if (stressLevel < 1 || stressLevel > 10) {
+      Alert.alert('Validation Error', 'Stress level must be between 1 and 10');
+      return;
+    }
+
     setIsLoading(true);
     setLoadingMessage('Submitting data...');
 
     try {
       const userId = await userManager.getUserId();
 
+      // ===== DATA CONVERSION =====
+      // Backend expects:
+      // - exercise_duration: INTEGER (minutes)
+      // - screen_time: INTEGER (minutes)  
+      // - stress_level: INTEGER (1-10)
+      // - sleep_hours: DECIMAL (hours)
+      // - water_intake: DECIMAL (liters)
+      
+      const exerciseMinutes = Math.round(exerciseDurationNum * 60);
+      const screenTimeMinutes = Math.round(screenTimeNum * 60);
+      const sleepHoursValue = Math.round(sleepHoursNum * 10) / 10; // Round to 1 decimal
+      const waterIntakeValue = Math.round(waterIntakeNum * 10) / 10; // Round to 1 decimal
+
       const payload: RoutineLogPayload = {
         user_id: userId,
-        sleep_hours: parseFloat(sleepHours),
-        exercise_duration: parseFloat(exerciseDuration),
-        screen_time: screenTime ? parseFloat(screenTime) : 0,
-        water_intake: waterIntake ? parseFloat(waterIntake) : 0,
-        stress_level: stressLevel,
+        sleep_hours: sleepHoursValue,
+        exercise_duration: exerciseMinutes, // Backend expects minutes as integer
+        screen_time: screenTimeMinutes, // Backend expects minutes as integer
+        water_intake: waterIntakeValue,
+        stress_level: Math.round(stressLevel), // Ensure integer
         wake_up_time: wakeUpTime || '07:00',
         bed_time: bedTime || '23:00',
         meal_times: ['08:00', '12:00', '18:00'],
         log_date: new Date().toISOString().split('T')[0],
       };
 
-      console.log('📤 Quick log submission:', payload);
+      console.log('📤 Quick log submission:', {
+        ...payload,
+        _debug: {
+          original_exercise_hours: exerciseDurationNum,
+          converted_exercise_minutes: exerciseMinutes,
+          original_screen_time_hours: screenTimeNum,
+          converted_screen_time_minutes: screenTimeMinutes,
+        }
+      });
 
       const response = await makeRequestWithWakeUp(
         () => createRoutineLog(payload),
@@ -191,13 +324,13 @@ export default function QuickLog({ navigation }: Props) {
 
       console.log('✅ Log created:', response);
 
-      // Navigate to AI Insights if available
-      if (response.ai_response) {
-        navigation.navigate('AIInsights', {
-          aiResponse: response.ai_response,
-          logId: response.log_id,
-          userId: response.user_id,
-        });
+      // Navigate to AI Insights if we have AI analysis
+      if (response.has_ai && response.ai_result) {
+          navigation.navigate('AIInsights', {
+            aiResponse: response.ai_result,
+            logId: response.log_id,
+            userId: userId, // Use the userId we already have
+          });
       } else {
         Alert.alert('Success', 'Your health data has been logged!', [
           {
@@ -283,33 +416,42 @@ export default function QuickLog({ navigation }: Props) {
 
           <Text style={styles.label}>Or enter custom:</Text>
           <TextInput
-            style={styles.input}
-            placeholder="e.g., 7.5"
+            style={[styles.input, errors.sleepHours ? styles.inputError : null]}
+            placeholder="e.g., 7.5 (0-24 hours)"
             keyboardType="decimal-pad"
             value={sleepHours}
-            onChangeText={setSleepHours}
+            onChangeText={handleSleepHoursChange}
+            maxLength={4}
           />
+          {errors.sleepHours ? <Text style={styles.errorText}>{errors.sleepHours}</Text> : null}
+          <Text style={styles.inputHint}>Enter hours (e.g., 7.5 = 7h 30min)</Text>
 
           <Text style={styles.label}>Sleep Time (optional):</Text>
           <View style={styles.timeRangeRow}>
             <View style={styles.timeInput}>
               <Text style={styles.timeLabel}>Bedtime</Text>
               <TextInput
-                style={styles.timeTextInput}
+                style={[styles.timeTextInput, errors.bedTime ? styles.inputError : null]}
                 placeholder="23:00"
                 value={bedTime}
-                onChangeText={setBedTime}
+                onChangeText={handleBedTimeChange}
+                maxLength={5}
+                keyboardType="numbers-and-punctuation"
               />
+              {errors.bedTime ? <Text style={styles.errorTextSmall}>{errors.bedTime}</Text> : null}
             </View>
             <Text style={styles.timeArrow}>→</Text>
             <View style={styles.timeInput}>
               <Text style={styles.timeLabel}>Wake up</Text>
               <TextInput
-                style={styles.timeTextInput}
+                style={[styles.timeTextInput, errors.wakeUpTime ? styles.inputError : null]}
                 placeholder="07:00"
                 value={wakeUpTime}
-                onChangeText={setWakeUpTime}
+                onChangeText={handleWakeUpTimeChange}
+                maxLength={5}
+                keyboardType="numbers-and-punctuation"
               />
+              {errors.wakeUpTime ? <Text style={styles.errorTextSmall}>{errors.wakeUpTime}</Text> : null}
             </View>
           </View>
 
@@ -367,12 +509,15 @@ export default function QuickLog({ navigation }: Props) {
 
           <Text style={styles.label}>Or enter custom (hours):</Text>
           <TextInput
-            style={styles.input}
-            placeholder="e.g., 1.5"
+            style={[styles.input, errors.exerciseDuration ? styles.inputError : null]}
+            placeholder="e.g., 1.5 (0-24 hours)"
             keyboardType="decimal-pad"
             value={exerciseDuration}
-            onChangeText={setExerciseDuration}
+            onChangeText={handleExerciseDurationChange}
+            maxLength={4}
           />
+          {errors.exerciseDuration ? <Text style={styles.errorText}>{errors.exerciseDuration}</Text> : null}
+          <Text style={styles.inputHint}>Enter hours (e.g., 0.5 = 30min, 1.5 = 1h 30min)</Text>
         </View>
 
         {/* Screen Time Section */}
@@ -393,12 +538,15 @@ export default function QuickLog({ navigation }: Props) {
             <>
               <Text style={styles.label}>Screen time (hours):</Text>
               <TextInput
-                style={styles.input}
-                placeholder="e.g., 4.0"
+                style={[styles.input, errors.screenTime ? styles.inputError : null]}
+                placeholder="e.g., 4.0 (0-24 hours)"
                 keyboardType="decimal-pad"
                 value={screenTime}
-                onChangeText={setScreenTime}
+                onChangeText={handleScreenTimeChange}
+                maxLength={4}
               />
+              {errors.screenTime ? <Text style={styles.errorText}>{errors.screenTime}</Text> : null}
+              <Text style={styles.inputHint}>Enter hours of screen time today</Text>
             </>
           )}
         </View>
@@ -435,12 +583,15 @@ export default function QuickLog({ navigation }: Props) {
 
           <Text style={styles.label}>Or enter custom:</Text>
           <TextInput
-            style={styles.input}
-            placeholder="e.g., 2.5"
+            style={[styles.input, errors.waterIntake ? styles.inputError : null]}
+            placeholder="e.g., 2.5 (0-10 liters)"
             keyboardType="decimal-pad"
             value={waterIntake}
-            onChangeText={setWaterIntake}
+            onChangeText={handleWaterIntakeChange}
+            maxLength={4}
           />
+          {errors.waterIntake ? <Text style={styles.errorText}>{errors.waterIntake}</Text> : null}
+          <Text style={styles.inputHint}>Enter liters of water consumed</Text>
         </View>
 
         {/* Stress Level Section */}
@@ -638,7 +789,29 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     color: '#1e293b',
-    marginBottom: 16,
+    marginBottom: 4,
+  },
+  inputError: {
+    borderColor: '#ef4444',
+    borderWidth: 2,
+    backgroundColor: '#fef2f2',
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#ef4444',
+    marginBottom: 4,
+    marginTop: 2,
+  },
+  errorTextSmall: {
+    fontSize: 10,
+    color: '#ef4444',
+    marginTop: 2,
+  },
+  inputHint: {
+    fontSize: 11,
+    color: '#94a3b8',
+    marginBottom: 12,
+    fontStyle: 'italic',
   },
   timeRangeRow: {
     flexDirection: 'row',

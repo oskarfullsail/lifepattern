@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import { getCurrentConfig } from '../config/environment';
 import userManager from '../utils/userManager';
 import { refreshToken } from './endpoint';
+import authEvents from '../utils/authEvents';
 
 // Determine the correct backend URL based on the environment and platform
 const getBackendUrl = () => {
@@ -13,7 +14,7 @@ const getBackendUrl = () => {
   if (__DEV__) {
     if (Platform.OS === 'web') {
       console.log('🔧 DEV MODE (Web): Using', config.backendUrl);
-      return config.backendUrl;
+      return 'https://lifepattern-backend.onrender.com'; //config.backendUrl;
     }
 
     if (Platform.OS === 'ios') {
@@ -101,8 +102,32 @@ apiClient.interceptors.response.use(
       data: error.response?.data
     });
     
-    // Handle 401 Unauthorized errors (token expired)
-    if (error.response?.status === 401 && error.config && !error.config._retry) {
+    // Handle 401 Unauthorized errors (token expired or invalid)
+    if (error.response?.status === 401) {
+      const errorMessage = error.response?.data?.message || error.response?.data || '';
+      const errorString = typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage);
+      
+      // Check for invalid token format - immediately redirect to login
+      if (errorString.includes('Invalid token format') || errorString.includes('invalid token') || errorString.includes('Unauthorized')) {
+        console.log('🚫 Invalid token detected, clearing session and redirecting to login');
+        
+        try {
+          await userManager.clearSession();
+        } catch (clearError) {
+          console.error('❌ Failed to clear session:', clearError);
+        }
+        
+        // Emit session expired event to trigger navigation to login
+        authEvents.emitSessionExpired('Your session is invalid. Please log in again.');
+        
+        return Promise.reject(error);
+      }
+      
+      // Skip retry if already retried
+      if (error.config._retry) {
+        return Promise.reject(error);
+      }
+      
       console.log('🔄 Token expired, attempting to refresh...');
       console.log(`📱 Platform: ${Platform.OS}`);
 
@@ -167,6 +192,9 @@ apiClient.interceptors.response.use(
         } catch (clearError) {
           console.error('❌ Failed to clear session:', clearError);
         }
+        
+        // Emit session expired event to trigger navigation to login
+        authEvents.emitSessionExpired('Your session has expired. Please log in again.');
         
         throw error;
       } finally {

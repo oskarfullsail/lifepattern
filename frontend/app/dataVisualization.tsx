@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Dimensions,
   Alert,
+  Platform,
 } from 'react-native';
 import Svg, { Circle, Path, G, Text as SvgText, Line, Polyline } from 'react-native-svg';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -24,7 +25,10 @@ interface Props {
   route: DataVisualizationScreenRouteProp;
 }
 
-const { width } = Dimensions.get('window');
+const { width: screenWidth } = Dimensions.get('window');
+const CHART_PADDING = 40;
+const CARD_PADDING = 16;
+const chartWidth = screenWidth - (CHART_PADDING * 2) - (CARD_PADDING * 2);
 
 export default function DataVisualization({ navigation, route }: Props) {
   const { data } = route.params || {};
@@ -161,7 +165,7 @@ export default function DataVisualization({ navigation, route }: Props) {
     );
   };
 
-  // Line Chart Component for Trends
+  // Line Chart Component for Trends - Improved layout
   const TrendLineChart = ({
     data,
     label,
@@ -175,59 +179,66 @@ export default function DataVisualization({ navigation, route }: Props) {
   }) => {
     if (data.length === 0) return null;
 
-    const chartWidth = width - 80;
-    const chartHeight = 120;
+    // Use responsive sizing
+    const containerWidth = screenWidth - 100; // Account for card padding and margins
+    const lineChartWidth = Math.min(containerWidth, 200); // Max width for the chart area
+    const chartHeight = 80; // Smaller height for inline display
+    const yAxisWidth = 30;
+    const plotWidth = lineChartWidth - yAxisWidth;
+    
     const maxValue = Math.max(...data, 1);
     const minValue = Math.min(...data, 0);
     const range = maxValue - minValue || 1;
 
     // Generate points for the line
     const points = data.map((value, index) => {
-      const x = 40 + (index / (data.length - 1 || 1)) * chartWidth;
-      const y = chartHeight - 20 - ((value - minValue) / range) * (chartHeight - 40);
+      const x = yAxisWidth + (index / (data.length - 1 || 1)) * plotWidth;
+      const y = chartHeight - 10 - ((value - minValue) / range) * (chartHeight - 20);
       return `${x},${y}`;
     }).join(' ');
 
     return (
       <View style={styles.trendChartContainer}>
         <Text style={styles.trendChartTitle}>{label}</Text>
-        <Svg width={width - 40} height={chartHeight + 20}>
-          {/* Grid lines */}
-          <Line x1="40" y1="20" x2={chartWidth + 40} y2="20" stroke="#e0e0e0" strokeWidth="1" />
-          <Line x1="40" y1={chartHeight / 2} x2={chartWidth + 40} y2={chartHeight / 2} stroke="#e0e0e0" strokeWidth="1" />
-          <Line x1="40" y1={chartHeight} x2={chartWidth + 40} y2={chartHeight} stroke="#e0e0e0" strokeWidth="1" />
+        <View style={styles.chartWrapper}>
+          <Svg width={lineChartWidth} height={chartHeight}>
+            {/* Grid lines */}
+            <Line x1={yAxisWidth} y1="10" x2={lineChartWidth} y2="10" stroke="#e0e0e0" strokeWidth="1" />
+            <Line x1={yAxisWidth} y1={chartHeight / 2} x2={lineChartWidth} y2={chartHeight / 2} stroke="#e0e0e0" strokeWidth="1" />
+            <Line x1={yAxisWidth} y1={chartHeight - 10} x2={lineChartWidth} y2={chartHeight - 10} stroke="#e0e0e0" strokeWidth="1" />
 
-          {/* Y-axis labels */}
-          <SvgText x="5" y="25" fontSize="10" fill="#999">{maxValue.toFixed(1)}</SvgText>
-          <SvgText x="5" y={chartHeight / 2 + 5} fontSize="10" fill="#999">{((maxValue + minValue) / 2).toFixed(1)}</SvgText>
-          <SvgText x="5" y={chartHeight + 5} fontSize="10" fill="#999">{minValue.toFixed(1)}</SvgText>
+            {/* Y-axis labels */}
+            <SvgText x="2" y="14" fontSize="8" fill="#999">{maxValue.toFixed(0)}</SvgText>
+            <SvgText x="2" y={chartHeight / 2 + 4} fontSize="8" fill="#999">{((maxValue + minValue) / 2).toFixed(0)}</SvgText>
+            <SvgText x="2" y={chartHeight - 6} fontSize="8" fill="#999">{minValue.toFixed(0)}</SvgText>
 
-          {/* Line */}
-          <Polyline
-            points={points}
-            fill="none"
-            stroke={color}
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+            {/* Line */}
+            <Polyline
+              points={points}
+              fill="none"
+              stroke={color}
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
 
-          {/* Data points */}
-          {data.map((value, index) => {
-            const x = 40 + (index / (data.length - 1 || 1)) * chartWidth;
-            const y = chartHeight - 20 - ((value - minValue) / range) * (chartHeight - 40);
-            return (
-              <Circle
-                key={index}
-                cx={x}
-                cy={y}
-                r="4"
-                fill={color}
-              />
-            );
-          })}
-        </Svg>
-        <Text style={styles.trendChartUnit}>Average: {(data.reduce((a, b) => a + b, 0) / data.length).toFixed(1)} {unit}</Text>
+            {/* Data points */}
+            {data.map((value, index) => {
+              const x = yAxisWidth + (index / (data.length - 1 || 1)) * plotWidth;
+              const y = chartHeight - 10 - ((value - minValue) / range) * (chartHeight - 20);
+              return (
+                <Circle
+                  key={index}
+                  cx={x}
+                  cy={y}
+                  r="3"
+                  fill={color}
+                />
+              );
+            })}
+          </Svg>
+        </View>
+        <Text style={styles.trendChartUnit}>Avg: {(data.reduce((a, b) => a + b, 0) / data.length).toFixed(1)} {unit}</Text>
       </View>
     );
   };
@@ -567,73 +578,80 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#fff',
     padding: 20,
-    paddingTop: 60,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: '#e2e8f0',
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
+    fontSize: 26,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginBottom: 6,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 20,
+    fontSize: 15,
+    color: '#64748b',
+    marginBottom: 16,
   },
   periodSelector: {
     flexDirection: 'row',
-    backgroundColor: '#f0f0f0',
-    borderRadius: 8,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
     padding: 4,
   },
   periodButton: {
     flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
     alignItems: 'center',
   },
   periodActive: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#7c3aed',
+    shadowColor: '#7c3aed',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   periodText: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#666',
+    fontWeight: '600',
+    color: '#64748b',
   },
   periodTextActive: {
     color: '#fff',
   },
   chartsContainer: {
-    padding: 20,
+    padding: 16,
   },
   chartContainer: {
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
     elevation: 3,
+    overflow: 'hidden', // Prevent chart overflow
   },
   chartTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 12,
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginBottom: 16,
   },
   metricsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12,
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
   },
   circularProgressContainer: {
     alignItems: 'center',
-    minWidth: 120,
+    width: 110,
+    flexShrink: 0,
   },
   circularLabel: {
     fontSize: 14,
@@ -648,18 +666,24 @@ const styles = StyleSheet.create({
   },
   trendChartContainer: {
     flex: 1,
+    marginLeft: 12,
+    alignItems: 'flex-start',
   },
   trendChartTitle: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#666',
-    marginBottom: 8,
+    color: '#64748b',
+    marginBottom: 6,
+  },
+  chartWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
   trendChartUnit: {
     fontSize: 11,
-    color: '#999',
+    color: '#94a3b8',
     marginTop: 4,
-    textAlign: 'center',
   },
   chartNote: {
     fontSize: 12,

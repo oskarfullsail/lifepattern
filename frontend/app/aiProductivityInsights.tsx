@@ -8,12 +8,16 @@ import {
   RefreshControl,
   Platform,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation';
 import aiProductivityCoach from './services/aiProductivityCoach';
 import screenTimeMonitor from './services/screenTimeMonitor';
 import type { AIProductivityInsight, AICoachSettings } from './services/aiProductivityCoach';
+import { getAICoachTips, AICoachTip, AICoachResponse } from './api/aiInsightsService';
+import { fetchAiHeartbeat, AiHeartbeatResponse } from './api/heartbeat';
+import aiWakeupService, { AIServiceStatus } from './services/aiWakeupService';
 
 type AIProductivityInsightsScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -35,18 +39,80 @@ export default function AIProductivityInsights({ navigation }: Props) {
   const [streak, setStreak] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  
+  // Backend AI data states
+  const [heartbeat, setHeartbeat] = useState<AiHeartbeatResponse | null>(null);
+  const [aiCoachData, setAiCoachData] = useState<AICoachResponse | null>(null);
+  const [backendTips, setBackendTips] = useState<AICoachTip[]>([]);
+  
+  // AI Service wake-up state
+  const [aiServiceStatus, setAiServiceStatus] = useState<AIServiceStatus>({
+    isAvailable: false,
+    isWakingUp: false,
+    lastChecked: null,
+    retryCount: 0,
+  });
 
   useEffect(() => {
+    // Subscribe to AI service status updates
+    const unsubscribe = aiWakeupService.subscribeToStatus((status) => {
+      setAiServiceStatus(status);
+      
+      // If service just became available, reload data
+      if (status.isAvailable && status.greeting) {
+        setHeartbeat({
+          status: 'ok',
+          timestamp: new Date().toISOString(),
+          greeting: status.greeting,
+        });
+      }
+    });
+
+    // Start background polling to keep AI service warm
+    aiWakeupService.startBackgroundPolling();
+    
+    // Load data
     loadData();
+
+    return () => {
+      unsubscribe();
+      // Don't stop polling on unmount - keep service warm
+    };
   }, []);
 
   const loadData = async () => {
     try {
-      // Load AI coach settings
+      // Load AI heartbeat first (shows greeting)
+      try {
+        const heartbeatData = await fetchAiHeartbeat();
+        setHeartbeat(heartbeatData);
+        console.log('✅ AI Heartbeat:', heartbeatData.status, heartbeatData.greeting);
+        
+        // If AI service is not available, trigger wake-up
+        if (heartbeatData.status !== 'ok') {
+          console.log('🌅 AI service not ready, triggering wake-up...');
+          aiWakeupService.wakeUpAIService();
+        }
+      } catch (error) {
+        console.log('⚠️ Could not fetch AI heartbeat, triggering wake-up:', error);
+        aiWakeupService.wakeUpAIService();
+      }
+
+      // Load AI coach tips from backend
+      try {
+        const coachData = await getAICoachTips('week');
+        setAiCoachData(coachData);
+        setBackendTips(coachData.tips);
+        console.log('✅ AI Coach tips loaded:', coachData.tips.length);
+      } catch (error) {
+        console.log('⚠️ Could not fetch AI Coach tips:', error);
+      }
+
+      // Load local AI coach settings
       const coachSettings = await aiProductivityCoach.loadAICoachSettings();
       setSettings(coachSettings);
 
-      // Load cached insights
+      // Load cached local insights
       const cachedInsights = await aiProductivityCoach.getCachedInsights();
       setInsights(cachedInsights);
 
@@ -293,6 +359,62 @@ export default function AIProductivityInsights({ navigation }: Props) {
         </View>
 
         <View style={styles.content}>
+          {/* AI Service Status Card */}
+          {aiServiceStatus.isWakingUp ? (
+            // Show waking up indicator
+            <View style={[styles.greetingCard, styles.greetingCardWakingUp]}>
+              <ActivityIndicator size="small" color="#7c3aed" style={styles.wakingUpSpinner} />
+              <View style={styles.greetingContent}>
+                <Text style={styles.greetingText}>
+                  🌅 Waking up AI service... (attempt {aiServiceStatus.retryCount}/20)
+                </Text>
+                <Text style={styles.wakingUpSubtext}>
+                  Free tier servers take 30-60 seconds to start. Please wait...
+                </Text>
+                <View style={styles.wakeupProgressContainer}>
+                  <View 
+                    style={[
+                      styles.wakeupProgressBar, 
+                      { width: `${Math.min(aiServiceStatus.retryCount * 5, 100)}%` }
+                    ]} 
+                  />
+                </View>
+              </View>
+            </View>
+          ) : heartbeat ? (
+            // Show normal greeting card
+            <View style={[
+              styles.greetingCard,
+              heartbeat.status === 'ok' ? styles.greetingCardOk : styles.greetingCardUnreachable
+            ]}>
+              <Text style={styles.greetingIcon}>
+                {heartbeat.status === 'ok' ? '🤖' : '⚠️'}
+              </Text>
+              <View style={styles.greetingContent}>
+                <Text style={styles.greetingText}>{heartbeat.greeting}</Text>
+                {aiCoachData && (
+                  <View style={styles.scoreRow}>
+                    <Text style={styles.scoreLabel}>Wellness Score:</Text>
+                    <Text style={[
+                      styles.scoreValue,
+                      aiCoachData.overallScore >= 80 ? styles.scoreGood :
+                      aiCoachData.overallScore >= 60 ? styles.scoreOk : styles.scoreLow
+                    ]}>
+                      {aiCoachData.overallScore}%
+                    </Text>
+                    <Text style={styles.trendBadge}>
+                      {aiCoachData.trend === 'improving' ? '📈' : 
+                       aiCoachData.trend === 'declining' ? '📉' : '➡️'}
+                    </Text>
+                  </View>
+                )}
+                {heartbeat.status === 'ok' && (
+                  <Text style={styles.aiStatusOk}>✓ AI service connected</Text>
+                )}
+              </View>
+            </View>
+          ) : null}
+          
           {renderScreenTimeProgress()}
 
           {!settings?.enabled && (
@@ -309,6 +431,49 @@ export default function AIProductivityInsights({ navigation }: Props) {
                 <Text style={styles.enableButtonText}>Go to Settings</Text>
               </TouchableOpacity>
             </View>
+          )}
+
+          {/* Backend AI Tips Section */}
+          {backendTips.length > 0 && (
+            <>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>🎯 AI Coach Recommendations</Text>
+                <Text style={styles.sectionSubtitle}>
+                  Personalized tips based on your weekly patterns
+                </Text>
+              </View>
+
+              {backendTips.map((tip, index) => (
+                <View key={tip.id || index} style={styles.backendTipCard}>
+                  <View style={styles.tipHeader}>
+                    <Text style={styles.tipIcon}>
+                      {tip.category === 'sleep' ? '😴' :
+                       tip.category === 'exercise' ? '🏃' :
+                       tip.category === 'stress' ? '😰' :
+                       tip.category === 'nutrition' ? '🍎' :
+                       tip.category === 'screen_time' ? '📱' : '💡'}
+                    </Text>
+                    <Text style={styles.tipTitle}>{tip.title}</Text>
+                    <View style={[
+                      styles.tipPriorityBadge,
+                      tip.priority === 'high' ? styles.priorityHigh :
+                      tip.priority === 'medium' ? styles.priorityMedium : styles.priorityLow
+                    ]}>
+                      <Text style={styles.tipPriorityText}>
+                        {tip.priority.toUpperCase()}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.tipMessage}>{tip.message}</Text>
+                  {tip.suggestedAction && (
+                    <View style={styles.tipActionContainer}>
+                      <Text style={styles.tipActionLabel}>Suggested Action:</Text>
+                      <Text style={styles.tipActionText}>{tip.suggestedAction}</Text>
+                    </View>
+                  )}
+                </View>
+              ))}
+            </>
           )}
 
           {settings?.enabled && (
@@ -720,6 +885,172 @@ const styles = StyleSheet.create({
   infoText: {
     fontSize: 14,
     color: '#1e40af',
+    lineHeight: 20,
+  },
+  // AI Greeting Card Styles
+  greetingCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  greetingCardOk: {
+    backgroundColor: '#f0fdf4',
+    borderLeftWidth: 4,
+    borderLeftColor: '#22c55e',
+  },
+  greetingCardUnreachable: {
+    backgroundColor: '#fff7ed',
+    borderLeftWidth: 4,
+    borderLeftColor: '#f97316',
+  },
+  greetingCardWakingUp: {
+    backgroundColor: '#faf5ff',
+    borderLeftWidth: 4,
+    borderLeftColor: '#7c3aed',
+  },
+  wakingUpSpinner: {
+    marginRight: 12,
+    marginTop: 4,
+  },
+  wakingUpSubtext: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  wakeupProgressContainer: {
+    height: 6,
+    backgroundColor: '#e5e7eb',
+    borderRadius: 3,
+    marginTop: 12,
+    overflow: 'hidden',
+  },
+  wakeupProgressBar: {
+    height: '100%',
+    backgroundColor: '#7c3aed',
+    borderRadius: 3,
+  },
+  aiStatusOk: {
+    fontSize: 12,
+    color: '#22c55e',
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  greetingIcon: {
+    fontSize: 32,
+    marginRight: 12,
+  },
+  greetingContent: {
+    flex: 1,
+  },
+  greetingText: {
+    fontSize: 16,
+    color: '#1e293b',
+    lineHeight: 22,
+    marginBottom: 8,
+  },
+  scoreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  scoreLabel: {
+    fontSize: 14,
+    color: '#64748b',
+    marginRight: 8,
+  },
+  scoreValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginRight: 8,
+  },
+  scoreGood: {
+    color: '#22c55e',
+  },
+  scoreOk: {
+    color: '#f59e0b',
+  },
+  scoreLow: {
+    color: '#ef4444',
+  },
+  trendBadge: {
+    fontSize: 16,
+  },
+  // Backend Tip Card Styles
+  backendTipCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#7c3aed',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tipHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  tipIcon: {
+    fontSize: 20,
+    marginRight: 8,
+  },
+  tipTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  tipPriorityBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  priorityHigh: {
+    backgroundColor: '#fee2e2',
+  },
+  priorityMedium: {
+    backgroundColor: '#fef3c7',
+  },
+  priorityLow: {
+    backgroundColor: '#d1fae5',
+  },
+  tipPriorityText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  tipMessage: {
+    fontSize: 14,
+    color: '#475569',
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  tipActionContainer: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 8,
+  },
+  tipActionLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#7c3aed',
+    marginBottom: 4,
+  },
+  tipActionText: {
+    fontSize: 14,
+    color: '#1e293b',
     lineHeight: 20,
   },
   bottomNav: {

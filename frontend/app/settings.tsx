@@ -8,6 +8,7 @@ import {
   Alert,
   Switch,
   Platform,
+  Linking,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CommonActions } from '@react-navigation/native';
@@ -80,68 +81,111 @@ export default function Settings({ navigation }: Props) {
     }
   };
 
+  const performLogout = async () => {
+    try {
+      console.log('🚪 Starting logout...');
+
+      // Clear session completely
+      await userManager.logout();
+
+      console.log('✅ Logout complete, navigating to Home');
+
+      // Use CommonActions to reset the navigation state
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'Home' }],
+        })
+      );
+    } catch (error) {
+      console.error('❌ Logout error:', error);
+      // Still try to navigate even on error
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'Home' }],
+        })
+      );
+    }
+  };
+
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              console.log('🚪 Starting logout...');
-
-              // Clear session completely
-              await userManager.logout();
-
-              console.log('✅ Logout complete, navigating to Home');
-
-              // Use CommonActions to reset the navigation state
-              navigation.dispatch(
-                CommonActions.reset({
-                  index: 0,
-                  routes: [{ name: 'Home' }],
-                })
-              );
-            } catch (error) {
-              console.error('❌ Logout error:', error);
-              // Still try to navigate even on error
-              navigation.dispatch(
-                CommonActions.reset({
-                  index: 0,
-                  routes: [{ name: 'Home' }],
-                })
-              );
-            }
+    if (Platform.OS === 'web') {
+      // Use browser confirm for web
+      if (window.confirm('Are you sure you want to logout?')) {
+        performLogout();
+      }
+    } else {
+      // Use native Alert for iOS/Android
+      Alert.alert(
+        'Logout',
+        'Are you sure you want to logout?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Logout',
+            style: 'destructive',
+            onPress: performLogout
           }
-        }
-      ]
-    );
+        ]
+      );
+    }
+  };
+
+  const performDeleteAccount = async () => {
+    try {
+      // TODO: Call backend to delete account
+      await userManager.logout();
+      
+      if (Platform.OS === 'web') {
+        window.alert('Your account has been deleted.');
+      } else {
+        Alert.alert('Account Deleted', 'Your account has been deleted.');
+      }
+      
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'Home' }],
+        })
+      );
+    } catch (error) {
+      console.error('❌ Delete account error:', error);
+      if (Platform.OS === 'web') {
+        window.alert('Failed to delete account. Please try again.');
+      } else {
+        Alert.alert('Error', 'Failed to delete account. Please try again.');
+      }
+    }
   };
 
   const handleDeleteAccount = () => {
-    Alert.alert(
-      'Delete Account',
-      'This action cannot be undone. Are you sure you want to delete your account?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
-          style: 'destructive',
-          onPress: () => {
-            Alert.alert('Account Deleted', 'Your account has been deleted.');
-            navigation.replace('Home');
+    if (Platform.OS === 'web') {
+      if (window.confirm('This action cannot be undone. Are you sure you want to delete your account?')) {
+        performDeleteAccount();
+      }
+    } else {
+      Alert.alert(
+        'Delete Account',
+        'This action cannot be undone. Are you sure you want to delete your account?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Delete', 
+            style: 'destructive',
+            onPress: performDeleteAccount
           }
-        }
-      ]
-    );
+        ]
+      );
+    }
   };
 
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Text style={styles.backButtonText}>← Back</Text>
+        </TouchableOpacity>
         <Text style={styles.title}>Settings</Text>
         <Text style={styles.subtitle}>
           Manage your account and preferences
@@ -189,7 +233,10 @@ export default function Settings({ navigation }: Props) {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Account</Text>
         
-        <TouchableOpacity style={styles.settingItem}>
+        <TouchableOpacity 
+          style={styles.settingItem}
+          onPress={() => navigation.navigate('Profile')}
+        >
           <Text style={styles.settingIcon}>👤</Text>
           <View style={styles.settingContent}>
             <Text style={styles.settingTitle}>Profile</Text>
@@ -198,7 +245,10 @@ export default function Settings({ navigation }: Props) {
           <Text style={styles.settingArrow}>→</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.settingItem}>
+        <TouchableOpacity 
+          style={styles.settingItem}
+          onPress={() => navigation.navigate('ConnectedDevices')}
+        >
           <Text style={styles.settingIcon}>🔗</Text>
           <View style={styles.settingContent}>
             <Text style={styles.settingTitle}>Connected Devices</Text>
@@ -211,7 +261,10 @@ export default function Settings({ navigation }: Props) {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Data & Privacy</Text>
         
-        <TouchableOpacity style={styles.settingItem}>
+        <TouchableOpacity 
+          style={styles.settingItem}
+          onPress={() => navigation.navigate('DataExport')}
+        >
           <Text style={styles.settingIcon}>📊</Text>
           <View style={styles.settingContent}>
             <Text style={styles.settingTitle}>Data Export</Text>
@@ -220,7 +273,10 @@ export default function Settings({ navigation }: Props) {
           <Text style={styles.settingArrow}>→</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.settingItem}>
+        <TouchableOpacity 
+          style={styles.settingItem}
+          onPress={() => navigation.navigate('PrivacySettings')}
+        >
           <Text style={styles.settingIcon}>🔒</Text>
           <View style={styles.settingContent}>
             <Text style={styles.settingTitle}>Privacy Settings</Text>
@@ -229,7 +285,10 @@ export default function Settings({ navigation }: Props) {
           <Text style={styles.settingArrow}>→</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.settingItem}>
+        <TouchableOpacity 
+          style={styles.settingItem}
+          onPress={() => navigation.navigate('DeleteData')}
+        >
           <Text style={styles.settingIcon}>🗑️</Text>
           <View style={styles.settingContent}>
             <Text style={styles.settingTitle}>Delete Data</Text>
@@ -242,7 +301,10 @@ export default function Settings({ navigation }: Props) {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>App Settings</Text>
         
-        <TouchableOpacity style={styles.settingItem}>
+        <TouchableOpacity 
+          style={styles.settingItem}
+          onPress={() => navigation.navigate('Notifications')}
+        >
           <Text style={styles.settingIcon}>🔔</Text>
           <View style={styles.settingContent}>
             <Text style={styles.settingTitle}>Notifications</Text>
@@ -251,7 +313,10 @@ export default function Settings({ navigation }: Props) {
           <Text style={styles.settingArrow}>→</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.settingItem}>
+        <TouchableOpacity 
+          style={styles.settingItem}
+          onPress={() => Alert.alert('Coming Soon', 'Dark mode is coming in a future update!')}
+        >
           <Text style={styles.settingIcon}>🌙</Text>
           <View style={styles.settingContent}>
             <Text style={styles.settingTitle}>Dark Mode</Text>
@@ -260,7 +325,10 @@ export default function Settings({ navigation }: Props) {
           <Text style={styles.settingArrow}>→</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.settingItem}>
+        <TouchableOpacity 
+          style={styles.settingItem}
+          onPress={() => Alert.alert('Coming Soon', 'Language settings coming soon!')}
+        >
           <Text style={styles.settingIcon}>🌍</Text>
           <View style={styles.settingContent}>
             <Text style={styles.settingTitle}>Language</Text>
@@ -273,7 +341,10 @@ export default function Settings({ navigation }: Props) {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Support</Text>
         
-        <TouchableOpacity style={styles.settingItem}>
+        <TouchableOpacity 
+          style={styles.settingItem}
+          onPress={() => navigation.navigate('HelpFAQ')}
+        >
           <Text style={styles.settingIcon}>❓</Text>
           <View style={styles.settingContent}>
             <Text style={styles.settingTitle}>Help & FAQ</Text>
@@ -282,7 +353,12 @@ export default function Settings({ navigation }: Props) {
           <Text style={styles.settingArrow}>→</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.settingItem}>
+        <TouchableOpacity 
+          style={styles.settingItem}
+          onPress={() => {
+            Linking.openURL('mailto:support@lifepattern.ai?subject=LifePattern Support Request');
+          }}
+        >
           <Text style={styles.settingIcon}>📧</Text>
           <View style={styles.settingContent}>
             <Text style={styles.settingTitle}>Contact Support</Text>
@@ -291,7 +367,15 @@ export default function Settings({ navigation }: Props) {
           <Text style={styles.settingArrow}>→</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.settingItem}>
+        <TouchableOpacity 
+          style={styles.settingItem}
+          onPress={() => {
+            const url = Platform.OS === 'ios' 
+              ? 'https://apps.apple.com/app/id6754825838?action=write-review'
+              : 'https://play.google.com/store/apps/details?id=com.oskarsanchez.lifepatternai';
+            Linking.openURL(url);
+          }}
+        >
           <Text style={styles.settingIcon}>⭐</Text>
           <View style={styles.settingContent}>
             <Text style={styles.settingTitle}>Rate App</Text>
@@ -367,9 +451,17 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#fff',
     padding: 20,
-    paddingTop: 60,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+  },
+  backButton: {
+    marginBottom: 12,
+  },
+  backButtonText: {
+    fontSize: 16,
+    color: '#7c3aed',
+    fontWeight: '600',
   },
   title: {
     fontSize: 28,

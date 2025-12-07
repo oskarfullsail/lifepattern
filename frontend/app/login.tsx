@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -22,6 +22,7 @@ import {
   tryBiometricAutoLogin,
   BiometricCapabilities,
 } from './utils/biometricAuth';
+import { startBackgroundWarmup } from './services/serviceWarmup';
 
 type LoginScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
@@ -42,40 +43,62 @@ export default function Login({ navigation }: Props) {
     typeLabel: '',
   });
   const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const passwordInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
-    initializeLogin();
-    initializeBiometrics();
+    // IMPORTANT: Check biometrics FIRST before showing login form
+    // This prevents the login form from flashing before biometric prompt
+    initializeBiometricsFirst();
   }, []);
 
-  const initializeBiometrics = async () => {
+  const initializeBiometricsFirst = async () => {
     try {
-      // Check biometric support
+      setIsInitializing(true);
+      
+      // 1. First check biometric support
       const capabilities = await checkBiometricSupport();
       setBiometricCapabilities(capabilities);
 
-      // Check if biometric login is enabled
+      // 2. Check if biometric login is enabled
       const enabled = await isBiometricLoginEnabled();
       setBiometricEnabled(enabled);
+      
+      console.log('🔐 Biometric check:', { enabled, isSupported: capabilities.isSupported, isEnrolled: capabilities.isEnrolled });
 
-      // If enabled and user has tokens, try auto-login
+      // 3. If biometric is enabled and supported, try auto-login BEFORE showing login form
       if (enabled && capabilities.isSupported && capabilities.isEnrolled) {
         const hasTokens = await userManager.getRefreshToken();
+        console.log('🔑 Has stored tokens:', !!hasTokens);
+        
         if (hasTokens) {
           console.log('🔄 Attempting biometric auto-login...');
           const autoLoginResult = await tryBiometricAutoLogin();
           
           if (autoLoginResult.success) {
             console.log('✅ Biometric auto-login successful');
+            
+            // Start warming up backend services in the background
+            console.log('🌅 Starting background service warm-up after auto-login...');
+            startBackgroundWarmup((progress) => {
+              console.log(`📊 Service warm-up: ${progress.message} (${progress.progress}%)`);
+            });
+            
             navigation.replace('UserDashboard');
-            return;
+            return; // Don't continue to show login form
           } else {
-            console.log('ℹ️ Biometric auto-login not available:', autoLoginResult.error);
+            console.log('ℹ️ Biometric auto-login failed:', autoLoginResult.error);
+            // Continue to show login form as fallback
           }
         }
       }
+
+      // 4. If we get here, proceed with normal login initialization
+      await initializeLogin();
+      
     } catch (error) {
       console.error('❌ Error initializing biometrics:', error);
+      // Fallback to normal login flow
+      await initializeLogin();
     }
   };
 
@@ -122,6 +145,13 @@ export default function Login({ navigation }: Props) {
 
       if (result.success) {
         console.log('✅ Biometric login successful, navigating to UserDashboard');
+        
+        // Start warming up backend services in the background
+        console.log('🌅 Starting background service warm-up after biometric login...');
+        startBackgroundWarmup((progress) => {
+          console.log(`📊 Service warm-up: ${progress.message} (${progress.progress}%)`);
+        });
+        
         navigation.replace('UserDashboard');
       } else {
         if (result.needsPassword) {
@@ -179,6 +209,13 @@ export default function Login({ navigation }: Props) {
       
       if (success) {
         console.log('✅ Login successful');
+        
+        // Start warming up backend services in the background
+        // This ensures both services are ready when user needs them
+        console.log('🌅 Starting background service warm-up...');
+        startBackgroundWarmup((progress) => {
+          console.log(`📊 Service warm-up: ${progress.message} (${progress.progress}%)`);
+        });
         
         // If biometrics are available and not yet enabled, offer to enable
         if (biometricCapabilities.isSupported && biometricCapabilities.isEnrolled && !biometricEnabled) {
@@ -319,12 +356,16 @@ export default function Login({ navigation }: Props) {
             autoCapitalize="none"
             autoCorrect={false}
             editable={!isLoading}
+            returnKeyType="next"
+            onSubmitEditing={() => passwordInputRef.current?.focus()}
+            blurOnSubmit={false}
           />
         </View>
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Password</Text>
           <TextInput
+            ref={passwordInputRef}
             style={styles.input}
             placeholder="Enter your password"
             value={passphrase}
@@ -333,6 +374,8 @@ export default function Login({ navigation }: Props) {
             autoCapitalize="none"
             autoCorrect={false}
             editable={!isLoading}
+            returnKeyType="go"
+            onSubmitEditing={handleLogin}
           />
         </View>
 

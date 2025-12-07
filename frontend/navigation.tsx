@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import React, { useState, useEffect, useRef } from 'react';
+import { NavigationContainer, CommonActions } from '@react-navigation/native';
+import { createNativeStackNavigator, NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, ActivityIndicator } from 'react-native';
+import { View, Text, ActivityIndicator, Alert, Platform } from 'react-native';
+import authEvents from './app/utils/authEvents';
 
 // Import screens
 import HomeScreen from './app/index';
@@ -24,6 +25,18 @@ import ScreeningQuestionnaireScreen from './app/screeningQuestionnaire';
 import UsabilitySurveyScreen from './app/usabilitySurvey';
 import AdminDashboardScreen from './app/adminDashboard';
 
+// Import settings sub-screens
+import {
+  ProfileScreen,
+  ConnectedDevicesScreen,
+  DataExportScreen,
+  PrivacySettingsScreen,
+  DeleteDataScreen,
+  NotificationsScreen,
+  HealthPermissionsScreen,
+  HelpFAQScreen,
+} from './app/settingsScreens';
+
 export type RootStackParamList = {
   Home: undefined;
   Login: undefined;
@@ -43,12 +56,70 @@ export type RootStackParamList = {
   ScreeningQuestionnaire: undefined;
   UsabilitySurvey: undefined;
   AdminDashboard: undefined;
+  // New Settings sub-screens
+  Profile: undefined;
+  ConnectedDevices: undefined;
+  DataExport: undefined;
+  PrivacySettings: undefined;
+  DeleteData: undefined;
+  Notifications: undefined;
+  HelpFAQ: undefined;
+  HealthPermissions: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+// Navigation ref for programmatic navigation from outside components
+export const navigationRef = React.createRef<any>();
+
+// Helper function to navigate from anywhere in the app
+export function navigateToLogin() {
+  if (navigationRef.current) {
+    navigationRef.current.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      })
+    );
+  }
+}
+
 export default function Navigation() {
   const [navigationError, setNavigationError] = useState(false);
+
+  // Subscribe to auth events for session expiry handling
+  useEffect(() => {
+    const unsubscribe = authEvents.subscribe((event, message) => {
+      console.log(`🔐 Auth event received in Navigation: ${event}`);
+      
+      if (event === 'sessionExpired' || event === 'loginRequired') {
+        // Show alert and navigate to login
+        if (Platform.OS === 'web') {
+          window.alert(message || 'Your session has expired. Please log in again.');
+        } else {
+          Alert.alert(
+            'Session Expired',
+            message || 'Your session has expired. Please log in again.',
+            [{ text: 'OK' }]
+          );
+        }
+        
+        // Navigate to login screen
+        if (navigationRef.current) {
+          navigationRef.current.dispatch(
+            CommonActions.reset({
+              index: 0,
+              routes: [{ name: 'Login' }],
+            })
+          );
+        }
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   const handleNavigationError = (error: Error) => {
     console.error('Navigation error:', error);
@@ -70,6 +141,7 @@ export default function Navigation() {
 
   return (
     <NavigationContainer
+      ref={navigationRef}
       onStateChange={(state) => {
         // Track navigation state changes
         console.log('Navigation state changed:', state);
@@ -178,7 +250,7 @@ export default function Navigation() {
           component={SettingsScreen} 
           options={{ 
             title: 'Settings',
-            headerBackTitle: 'Back'
+            headerShown: false
           }} 
         />
         <Stack.Screen 
@@ -236,6 +308,48 @@ export default function Navigation() {
             title: 'Admin Dashboard',
             headerShown: false
           }}
+        />
+        
+        {/* Settings Sub-screens */}
+        <Stack.Screen
+          name="Profile"
+          component={ProfileScreen}
+          options={{ title: 'Profile', headerShown: false }}
+        />
+        <Stack.Screen
+          name="ConnectedDevices"
+          component={ConnectedDevicesScreen}
+          options={{ title: 'Connected Devices', headerShown: false }}
+        />
+        <Stack.Screen
+          name="DataExport"
+          component={DataExportScreen}
+          options={{ title: 'Export Data', headerShown: false }}
+        />
+        <Stack.Screen
+          name="PrivacySettings"
+          component={PrivacySettingsScreen}
+          options={{ title: 'Privacy Settings', headerShown: false }}
+        />
+        <Stack.Screen
+          name="DeleteData"
+          component={DeleteDataScreen}
+          options={{ title: 'Delete Data', headerShown: false }}
+        />
+        <Stack.Screen
+          name="Notifications"
+          component={NotificationsScreen}
+          options={{ title: 'Notifications', headerShown: false }}
+        />
+        <Stack.Screen
+          name="HealthPermissions"
+          component={HealthPermissionsScreen}
+          options={{ title: 'Health Permissions', headerShown: false }}
+        />
+        <Stack.Screen
+          name="HelpFAQ"
+          component={HelpFAQScreen}
+          options={{ title: 'Help & FAQ', headerShown: false }}
         />
       </Stack.Navigator>
       <StatusBar style="auto" />
