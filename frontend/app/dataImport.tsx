@@ -30,6 +30,17 @@ interface Props {
   route: DataImportScreenRouteProp;
 }
 
+// Interface for fetched health data
+interface FetchedHealthData {
+  sleep_hours?: number;
+  steps?: number;
+  heart_rate_avg?: number;
+  exercise_duration?: number;
+  water_intake?: number;
+  meal_times?: string[];
+  calories?: number;
+}
+
 export default function DataImport({ navigation, route }: Props) {
   const { source } = route.params;
   const [isLoading, setIsLoading] = useState(false);
@@ -50,6 +61,11 @@ export default function DataImport({ navigation, route }: Props) {
   });
   const [loadingMessage, setLoadingMessage] = useState<string>('Loading...');
   const [errors, setErrors] = useState<{[key: string]: string}>({});
+  
+  // New state for fetched health data display
+  const [fetchedHealthData, setFetchedHealthData] = useState<FetchedHealthData | null>(null);
+  const [showHealthDataPreview, setShowHealthDataPreview] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // ===== INPUT VALIDATION HELPERS =====
   
@@ -277,60 +293,71 @@ export default function DataImport({ navigation, route }: Props) {
         return;
       }
 
-      // Step 3: Fetch and sync health data
+      // Step 3: Fetch health data (don't sync yet - show preview first)
       setLoadingMessage('Fetching health data...');
-      const success = await healthSync.manualHealthSync();
-
-      if (success) {
-        Alert.alert(
-          '✅ Success!',
-          'Health data imported and synced to your account!',
-          [
-            {
-              text: 'View Data',
-              onPress: () => navigation.navigate('DataVisualization', {})
-            },
-            { text: 'OK' }
-          ]
-        );
-      } else {
-        // No data available from health app - show helpful message
-        Alert.alert(
-          'No Health Data Available',
-          'No health data was found in your Health App. This could be because:\n\n' +
-          '• You need to grant Health App permissions\n' +
-          '• No health data has been logged yet\n' +
-          '• The Health App integration is still being set up\n\n' +
-          'Would you like to enter data manually instead?',
-          [
-            {
-              text: 'Manual Entry',
-              onPress: () => navigation.navigate('DataImport', { source: 'manual' })
-            },
-            { text: 'Cancel', style: 'cancel' }
-          ]
-        );
-      }
+      const healthData = await healthSync.fetchHealthDataForToday();
+      
+      console.log('📊 Fetched health data:', healthData);
+      
+      // Store the fetched data and show preview
+      setFetchedHealthData(healthData);
+      setShowHealthDataPreview(true);
+      
+      // No error alert - just show what we found (even if empty)
+      
     } catch (error: any) {
       console.error('Error importing health data:', error);
 
+      // Only show error alert for actual errors (not "no data")
       Alert.alert(
         'Import Failed',
-        'Failed to import health data. This feature requires:\n\n' +
-        '• Apple Health (iOS) or Google Health Connect (Android)\n' +
-        '• Appropriate permissions\n\n' +
-        'Error: ' + (error.message || 'Unknown error') + '\n\n' +
-        'Would you like to enter data manually?',
-        [
-          {
-            text: 'Manual Entry',
-            onPress: () => navigation.navigate('DataImport', { source: 'manual' })
-          },
-          { text: 'Cancel', style: 'cancel' }
-        ]
+        'Error: ' + (error.message || 'Unknown error'),
+        [{ text: 'OK' }]
       );
     } finally {
       setIsLoading(false);
+      setLoadingMessage('Loading...');
+    }
+  };
+  
+  // Sync the fetched health data to backend
+  const handleSyncHealthData = async () => {
+    if (!fetchedHealthData) return;
+    
+    setIsSyncing(true);
+    setLoadingMessage('Syncing to your account...');
+    
+    try {
+      const healthSync = require('./services/healthSync').default;
+      const success = await healthSync.manualHealthSync();
+      
+      if (success) {
+        Alert.alert(
+          '✅ Synced!',
+          'Health data has been saved to your account.',
+          [
+            {
+              text: 'View Dashboard',
+              onPress: () => navigation.navigate('UserDashboard')
+            },
+            { text: 'OK', onPress: () => {
+              setShowHealthDataPreview(false);
+              setFetchedHealthData(null);
+            }}
+          ]
+        );
+      } else {
+        // Data was fetched but couldn't sync (maybe no meaningful data for backend)
+        Alert.alert(
+          'Sync Complete',
+          'Health data was read but some fields may not have synced (backend requires sleep, exercise, or water data).',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error: any) {
+      Alert.alert('Sync Error', error.message || 'Failed to sync data');
+    } finally {
+      setIsSyncing(false);
       setLoadingMessage('Loading...');
     }
   };
@@ -659,6 +686,20 @@ export default function DataImport({ navigation, route }: Props) {
     }
   };
 
+  // Render health data preview card
+  const renderHealthDataCard = (icon: string, label: string, value: string | number | undefined, unit: string) => {
+    const hasValue = value !== undefined && value !== null && value !== 0;
+    return (
+      <View style={[styles.healthDataCard, !hasValue && styles.healthDataCardEmpty]}>
+        <Text style={styles.healthDataIcon}>{icon}</Text>
+        <Text style={styles.healthDataLabel}>{label}</Text>
+        <Text style={[styles.healthDataValue, !hasValue && styles.healthDataValueEmpty]}>
+          {hasValue ? `${value} ${unit}` : 'No data'}
+        </Text>
+      </View>
+    );
+  };
+
   const renderHealthAppImport = () => (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Health App Integration</Text>
@@ -675,7 +716,7 @@ export default function DataImport({ navigation, route }: Props) {
         </View>
       )}
 
-      {Platform.OS !== 'web' && (
+      {Platform.OS !== 'web' && !showHealthDataPreview && (
         <View style={styles.infoBox}>
           <Text style={styles.infoIcon}>ℹ️</Text>
           <Text style={styles.infoBoxText}>
@@ -686,34 +727,122 @@ export default function DataImport({ navigation, route }: Props) {
         </View>
       )}
       
-      <TouchableOpacity 
-        style={[styles.importButton, Platform.OS === 'web' && styles.disabledButton]}
-        onPress={handleHealthAppImport}
-        disabled={isLoading || Platform.OS === 'web'}
-      >
-        {isLoading ? (
-          <View style={styles.loadingRow}>
-            <ActivityIndicator color="#fff" />
-            <Text style={styles.loadingText}>{loadingMessage}</Text>
-          </View>
-        ) : (
-          <Text style={styles.importButtonText}>
-            {Platform.OS === 'ios' ? '🍎 Import from Apple Health' : 
-             Platform.OS === 'android' ? '🏃 Import from Google Fit' : 
-             'Import from Health App'}
+      {/* Health Data Preview - Show when we have fetched data */}
+      {showHealthDataPreview && (
+        <View style={styles.healthDataPreview}>
+          <Text style={styles.healthDataPreviewTitle}>
+            📊 Data Found in {Platform.OS === 'ios' ? 'Apple Health' : 'Health Connect'}
           </Text>
-        )}
-      </TouchableOpacity>
+          
+          {fetchedHealthData ? (
+            <>
+              <View style={styles.healthDataGrid}>
+                {renderHealthDataCard('👣', 'Steps', fetchedHealthData.steps, 'steps')}
+                {renderHealthDataCard('😴', 'Sleep', fetchedHealthData.sleep_hours, 'hours')}
+                {renderHealthDataCard('🏃', 'Exercise', fetchedHealthData.exercise_duration, 'hours')}
+                {renderHealthDataCard('💧', 'Water', fetchedHealthData.water_intake, 'L')}
+                {renderHealthDataCard('❤️', 'Heart Rate', fetchedHealthData.heart_rate_avg, 'bpm')}
+                {renderHealthDataCard('🔥', 'Calories', fetchedHealthData.calories, 'kcal')}
+              </View>
+              
+              {/* Show sync status message */}
+              {!fetchedHealthData.sleep_hours && !fetchedHealthData.exercise_duration && !fetchedHealthData.water_intake && (
+                <View style={styles.syncWarning}>
+                  <Text style={styles.syncWarningText}>
+                    ℹ️ Note: Backend requires sleep, exercise, or water data to sync. Steps are displayed but not yet synced to backend.
+                  </Text>
+                </View>
+              )}
+              
+              <View style={styles.healthDataActions}>
+                <TouchableOpacity 
+                  style={[styles.syncButton, isSyncing && styles.syncButtonDisabled]}
+                  onPress={handleSyncHealthData}
+                  disabled={isSyncing}
+                >
+                  {isSyncing ? (
+                    <View style={styles.loadingRow}>
+                      <ActivityIndicator color="#fff" size="small" />
+                      <Text style={styles.syncButtonText}>{loadingMessage}</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.syncButtonText}>✅ Sync to Account</Text>
+                  )}
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.refreshButton}
+                  onPress={handleHealthAppImport}
+                  disabled={isLoading || isSyncing}
+                >
+                  <Text style={styles.refreshButtonText}>🔄 Refresh Data</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.dismissButton}
+                  onPress={() => {
+                    setShowHealthDataPreview(false);
+                    setFetchedHealthData(null);
+                  }}
+                >
+                  <Text style={styles.dismissButtonText}>✕ Close</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            <View style={styles.noDataBox}>
+              <Text style={styles.noDataIcon}>📭</Text>
+              <Text style={styles.noDataText}>
+                No health data found for today.{'\n'}
+                Try logging some activity in {Platform.OS === 'ios' ? 'Apple Health' : 'Health Connect'} first!
+              </Text>
+              <TouchableOpacity 
+                style={styles.tryManualButton}
+                onPress={() => {
+                  setShowHealthDataPreview(false);
+                  setShowManualForm(true);
+                }}
+              >
+                <Text style={styles.tryManualButtonText}>Enter Manually Instead</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
+      
+      {/* Show import button only when not previewing */}
+      {!showHealthDataPreview && (
+        <>
+          <TouchableOpacity 
+            style={[styles.importButton, Platform.OS === 'web' && styles.disabledButton]}
+            onPress={handleHealthAppImport}
+            disabled={isLoading || Platform.OS === 'web'}
+          >
+            {isLoading ? (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator color="#fff" />
+                <Text style={styles.loadingText}>{loadingMessage}</Text>
+              </View>
+            ) : (
+              <Text style={styles.importButtonText}>
+                {Platform.OS === 'ios' ? '🍎 Import from Apple Health' : 
+                 Platform.OS === 'android' ? '🏃 Import from Google Fit' : 
+                 'Import from Health App'}
+              </Text>
+            )}
+          </TouchableOpacity>
 
-      <TouchableOpacity 
-        style={styles.alternativeButton}
-        onPress={() => setShowManualForm(true)}
-        disabled={isLoading}
-      >
-        <Text style={styles.alternativeButtonText}>
-          Or enter data manually →
-        </Text>
-      </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.alternativeButton}
+            onPress={() => setShowManualForm(true)}
+            disabled={isLoading}
+          >
+            <Text style={styles.alternativeButtonText}>
+              Or enter data manually →
+            </Text>
+          </TouchableOpacity>
+        </>
+      )}
     </View>
   );
 
@@ -1411,5 +1540,140 @@ const styles = StyleSheet.create({
     fontSize: 28,
     color: '#ffffff',
     fontWeight: 'bold',
+  },
+  // Health Data Preview Styles
+  healthDataPreview: {
+    backgroundColor: '#f0fdf4',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#86efac',
+  },
+  healthDataPreviewTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#166534',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  healthDataGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  healthDataCard: {
+    width: '48%',
+    backgroundColor: '#ffffff',
+    borderRadius: 10,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#d1fae5',
+    marginBottom: 8,
+  },
+  healthDataCardEmpty: {
+    backgroundColor: '#f9fafb',
+    borderColor: '#e5e7eb',
+  },
+  healthDataIcon: {
+    fontSize: 24,
+    marginBottom: 4,
+  },
+  healthDataLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  healthDataValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  healthDataValueEmpty: {
+    fontSize: 13,
+    color: '#9ca3af',
+    fontWeight: '400',
+  },
+  healthDataActions: {
+    marginTop: 16,
+    gap: 10,
+  },
+  syncButton: {
+    backgroundColor: '#10b981',
+    borderRadius: 10,
+    padding: 14,
+    alignItems: 'center',
+  },
+  syncButtonDisabled: {
+    backgroundColor: '#9ca3af',
+  },
+  syncButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  refreshButton: {
+    backgroundColor: '#3b82f6',
+    borderRadius: 10,
+    padding: 12,
+    alignItems: 'center',
+  },
+  refreshButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  dismissButton: {
+    backgroundColor: '#f3f4f6',
+    borderRadius: 10,
+    padding: 12,
+    alignItems: 'center',
+  },
+  dismissButtonText: {
+    color: '#6b7280',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  syncWarning: {
+    backgroundColor: '#fef3c7',
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#f59e0b',
+  },
+  syncWarningText: {
+    fontSize: 12,
+    color: '#92400e',
+    lineHeight: 18,
+  },
+  noDataBox: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  noDataIcon: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  noDataText: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 16,
+  },
+  tryManualButton: {
+    backgroundColor: '#6366f1',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  tryManualButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 }); 

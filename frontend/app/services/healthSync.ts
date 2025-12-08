@@ -710,12 +710,19 @@ const processAndSyncHealthData = async (healthData: HealthData): Promise<boolean
       log_date: today.toISOString().split('T')[0],
     };
 
-    // Only sync if we have meaningful data
-    const hasData = payload.sleep_hours > 0 || payload.exercise_duration > 0 || payload.water_intake > 0;
+    // Only sync if we have meaningful data (including steps)
+    const hasData = payload.sleep_hours > 0 || 
+                    payload.exercise_duration > 0 || 
+                    payload.water_intake > 0 ||
+                    (healthData.steps && healthData.steps > 0);
     if (!hasData) {
       console.log('⏭️ No meaningful health data to sync');
       return false;
     }
+    
+    // Add steps to the log note if available
+    console.log(`📊 Health data summary: Sleep=${payload.sleep_hours}h, Exercise=${payload.exercise_duration}min, Water=${payload.water_intake}L, Steps=${healthData.steps || 0}`);
+    
 
     console.log('📤 Syncing health data to backend:', payload);
     const response = await createRoutineLog(payload);

@@ -17,16 +17,23 @@ interface HealthCheckResult {
 
 /**
  * Check if backend is awake and responsive
+ * 
+ * Note: Render free tier takes 30-60 seconds to cold start.
+ * For quick checks, use shortTimeout=true (5s).
+ * For production/cold start scenarios, use shortTimeout=false (65s).
  */
-export const checkBackendHealth = async (): Promise<HealthCheckResult> => {
+export const checkBackendHealth = async (shortTimeout: boolean = false): Promise<HealthCheckResult> => {
   const startTime = Date.now();
   
+  // Use longer timeout for production cold starts (Render free tier takes 30-60s)
+  const timeout = shortTimeout ? 5000 : 65000;
+  
   try {
-    console.log('🏥 Checking backend health...');
+    console.log(`🏥 Checking backend health (timeout: ${timeout/1000}s)...`);
     
     // Try to ping the health endpoint
     const response = await apiClient.get('/health', {
-      timeout: 5000, // 5 second timeout for health check
+      timeout,
     });
     
     const responseTime = Date.now() - startTime;
@@ -52,12 +59,16 @@ export const checkBackendHealth = async (): Promise<HealthCheckResult> => {
 
 /**
  * Wake up backend with retries (for Render free tier)
+ * 
+ * Strategy:
+ * 1. First attempt with long timeout (65s) - handles cold start
+ * 2. Subsequent attempts with short timeout (5s) - backend should be awake
  */
 export const wakeUpBackend = async (
-  maxRetries: number = 3,
+  maxRetries: number = 2,
   onProgress?: (attempt: number, maxRetries: number) => void
 ): Promise<boolean> => {
-  console.log('⏰ Waking up backend...');
+  console.log('⏰ Waking up backend (Render cold start may take 30-60s)...');
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     if (onProgress) {
@@ -66,16 +77,18 @@ export const wakeUpBackend = async (
     
     console.log(`🔄 Wake-up attempt ${attempt}/${maxRetries}...`);
     
-    const result = await checkBackendHealth();
+    // First attempt uses long timeout for cold start, subsequent use short timeout
+    const useShortTimeout = attempt > 1;
+    const result = await checkBackendHealth(useShortTimeout);
     
     if (result.isAwake) {
-      console.log(`✅ Backend awake after ${attempt} attempt(s)`);
+      console.log(`✅ Backend awake after ${attempt} attempt(s) (${result.responseTime}ms)`);
       return true;
     }
     
-    // Wait before retry (exponential backoff)
+    // Wait before retry (only if not last attempt)
     if (attempt < maxRetries) {
-      const waitTime = Math.min(5000 * attempt, 15000); // Max 15 seconds
+      const waitTime = 5000;
       console.log(`⏳ Waiting ${waitTime}ms before retry...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
