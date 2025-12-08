@@ -219,25 +219,60 @@ export default function DataImport({ navigation, route }: Props) {
       console.log('📊 Permission status:', permissionStatus);
 
       if (!permissionStatus.isAuthorized) {
-        Alert.alert(
-          'Permissions Required',
-          `${permissionStatus.message}\n\n` +
-          (permissionStatus.missingPermissions.length > 0 
-            ? `Missing: ${permissionStatus.missingPermissions.join(', ')}\n\n` 
-            : '') +
-          'Please grant health data access in your device settings.',
-          [
-            { text: 'OK' },
-            {
-              text: 'Try Again',
-              onPress: () => handleHealthAppImport()
-            },
-            {
-              text: 'Manual Entry',
-              onPress: () => setShowManualForm(true)
-            }
-          ]
-        );
+        // Check if the issue is missing native module vs denied permissions
+        const isModuleMissing = permissionStatus.message?.includes('module not installed') ||
+          permissionStatus.message?.includes('Module error') ||
+          permissionStatus.missingPermissions.some((p: string) => p.includes('react-native-health'));
+
+        if (isModuleMissing) {
+          // Native module not installed - explain custom build requirement
+          Alert.alert(
+            '🔧 Custom Build Required',
+            Platform.OS === 'ios'
+              ? 'Health app integration requires a custom app build with Apple HealthKit support.\n\n' +
+                '📱 This feature is not available in Expo Go.\n\n' +
+                'To enable Health App import:\n' +
+                '1. Run: npx expo prebuild\n' +
+                '2. Run: npx expo run:ios\n\n' +
+                '💡 For now, use Manual Entry to log your health data.'
+              : 'Health app integration requires a custom app build with Health Connect support.\n\n' +
+                '📱 This feature is not available in Expo Go.\n\n' +
+                'To enable Health App import:\n' +
+                '1. Install "Health Connect" from Play Store\n' +
+                '2. Run: npx expo prebuild\n' +
+                '3. Run: npx expo run:android\n\n' +
+                '💡 For now, use Manual Entry to log your health data.',
+            [
+              { text: 'OK' },
+              {
+                text: 'Use Manual Entry',
+                onPress: () => setShowManualForm(true),
+                style: 'default'
+              }
+            ]
+          );
+        } else {
+          // Permissions denied - guide user to settings
+          Alert.alert(
+            'Permissions Required',
+            `${permissionStatus.message}\n\n` +
+            'Please grant health data access in your device settings:\n\n' +
+            (Platform.OS === 'ios'
+              ? 'Settings → Privacy & Security → Health → LifePattern'
+              : 'Settings → Apps → LifePattern → Permissions'),
+            [
+              { text: 'OK' },
+              {
+                text: 'Try Again',
+                onPress: () => handleHealthAppImport()
+              },
+              {
+                text: 'Manual Entry',
+                onPress: () => setShowManualForm(true)
+              }
+            ]
+          );
+        }
         setIsLoading(false);
         return;
       }

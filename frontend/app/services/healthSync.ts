@@ -126,9 +126,21 @@ export const requestIOSHealthPermissions = async (): Promise<HealthPermissionSta
 
   try {
     // Dynamic import to prevent crashes on non-iOS or when module not available
-    const AppleHealthKit = require('react-native-health').default;
+    // react-native-health exports can vary - try multiple access patterns
+    const healthModule = require('react-native-health');
+    const AppleHealthKit = healthModule.default || healthModule.AppleHealthKit || healthModule;
     
-    if (!AppleHealthKit) {
+    console.log('🔍 Health module import result:', {
+      hasDefault: !!healthModule.default,
+      hasAppleHealthKit: !!healthModule.AppleHealthKit,
+      moduleKeys: Object.keys(healthModule || {}),
+      AppleHealthKit: !!AppleHealthKit,
+      hasConstants: !!(AppleHealthKit?.Constants),
+      hasInitHealthKit: typeof AppleHealthKit?.initHealthKit,
+    });
+    
+    if (!AppleHealthKit || !AppleHealthKit.initHealthKit) {
+      console.error('❌ AppleHealthKit not properly loaded:', AppleHealthKit);
       return {
         isAvailable: false,
         isAuthorized: false,
@@ -137,20 +149,33 @@ export const requestIOSHealthPermissions = async (): Promise<HealthPermissionSta
       };
     }
 
+    // Build permissions object - use Constants if available, otherwise use string values
+    const Permissions = AppleHealthKit.Constants?.Permissions || {
+      SleepAnalysis: 'SleepAnalysis',
+      Steps: 'Steps',
+      DistanceWalkingRunning: 'DistanceWalkingRunning',
+      ActiveEnergyBurned: 'ActiveEnergyBurned',
+      Water: 'Water',
+      HeartRate: 'HeartRate',
+      Workout: 'Workout',
+    };
+
     const permissions = {
       permissions: {
         read: [
-          AppleHealthKit.Constants.Permissions.SleepAnalysis,
-          AppleHealthKit.Constants.Permissions.Steps,
-          AppleHealthKit.Constants.Permissions.DistanceWalkingRunning,
-          AppleHealthKit.Constants.Permissions.ActiveEnergyBurned,
-          AppleHealthKit.Constants.Permissions.Water,
-          AppleHealthKit.Constants.Permissions.HeartRate,
-          AppleHealthKit.Constants.Permissions.Workout,
+          Permissions.SleepAnalysis,
+          Permissions.Steps,
+          Permissions.DistanceWalkingRunning,
+          Permissions.ActiveEnergyBurned,
+          Permissions.Water,
+          Permissions.HeartRate,
+          Permissions.Workout,
         ],
         write: [],
       },
     };
+
+    console.log('📋 Requesting HealthKit permissions:', permissions);
 
     return new Promise((resolve) => {
       AppleHealthKit.initHealthKit(permissions, (error: string) => {
@@ -191,18 +216,20 @@ const fetchIOSHealthData = async (settings: HealthSyncSettings): Promise<HealthD
   try {
     console.log('📱 Fetching iOS health data...');
     
-    // Dynamic import
+    // Dynamic import - try multiple access patterns
     let AppleHealthKit: any;
     try {
-      AppleHealthKit = require('react-native-health').default;
+      const healthModule = require('react-native-health');
+      AppleHealthKit = healthModule.default || healthModule.AppleHealthKit || healthModule;
+      console.log('📱 AppleHealthKit loaded for data fetch:', !!AppleHealthKit);
     } catch (error) {
       console.error('❌ react-native-health not available');
       console.warn('   Run: npx expo run:ios to build with native modules');
       return null;
     }
 
-    if (!AppleHealthKit) {
-      console.error('❌ AppleHealthKit is null');
+    if (!AppleHealthKit || !AppleHealthKit.getSleepSamples) {
+      console.error('❌ AppleHealthKit is null or missing methods');
       return null;
     }
 

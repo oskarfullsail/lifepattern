@@ -19,7 +19,7 @@ const getBackendUrl = () => {
 
     if (Platform.OS === 'ios') {
       console.log('🔧 DEV MODE (iOS): Using localhost:8080');
-      return 'http://localhost:8080';
+      return 'https://lifepattern-backend.onrender.com';
     }
 
     if (Platform.OS === 'android') {
