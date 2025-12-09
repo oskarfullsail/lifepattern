@@ -281,6 +281,18 @@ export class UserManager {
     }
   }
 
+  // Update user session (for biometric auth and other session updates)
+  async updateSession(session: UserSession): Promise<void> {
+    try {
+      this.currentSession = session;
+      await secureStorage.setItemAsync('userSession', JSON.stringify(session));
+      console.log('✅ Session updated successfully');
+    } catch (error) {
+      console.error('Error updating session:', error);
+      throw error;
+    }
+  }
+
   // Get user credentials (username only - passphrase is never stored)
   async getUserCredentials(): Promise<UserCredentials | null> {
     try {
@@ -451,7 +463,12 @@ export class UserManager {
       await secureStorage.deleteItemAsync('refreshToken');
       await secureStorage.deleteItemAsync('userCredentials');
       
-      console.log('✅ Session cleared - all local data removed');
+      // Also clear biometric login preference since tokens are gone
+      // This prevents Face ID prompt showing when no tokens exist
+      await secureStorage.deleteItemAsync('biometricLoginEnabled');
+      await secureStorage.deleteItemAsync('biometricEnabledAt');
+      
+      console.log('✅ Session cleared - all local data and biometric preference removed');
     } catch (error) {
       console.error('❌ Error during session clear:', error);
     } finally {

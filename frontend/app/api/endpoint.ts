@@ -414,4 +414,71 @@ export const submitUsabilitySurvey = async (payload: UsabilitySurveyRequest): Pr
 export const getUsabilitySurveys = async (): Promise<UsabilitySurveyResponse[]> => {
   const res = await apiClient.get<UsabilitySurveyResponse[]>('/api/usability-surveys');
   return res.data;
+};
+
+// ============================================================================
+// Drift Detection API
+// ============================================================================
+
+export interface DriftFeature {
+  name: string;
+  current_value: number;
+  baseline_mean: number;
+  zscore: number;
+  deviation: 'normal' | 'moderate' | 'significant';
+  percent_change: number;
+}
+
+export interface DriftInsightsResponse {
+  user_id: string;
+  drift_detected: boolean;
+  drift_score: number;
+  severity: 'none' | 'low' | 'moderate' | 'high';
+  drift_type: string;
+  top_features: DriftFeature[];
+  recommendation: string;
+  statistical_analysis?: any;
+  anomaly_analysis?: any;
+  baseline_data_points: number;
+  analysis_timestamp: string;
+  error?: string;
+}
+
+/**
+ * Fetch drift detection insights for a user
+ * This analyzes behavioral patterns and detects changes from baseline
+ */
+export const fetchDriftInsights = async (userId: string): Promise<DriftInsightsResponse> => {
+  console.log('🔍 Fetching drift insights for user:', userId);
+  
+  try {
+    const res = await apiClient.get<DriftInsightsResponse>('/api/ai/drift', {
+      params: { user_id: userId },
+      timeout: 60000, // 60 second timeout for cold start + analysis
+    });
+    
+    console.log('✅ Drift insights received:', {
+      detected: res.data.drift_detected,
+      severity: res.data.severity,
+      features: res.data.top_features?.length || 0
+    });
+    
+    return res.data;
+  } catch (error: any) {
+    console.error('❌ Failed to fetch drift insights:', error.message);
+    
+    // Return graceful fallback
+    return {
+      user_id: userId,
+      drift_detected: false,
+      drift_score: 0,
+      severity: 'none',
+      drift_type: 'fetch_error',
+      top_features: [],
+      recommendation: 'Unable to analyze drift patterns at this time.',
+      baseline_data_points: 0,
+      analysis_timestamp: new Date().toISOString(),
+      error: error.message,
+    };
+  }
 }; 

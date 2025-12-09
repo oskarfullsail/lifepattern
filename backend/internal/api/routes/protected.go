@@ -31,6 +31,10 @@ func SetupProtectedRoutes(router *mux.Router, container *container.Container) {
 	aiRouter.HandleFunc("/heartbeat", container.Handlers.HeartbeatHandler.GetHeartbeat).Methods("GET", "OPTIONS")
 	log.Println("✅ AI routes registered")
 
+	// Drift detection endpoint
+	protectedRouter.HandleFunc("/ai/drift", container.Handlers.DriftHandler.GetDriftAnalysis).Methods("GET", "OPTIONS")
+	log.Println("✅ Drift detection route registered")
+
 	// Insight endpoints
 	protectedRouter.HandleFunc("/insights", container.Handlers.InsightHandler.GetInsight).Methods("GET", "OPTIONS")
 	protectedRouter.HandleFunc("/user-insights", container.Handlers.InsightHandler.GetUserInsights).Methods("GET", "OPTIONS")

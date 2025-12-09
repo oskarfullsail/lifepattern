@@ -185,12 +185,17 @@ export async function loginWithBiometrics(): Promise<{
       };
     }
 
-    // Check if user has valid tokens stored
-    const accessToken = await SecureStore.getItemAsync('accessToken');
-    const refreshToken = await SecureStore.getItemAsync('refreshToken');
+    // Use userManager to get tokens (handles SecureStore/AsyncStorage fallback properly)
+    const accessToken = await userManager.getAccessToken();
+    const refreshToken = await userManager.getRefreshToken();
+    
+    console.log('🔐 Biometric auth - checking tokens:');
+    console.log(`   Access token exists: ${!!accessToken}`);
+    console.log(`   Refresh token exists: ${!!refreshToken}`);
 
     if (!refreshToken) {
       // No tokens stored - user needs to login with password first
+      console.log('❌ No refresh token found in storage');
       return {
         success: false,
         needsPassword: true,
@@ -203,12 +208,13 @@ export async function loginWithBiometrics(): Promise<{
       // Token is valid, user is authenticated
       console.log('✅ Biometric login successful - using valid access token');
       
-      // Update session
+      // Update session via userManager
       const session = await userManager.getCurrentUser();
       if (session) {
         session.isAuthenticated = true;
         session.lastLogin = new Date().toISOString();
-        await SecureStore.setItemAsync('userSession', JSON.stringify(session));
+        // Use userManager's internal storage method
+        await userManager.updateSession(session);
       }
       
       return { success: true };
@@ -216,12 +222,14 @@ export async function loginWithBiometrics(): Promise<{
 
     // Access token expired or missing, try to refresh
     if (refreshToken) {
-      console.log('🔄 Access token expired, refreshing...');
+      console.log('🔄 Access token expired or missing, refreshing...');
       const refreshed = await userManager.refreshTokenIfNeeded();
       
       if (refreshed) {
         console.log('✅ Biometric login successful - token refreshed');
         return { success: true };
+      } else {
+        console.log('❌ Token refresh failed');
       }
     }
 
@@ -260,9 +268,9 @@ export async function isBiometricLoginEnabled(): Promise<boolean> {
 export async function setBiometricLoginEnabled(enabled: boolean): Promise<void> {
   try {
     if (enabled) {
-      // Verify we have tokens before enabling biometric login
-      const accessToken = await SecureStore.getItemAsync('accessToken');
-      const refreshToken = await SecureStore.getItemAsync('refreshToken');
+      // Verify we have tokens before enabling biometric login (use userManager for proper storage access)
+      const accessToken = await userManager.getAccessToken();
+      const refreshToken = await userManager.getRefreshToken();
       
       if (!refreshToken) {
         console.error('❌ Cannot enable biometric login: No refresh token stored');
@@ -315,9 +323,9 @@ export async function tryBiometricAutoLogin(): Promise<{
     const enabledAt = await SecureStore.getItemAsync('biometricEnabledAt');
     console.log(`   Biometric enabled at: ${enabledAt || 'unknown'}`);
 
-    // Check if user has tokens
-    const refreshToken = await SecureStore.getItemAsync('refreshToken');
-    const accessToken = await SecureStore.getItemAsync('accessToken');
+    // Check if user has tokens (use userManager for proper storage access)
+    const refreshToken = await userManager.getRefreshToken();
+    const accessToken = await userManager.getAccessToken();
     console.log(`   Has refresh token: ${!!refreshToken}`);
     console.log(`   Has access token: ${!!accessToken}`);
     

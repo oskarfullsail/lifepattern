@@ -27,6 +27,7 @@ import {
 import { testBackendConnection } from './api/client';
 import userManager from './utils/userManager';
 import { getServiceStatus, ServiceStatus } from './services/serviceWarmup';
+import DriftInsightsCard from './components/DriftInsightsCard';
 
 type UserDashboardScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'UserDashboard'>;
 
@@ -662,6 +663,14 @@ export default function UserDashboard({ navigation }: Props) {
             </View>
           )}
         </View>
+
+        {/* Drift Detection Insights */}
+        {currentUser?.userId && (
+          <DriftInsightsCard 
+            userId={currentUser.userId}
+            onRefresh={handleRefresh}
+          />
+        )}
 
         {/* Debug Info */}
         <View style={styles.debugSection}>

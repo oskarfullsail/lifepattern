@@ -167,16 +167,7 @@ export default function Login({ navigation }: Props) {
           Alert.alert(
             'Setup Required',
             result.error || 'Please log in with your username and password first to enable biometric authentication.',
-            [
-              { text: 'OK' },
-              {
-                text: 'Enable Biometric Login',
-                onPress: async () => {
-                  // After successful password login, enable biometric
-                  // This will be handled in handleLogin
-                },
-              },
-            ]
+            [{ text: 'OK' }]
           );
         } else if (result.error === 'Authentication cancelled' || result.error?.includes('cancel')) {
           // User cancelled, do nothing

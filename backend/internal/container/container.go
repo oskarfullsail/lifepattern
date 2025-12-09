@@ -43,6 +43,7 @@ type Handlers struct {
 	DailyAnalysisHandler *handlers.DailyAnalysisHandler
 	WeeklySummaryHandler *handlers.WeeklySummaryHandler
 	HeartbeatHandler     *handlers.HeartbeatHandler
+	DriftHandler         *handlers.DriftHandler
 }
 
 // Middleware holds all HTTP middleware
@@ -90,6 +91,7 @@ func NewContainer(cfg *config.Config, db *sql.DB) *Container {
 		DailyAnalysisHandler: handlers.NewDailyAnalysisHandler(services.AIService),
 		WeeklySummaryHandler: handlers.NewWeeklySummaryHandler(services.AIService),
 		HeartbeatHandler:     handlers.NewHeartbeatHandler(services.AIService),
+		DriftHandler:         handlers.NewDriftHandler(services.RoutineService, services.AIService),
 	}
 	log.Println("✅ All handlers created")
 

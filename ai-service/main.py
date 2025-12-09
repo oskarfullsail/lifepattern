@@ -988,6 +988,296 @@ class HeartbeatResponse(BaseModel):
     timestamp: str
     greeting: str
 
+# ============================================================================
+# Drift Detection Endpoints
+# ============================================================================
+
+class DriftAnalysisRequest(BaseModel):
+    user_id: str = Field(..., description="User identifier")
+    historical_data: list = Field(..., description="List of historical routine data points")
+    window_days: int = Field(default=30, ge=7, le=90, description="Window for baseline calculation")
+
+class DriftFeature(BaseModel):
+    name: str
+    current_value: float
+    baseline_mean: float
+    zscore: float
+    deviation: str  # "normal", "moderate", "significant"
+    percent_change: float
+
+class DriftAnalysisResponse(BaseModel):
+    user_id: str
+    drift_detected: bool
+    drift_score: float  # 0.0 to 1.0
+    severity: str  # "none", "low", "moderate", "high"
+    drift_type: str
+    top_features: list[DriftFeature]
+    recommendation: str
+    statistical_analysis: dict = None
+    anomaly_analysis: dict = None
+    baseline_data_points: int
+    analysis_timestamp: str
+
+@app.post("/drift/analyze", response_model=DriftAnalysisResponse)
+async def analyze_drift(data: DriftAnalysisRequest):
+    """
+    Analyze behavioral drift for a user based on their historical data.
+    
+    This endpoint:
+    - Calculates user baseline from historical data
+    - Detects drift using Z-score, T-test, and Isolation Forest
+    - Returns severity, top drifting features, and recommendations
+    """
+    try:
+        logger.info(f"Received drift analysis request for user {data.user_id} with {len(data.historical_data)} data points")
+        
+        if len(data.historical_data) < 7:
+            return DriftAnalysisResponse(
+                user_id=data.user_id,
+                drift_detected=False,
+                drift_score=0.0,
+                severity="none",
+                drift_type="insufficient_data",
+                top_features=[],
+                recommendation="Need at least 7 days of data to analyze behavioral patterns. Keep logging your daily routines!",
+                statistical_analysis={},
+                anomaly_analysis={},
+                baseline_data_points=len(data.historical_data),
+                analysis_timestamp=datetime.now().isoformat()
+            )
+        
+        # Prepare historical data with derived features
+        processed_data = []
+        for record in data.historical_data:
+            processed_record = {
+                'sleep_hours': record.get('sleep_hours', 0),
+                'screen_time': record.get('screen_time', 0),
+                'exercise_duration': record.get('exercise_duration', 0),
+                'water_intake': record.get('water_intake', 0),
+                'stress_level': record.get('stress_level', 5),
+                'health_score': record.get('health_score', 0.5),
+                'wake_up_hour': record.get('wake_up_hour', 7),
+                'bed_time_hour': record.get('bed_time_hour', 23),
+                'meal_count': record.get('meal_count', 3)
+            }
+            
+            # Calculate health score if not provided
+            if processed_record['health_score'] == 0.5:
+                processed_record['health_score'] = _calculate_health_score_from_dict(processed_record)
+            
+            processed_data.append(processed_record)
+        
+        # Calculate baseline from first portion of data
+        baseline_window = min(data.window_days, len(processed_data) - 7)
+        baseline_data = processed_data[:baseline_window]
+        recent_data = processed_data[-10:] if len(processed_data) >= 10 else processed_data[-7:]
+        
+        # Calculate baseline for user
+        drift_detector.calculate_baseline(data.user_id, baseline_data)
+        
+        # Perform statistical drift detection
+        statistical_analysis = drift_detector.detect_drift_statistical(data.user_id, recent_data)
+        
+        # Perform anomaly detection
+        anomaly_analysis = drift_detector.detect_anomalies_isolation_forest(data.user_id, recent_data)
+        
+        # Combine results
+        drift_detected = statistical_analysis.get('drift_detected', False) or anomaly_analysis.get('anomaly_detected', False)
+        drift_score = max(statistical_analysis.get('confidence', 0), anomaly_analysis.get('confidence', 0))
+        
+        # Determine severity
+        if drift_score >= 0.7:
+            severity = "high"
+        elif drift_score >= 0.4:
+            severity = "moderate"
+        elif drift_score >= 0.1:
+            severity = "low"
+        else:
+            severity = "none"
+        
+        # Determine drift type
+        if statistical_analysis.get('drift_detected') and anomaly_analysis.get('anomaly_detected'):
+            drift_type = "combined_behavioral_drift"
+        elif statistical_analysis.get('drift_detected'):
+            drift_type = statistical_analysis.get('drift_type', 'statistical_drift')
+        elif anomaly_analysis.get('anomaly_detected'):
+            drift_type = "anomaly_drift"
+        else:
+            drift_type = "no_drift"
+        
+        # Extract top drifting features
+        top_features = []
+        drift_scores = statistical_analysis.get('drift_scores', {})
+        
+        # Sort features by drift score
+        sorted_features = sorted(
+            drift_scores.items(),
+            key=lambda x: x[1].get('drift_score', 0),
+            reverse=True
+        )[:5]  # Top 5 features
+        
+        for feature_name, feature_data in sorted_features:
+            if feature_data.get('drift_score', 0) > 0.1:  # Only include notable drift
+                top_features.append(DriftFeature(
+                    name=feature_name,
+                    current_value=round(feature_data.get('recent_mean', 0), 2),
+                    baseline_mean=round(feature_data.get('baseline_mean', 0), 2),
+                    zscore=round(feature_data.get('z_score', 0), 2),
+                    deviation="significant" if abs(feature_data.get('z_score', 0)) > 2 else 
+                              "moderate" if abs(feature_data.get('z_score', 0)) > 1 else "normal",
+                    percent_change=round(
+                        ((feature_data.get('recent_mean', 0) - feature_data.get('baseline_mean', 1)) / 
+                         max(feature_data.get('baseline_mean', 1), 0.01)) * 100, 1
+                    )
+                ))
+        
+        # Generate recommendation
+        recommendation = _generate_drift_recommendation(drift_detected, severity, top_features, drift_type)
+        
+        # Convert numpy types for JSON serialization
+        def convert_numpy_types(obj):
+            if hasattr(obj, 'item'):
+                return obj.item()
+            elif isinstance(obj, dict):
+                return {k: convert_numpy_types(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_numpy_types(v) for v in obj]
+            elif isinstance(obj, (np.bool_, np.integer, np.floating)):
+                return obj.item()
+            elif isinstance(obj, (np.ndarray,)):
+                return obj.tolist()
+            return obj
+        
+        response = DriftAnalysisResponse(
+            user_id=data.user_id,
+            drift_detected=drift_detected,
+            drift_score=round(drift_score, 3),
+            severity=severity,
+            drift_type=drift_type,
+            top_features=top_features,
+            recommendation=recommendation,
+            statistical_analysis=convert_numpy_types(statistical_analysis),
+            anomaly_analysis=convert_numpy_types(anomaly_analysis),
+            baseline_data_points=len(baseline_data),
+            analysis_timestamp=datetime.now().isoformat()
+        )
+        
+        logger.info(f"Drift analysis completed for user {data.user_id}: detected={drift_detected}, severity={severity}")
+        return response
+        
+    except Exception as e:
+        logger.error(f"Drift analysis error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Drift analysis failed: {str(e)}")
+
+def _calculate_health_score_from_dict(data: dict) -> float:
+    """Calculate health score from dictionary data"""
+    score = 0.0
+    
+    sleep = data.get('sleep_hours', 0)
+    if 7 <= sleep <= 9:
+        score += 0.25
+    elif 6 <= sleep <= 10:
+        score += 0.15
+    else:
+        score += 0.05
+    
+    exercise = data.get('exercise_duration', 0)
+    if exercise >= 1.0:
+        score += 0.20
+    elif exercise >= 0.5:
+        score += 0.15
+    else:
+        score += 0.05
+    
+    screen = data.get('screen_time', 0)
+    if screen <= 4:
+        score += 0.15
+    elif screen <= 6:
+        score += 0.10
+    else:
+        score += 0.05
+    
+    water = data.get('water_intake', 0)
+    if water >= 2.5:
+        score += 0.15
+    elif water >= 2.0:
+        score += 0.12
+    else:
+        score += 0.05
+    
+    stress = data.get('stress_level', 5)
+    if stress <= 3:
+        score += 0.15
+    elif stress <= 5:
+        score += 0.12
+    else:
+        score += 0.05
+    
+    meals = data.get('meal_count', 0)
+    if meals >= 3:
+        score += 0.10
+    elif meals >= 2:
+        score += 0.07
+    else:
+        score += 0.03
+    
+    return min(score, 1.0)
+
+def _generate_drift_recommendation(drift_detected: bool, severity: str, 
+                                   top_features: list, drift_type: str) -> str:
+    """Generate personalized recommendation based on drift analysis"""
+    if not drift_detected or severity == "none":
+        return "Your behavioral patterns are stable and consistent. Keep up the great work maintaining healthy habits!"
+    
+    if not top_features:
+        return "Some minor variations detected in your routine. Continue monitoring your habits."
+    
+    # Build recommendation based on top drifting features
+    recommendations = []
+    
+    for feature in top_features[:3]:  # Focus on top 3
+        name = feature.name
+        zscore = feature.zscore
+        percent_change = feature.percent_change
+        
+        if name == "sleep_hours":
+            if zscore < 0:
+                recommendations.append(f"Your sleep has decreased by {abs(percent_change):.0f}%. Try to maintain 7-9 hours for optimal recovery.")
+            else:
+                recommendations.append(f"You're sleeping {percent_change:.0f}% more than usual. While rest is good, oversleeping may indicate fatigue.")
+        
+        elif name == "exercise_duration":
+            if zscore < 0:
+                recommendations.append(f"Exercise has dropped by {abs(percent_change):.0f}%. Even 15-minute walks can help maintain momentum.")
+            else:
+                recommendations.append(f"Great job increasing exercise by {percent_change:.0f}%! Make sure to include rest days.")
+        
+        elif name == "screen_time":
+            if zscore > 0:
+                recommendations.append(f"Screen time increased by {percent_change:.0f}%. Consider digital detox breaks.")
+            else:
+                recommendations.append(f"Good work reducing screen time by {abs(percent_change):.0f}%!")
+        
+        elif name == "stress_level":
+            if zscore > 0:
+                recommendations.append(f"Stress levels are up {percent_change:.0f}%. Try breathing exercises or meditation.")
+            else:
+                recommendations.append(f"Stress is down {abs(percent_change):.0f}% — keep up whatever you're doing!")
+        
+        elif name == "water_intake":
+            if zscore < 0:
+                recommendations.append(f"Hydration dropped by {abs(percent_change):.0f}%. Aim for at least 2L daily.")
+    
+    if recommendations:
+        severity_prefix = {
+            "high": "⚠️ Significant changes detected: ",
+            "moderate": "📊 Notable patterns emerging: ",
+            "low": "ℹ️ Minor variations noticed: "
+        }
+        return severity_prefix.get(severity, "") + " ".join(recommendations)
+    
+    return "Your patterns show some variation. Consider reviewing your recent habits."
+
 @app.get("/status/heartbeat", response_model=HeartbeatResponse)
 async def heartbeat(user_id: Optional[str] = None):
     """

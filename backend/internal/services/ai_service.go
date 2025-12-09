@@ -578,3 +578,108 @@ type WeeklySummaryResponse struct {
 		TimeHorizon     string `json:"time_horizon,omitempty"`
 	} `json:"micro_goals"`
 }
+
+// ============================================================================
+// Drift Detection Types and Methods
+// ============================================================================
+
+// DriftAnalysisRequest represents the request to AI service for drift analysis
+type DriftAnalysisRequest struct {
+	UserID         string                   `json:"user_id"`
+	HistoricalData []map[string]interface{} `json:"historical_data"`
+	WindowDays     int                      `json:"window_days"`
+}
+
+// DriftFeature represents a feature with drift information
+type DriftFeature struct {
+	Name          string  `json:"name"`
+	CurrentValue  float64 `json:"current_value"`
+	BaselineMean  float64 `json:"baseline_mean"`
+	ZScore        float64 `json:"zscore"`
+	Deviation     string  `json:"deviation"`
+	PercentChange float64 `json:"percent_change"`
+}
+
+// DriftAnalysisResponse represents the response from AI service
+type DriftAnalysisResponse struct {
+	UserID              string                 `json:"user_id"`
+	DriftDetected       bool                   `json:"drift_detected"`
+	DriftScore          float64                `json:"drift_score"`
+	Severity            string                 `json:"severity"`
+	DriftType           string                 `json:"drift_type"`
+	TopFeatures         []DriftFeature         `json:"top_features"`
+	Recommendation      string                 `json:"recommendation"`
+	StatisticalAnalysis map[string]interface{} `json:"statistical_analysis,omitempty"`
+	AnomalyAnalysis     map[string]interface{} `json:"anomaly_analysis,omitempty"`
+	BaselineDataPoints  int                    `json:"baseline_data_points"`
+	AnalysisTimestamp   string                 `json:"analysis_timestamp"`
+}
+
+// AnalyzeDrift calls the AI service's /drift/analyze endpoint
+// This method handles behavioral drift detection for a user
+func (s *AIService) AnalyzeDrift(ctx context.Context, userID string, historicalLogs []database.RoutineLog) (*DriftAnalysisResponse, error) {
+	// Wake up AI service if sleeping
+	if err := s.ensureAIServiceAwake(); err != nil {
+		log.Printf("⚠️ Failed to wake AI service: %v", err)
+		// Continue anyway, might still work
+	}
+
+	log.Printf("🔍 Sending drift analysis request to AI service at %s/drift/analyze for user %s with %d logs",
+		s.baseURL, userID, len(historicalLogs))
+
+	// Convert routine logs to the format expected by AI service
+	historicalData := make([]map[string]interface{}, len(historicalLogs))
+	for i, logEntry := range historicalLogs {
+		historicalData[i] = map[string]interface{}{
+			"sleep_hours":       logEntry.SleepHours,
+			"screen_time":       logEntry.ScreenTime,
+			"exercise_duration": logEntry.ExerciseDuration,
+			"water_intake":      logEntry.WaterIntake,
+			"stress_level":      logEntry.StressLevel,
+			"wake_up_hour":      extractHourFromTime(logEntry.WakeUpTime),
+			"bed_time_hour":     extractHourFromTime(logEntry.BedTime),
+			"meal_count":        len(logEntry.MealTimes),
+			"health_score":      calculateHealthScore(logEntry),
+		}
+	}
+
+	// Build request
+	request := DriftAnalysisRequest{
+		UserID:         userID,
+		HistoricalData: historicalData,
+		WindowDays:     30,
+	}
+
+	requestJSON, err := json.Marshal(request)
+	if err != nil {
+		log.Printf("❌ Failed to marshal drift analysis request: %v", err)
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	log.Printf("📤 Sending drift analysis request: %d bytes of data", len(requestJSON))
+
+	// Use retry logic for rate limits with context timeout
+	resp, body, err := s.makeRequestWithRetry(ctx, s.baseURL+"/drift/analyze", requestJSON, 3)
+	if err != nil {
+		log.Printf("❌ Failed to call AI service after retries: %v", err)
+		return nil, fmt.Errorf("failed to call AI service: %w", err)
+	}
+
+	log.Printf("📥 Received drift analysis response (status: %d): %s", resp.StatusCode, string(body))
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("❌ AI service returned error status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("AI service error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	var driftResponse DriftAnalysisResponse
+	if err := json.Unmarshal(body, &driftResponse); err != nil {
+		log.Printf("❌ Failed to unmarshal drift analysis response: %v", err)
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	log.Printf("✅ Successfully processed drift analysis - Detected: %v, Severity: %s, Features: %d",
+		driftResponse.DriftDetected, driftResponse.Severity, len(driftResponse.TopFeatures))
+
+	return &driftResponse, nil
+}
