@@ -43,6 +43,7 @@ export default function Login({ navigation }: Props) {
     typeLabel: '',
   });
   const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [hasStoredTokens, setHasStoredTokens] = useState(false);
   const passwordInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
@@ -65,34 +66,39 @@ export default function Login({ navigation }: Props) {
       
       console.log('🔐 Biometric check:', { enabled, isSupported: capabilities.isSupported, isEnrolled: capabilities.isEnrolled });
 
-      // 3. If biometric is enabled and supported, try auto-login BEFORE showing login form
-      if (enabled && capabilities.isSupported && capabilities.isEnrolled) {
-        const hasTokens = await userManager.getRefreshToken();
-        console.log('🔑 Has stored tokens:', !!hasTokens);
+      // 3. Check if we have stored tokens (needed to show biometric button)
+      const hasTokens = await userManager.getRefreshToken();
+      setHasStoredTokens(!!hasTokens);
+      console.log('🔑 Has stored tokens:', !!hasTokens);
+      
+      // 4. If biometric is enabled, supported, AND we have tokens, try auto-login
+      if (enabled && capabilities.isSupported && capabilities.isEnrolled && hasTokens) {
+        console.log('🔄 Attempting biometric auto-login...');
+        const autoLoginResult = await tryBiometricAutoLogin();
         
-        if (hasTokens) {
-          console.log('🔄 Attempting biometric auto-login...');
-          const autoLoginResult = await tryBiometricAutoLogin();
+        if (autoLoginResult.success) {
+          console.log('✅ Biometric auto-login successful');
           
-          if (autoLoginResult.success) {
-            console.log('✅ Biometric auto-login successful');
-            
-            // Start warming up backend services in the background
-            try {
-              console.log('🌅 Starting background service warm-up after auto-login...');
-              startBackgroundWarmup((progress) => {
-                console.log(`📊 Service warm-up: ${progress.message} (${progress.progress}%)`);
-              });
-            } catch (error) {
-              console.error('❌ Error starting background warm-up:', error);
-            }
-            
-            navigation.replace('UserDashboard');
-            return; // Don't continue to show login form
-          } else {
-            console.log('ℹ️ Biometric auto-login failed:', autoLoginResult.error);
-            // Continue to show login form as fallback
+          // Start warming up backend services in the background
+          try {
+            console.log('🌅 Starting background service warm-up after auto-login...');
+            startBackgroundWarmup((progress) => {
+              console.log(`📊 Service warm-up: ${progress.message} (${progress.progress}%)`);
+            });
+          } catch (error) {
+            console.error('❌ Error starting background warm-up:', error);
           }
+          
+          navigation.replace('UserDashboard');
+          return; // Don't continue to show login form
+        } else {
+          console.log('ℹ️ Biometric auto-login failed:', autoLoginResult.error);
+          // If auto-login failed due to missing tokens, update state
+          if (autoLoginResult.needsPassword) {
+            setHasStoredTokens(false);
+            setBiometricEnabled(false);
+          }
+          // Continue to show login form as fallback
         }
       }
 
@@ -209,6 +215,9 @@ export default function Login({ navigation }: Props) {
       if (success) {
         console.log('✅ Login successful');
         
+        // Update token state - we now have tokens
+        setHasStoredTokens(true);
+        
         // Start warming up backend services in the background
         // This ensures both services are ready when user needs them
         try {
@@ -238,6 +247,7 @@ export default function Login({ navigation }: Props) {
                 onPress: async () => {
                   await setBiometricLoginEnabled(true);
                   setBiometricEnabled(true);
+                  setHasStoredTokens(true); // Ensure we track that tokens exist
                   console.log(`✅ ${biometricCapabilities.typeLabel} login enabled`);
                   navigation.replace('UserDashboard');
                 },
@@ -382,8 +392,8 @@ export default function Login({ navigation }: Props) {
           />
         </View>
 
-        {/* Biometric Login Button - Show if supported and enrolled */}
-        {biometricCapabilities.isSupported && biometricCapabilities.isEnrolled && (
+        {/* Biometric Login Button - Show only if supported, enrolled, enabled, AND has tokens */}
+        {biometricCapabilities.isSupported && biometricCapabilities.isEnrolled && biometricEnabled && hasStoredTokens && (
           <TouchableOpacity
             style={[styles.biometricButton, isLoading && styles.disabledButton]}
             onPress={handleBiometricLogin}
@@ -407,7 +417,10 @@ export default function Login({ navigation }: Props) {
             <ActivityIndicator color="#fff" />
           ) : (
             <Text style={styles.loginButtonText}>
-              {biometricCapabilities.isSupported && biometricCapabilities.isEnrolled ? 'Sign In with Password' : 'Sign In'}
+              {/* Only show "with Password" if biometric button is also visible */}
+              {biometricCapabilities.isSupported && biometricCapabilities.isEnrolled && biometricEnabled && hasStoredTokens 
+                ? 'Sign In with Password' 
+                : 'Sign In'}
             </Text>
           )}
         </TouchableOpacity>

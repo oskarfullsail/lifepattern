@@ -8,12 +8,16 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  Linking,
+  Platform,
+  Share,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation';
 import apiClient from './api/client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system';
 
 type AdminDashboardScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -163,61 +167,399 @@ export default function AdminDashboard({ navigation }: Props) {
     }
   };
 
-  const handleExportScreenings = async () => {
+  // Generate PDF Report for Surveys
+  const generateSurveyPDFReport = async () => {
     try {
-      const url = `${apiClient.defaults.baseURL}/api/admin/screenings/export`;
-      const token = await AsyncStorage.getItem('accessToken');
+      if (surveys.length === 0) {
+        Alert.alert('No Data', 'No survey data available to export.');
+        return;
+      }
 
-      Alert.alert(
-        'Export Screenings',
-        'Opening CSV export in browser. The file will download automatically.',
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          },
-          {
-            text: 'Export',
-            onPress: async () => {
-              // On web, we can fetch and download
-              // On mobile, we open in browser
-              const exportUrl = `${url}?token=${token}`;
-              await Linking.openURL(exportUrl);
-            },
-          },
-        ]
-      );
+      const currentDate = new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+
+      // Calculate summary statistics
+      const avgSUS = surveys.reduce((acc, s) => acc + s.sus_score, 0) / surveys.length;
+      const avgRating = surveys.reduce((acc, s) => acc + s.average_rating, 0) / surveys.length;
+      const excellent = surveys.filter(s => s.sus_score >= 80).length;
+      const good = surveys.filter(s => s.sus_score >= 68 && s.sus_score < 80).length;
+      const ok = surveys.filter(s => s.sus_score >= 50 && s.sus_score < 68).length;
+      const poor = surveys.filter(s => s.sus_score < 50).length;
+
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 40px; color: #333; }
+            h1 { color: #2c3e50; border-bottom: 3px solid #4A90E2; padding-bottom: 10px; }
+            h2 { color: #4A90E2; margin-top: 30px; }
+            .header { text-align: center; margin-bottom: 40px; }
+            .date { color: #666; font-size: 14px; }
+            .summary-box { background: #f8f9fa; border-radius: 8px; padding: 20px; margin: 20px 0; }
+            .stat-row { display: flex; justify-content: space-around; margin: 15px 0; }
+            .stat-item { text-align: center; }
+            .stat-value { font-size: 32px; font-weight: bold; color: #4A90E2; }
+            .stat-label { font-size: 12px; color: #666; }
+            .distribution { margin: 20px 0; }
+            .dist-bar { display: flex; align-items: center; margin: 8px 0; }
+            .dist-label { width: 120px; font-size: 14px; }
+            .dist-value { font-weight: bold; margin-left: 10px; }
+            .excellent { color: #28a745; }
+            .good { color: #5cb85c; }
+            .ok { color: #ffc107; }
+            .poor { color: #dc3545; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th { background: #4A90E2; color: white; padding: 12px; text-align: left; }
+            td { border-bottom: 1px solid #ddd; padding: 12px; }
+            tr:nth-child(even) { background: #f8f9fa; }
+            .feedback { font-style: italic; color: #555; max-width: 300px; }
+            .footer { margin-top: 40px; text-align: center; color: #999; font-size: 12px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>📊 LifePattern AI - Usability Survey Report</h1>
+            <p class="date">Generated on ${currentDate}</p>
+          </div>
+
+          <div class="summary-box">
+            <h2>📈 Summary Statistics</h2>
+            <div class="stat-row">
+              <div class="stat-item">
+                <div class="stat-value">${surveys.length}</div>
+                <div class="stat-label">Total Surveys</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-value">${avgSUS.toFixed(1)}</div>
+                <div class="stat-label">Average SUS Score</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-value">${avgRating.toFixed(2)}/5.0</div>
+                <div class="stat-label">Average Rating</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="summary-box">
+            <h2>📊 SUS Score Distribution</h2>
+            <div class="distribution">
+              <div class="dist-bar">
+                <span class="dist-label excellent">Excellent (80+):</span>
+                <span class="dist-value excellent">${excellent} (${((excellent/surveys.length)*100).toFixed(1)}%)</span>
+              </div>
+              <div class="dist-bar">
+                <span class="dist-label good">Good (68-79):</span>
+                <span class="dist-value good">${good} (${((good/surveys.length)*100).toFixed(1)}%)</span>
+              </div>
+              <div class="dist-bar">
+                <span class="dist-label ok">OK (50-67):</span>
+                <span class="dist-value ok">${ok} (${((ok/surveys.length)*100).toFixed(1)}%)</span>
+              </div>
+              <div class="dist-bar">
+                <span class="dist-label poor">Poor (&lt;50):</span>
+                <span class="dist-value poor">${poor} (${((poor/surveys.length)*100).toFixed(1)}%)</span>
+              </div>
+            </div>
+          </div>
+
+          <h2>📝 Individual Survey Responses</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>User ID</th>
+                <th>SUS Score</th>
+                <th>Rating</th>
+                <th>Liked Most</th>
+                <th>Would Improve</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${surveys.map(s => `
+                <tr>
+                  <td>${new Date(s.created_at).toLocaleDateString()}</td>
+                  <td>${s.user_id.substring(0, 8)}...</td>
+                  <td><strong>${s.sus_score.toFixed(1)}</strong></td>
+                  <td>${s.average_rating.toFixed(2)}/5</td>
+                  <td class="feedback">${s.liked_most || '-'}</td>
+                  <td class="feedback">${s.would_improve || '-'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div class="footer">
+            <p>LifePattern AI - Thesis Research Project</p>
+            <p>Report contains ${surveys.length} survey responses</p>
+          </div>
+        </body>
+        </html>
+      `;
+
+      console.log('📄 Generating PDF...');
+      const { uri } = await Print.printToFileAsync({ html: htmlContent });
+      console.log('✅ PDF generated at:', uri);
+
+      // Share the PDF
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: 'LifePattern Usability Survey Report',
+          UTI: 'com.adobe.pdf',
+        });
+      } else {
+        Alert.alert('Success', `PDF saved to: ${uri}`);
+      }
     } catch (error) {
-      console.error('Error exporting screenings:', error);
-      Alert.alert('Error', 'Failed to export screenings');
+      console.error('Error generating PDF:', error);
+      Alert.alert('Error', 'Failed to generate PDF report');
     }
   };
 
-  const handleExportSurveys = async () => {
+  // Generate PDF Report for Screenings
+  const generateScreeningPDFReport = async () => {
     try {
-      const url = `${apiClient.defaults.baseURL}/api/admin/usability-surveys/export`;
-      const token = await AsyncStorage.getItem('accessToken');
+      if (screenings.length === 0) {
+        Alert.alert('No Data', 'No screening data available to export.');
+        return;
+      }
 
-      Alert.alert(
-        'Export Surveys',
-        'Opening CSV export in browser. The file will download automatically.',
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          },
-          {
-            text: 'Export',
-            onPress: async () => {
-              const exportUrl = `${url}?token=${token}`;
-              await Linking.openURL(exportUrl);
-            },
-          },
-        ]
-      );
+      const currentDate = new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+
+      const qualified = screenings.filter(s => s.is_qualified_tester).length;
+      const avgScore = screenings.reduce((acc, s) => acc + s.qualification_score, 0) / screenings.length;
+
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 40px; color: #333; }
+            h1 { color: #2c3e50; border-bottom: 3px solid #4A90E2; padding-bottom: 10px; }
+            h2 { color: #4A90E2; margin-top: 30px; }
+            .header { text-align: center; margin-bottom: 40px; }
+            .date { color: #666; font-size: 14px; }
+            .summary-box { background: #f8f9fa; border-radius: 8px; padding: 20px; margin: 20px 0; }
+            .stat-row { display: flex; justify-content: space-around; margin: 15px 0; }
+            .stat-item { text-align: center; }
+            .stat-value { font-size: 32px; font-weight: bold; color: #4A90E2; }
+            .stat-label { font-size: 12px; color: #666; }
+            .qualified { color: #28a745; }
+            .not-qualified { color: #dc3545; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th { background: #4A90E2; color: white; padding: 12px; text-align: left; }
+            td { border-bottom: 1px solid #ddd; padding: 12px; }
+            tr:nth-child(even) { background: #f8f9fa; }
+            .footer { margin-top: 40px; text-align: center; color: #999; font-size: 12px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>📋 LifePattern AI - Screening Questionnaire Report</h1>
+            <p class="date">Generated on ${currentDate}</p>
+          </div>
+
+          <div class="summary-box">
+            <h2>📈 Summary Statistics</h2>
+            <div class="stat-row">
+              <div class="stat-item">
+                <div class="stat-value">${screenings.length}</div>
+                <div class="stat-label">Total Screenings</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-value qualified">${qualified}</div>
+                <div class="stat-label">Qualified Testers</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-value">${((qualified/screenings.length)*100).toFixed(1)}%</div>
+                <div class="stat-label">Qualification Rate</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-value">${avgScore.toFixed(1)}/12</div>
+                <div class="stat-label">Avg Score</div>
+              </div>
+            </div>
+          </div>
+
+          <h2>📝 Individual Screening Responses</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>User ID</th>
+                <th>Age</th>
+                <th>Gender</th>
+                <th>Occupation</th>
+                <th>Qualified</th>
+                <th>Score</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${screenings.map(s => `
+                <tr>
+                  <td>${new Date(s.created_at).toLocaleDateString()}</td>
+                  <td>${s.user_id.substring(0, 8)}...</td>
+                  <td>${s.age}</td>
+                  <td>${s.gender}</td>
+                  <td>${s.occupation}</td>
+                  <td class="${s.is_qualified_tester ? 'qualified' : 'not-qualified'}">
+                    ${s.is_qualified_tester ? '✓ Yes' : '✗ No'}
+                  </td>
+                  <td>${s.qualification_score}/12</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div class="footer">
+            <p>LifePattern AI - Thesis Research Project</p>
+            <p>Report contains ${screenings.length} screening responses</p>
+          </div>
+        </body>
+        </html>
+      `;
+
+      console.log('📄 Generating PDF...');
+      const { uri } = await Print.printToFileAsync({ html: htmlContent });
+      console.log('✅ PDF generated at:', uri);
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: 'LifePattern Screening Report',
+          UTI: 'com.adobe.pdf',
+        });
+      } else {
+        Alert.alert('Success', `PDF saved to: ${uri}`);
+      }
     } catch (error) {
-      console.error('Error exporting surveys:', error);
-      Alert.alert('Error', 'Failed to export surveys');
+      console.error('Error generating PDF:', error);
+      Alert.alert('Error', 'Failed to generate PDF report');
+    }
+  };
+
+  // Export Surveys as CSV
+  const handleExportSurveysCSV = async () => {
+    try {
+      if (surveys.length === 0) {
+        Alert.alert('No Data', 'No survey data available to export.');
+        return;
+      }
+
+      // Create CSV content
+      const headers = ['Date', 'User ID', 'SUS Score', 'Average Rating', 'Liked Most', 'Would Improve'];
+      const rows = surveys.map(s => [
+        new Date(s.created_at).toISOString(),
+        s.user_id,
+        s.sus_score.toFixed(2),
+        s.average_rating.toFixed(2),
+        `"${(s.liked_most || '').replace(/"/g, '""')}"`,
+        `"${(s.would_improve || '').replace(/"/g, '""')}"`,
+      ]);
+
+      const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+
+      if (Platform.OS === 'web') {
+        // Web: Create blob and download
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `lifepattern_surveys_${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        // Mobile: Save to file and share
+        const fileName = `lifepattern_surveys_${new Date().toISOString().split('T')[0]}.csv`;
+        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+        await FileSystem.writeAsStringAsync(fileUri, csvContent);
+
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: 'text/csv',
+            dialogTitle: 'Export Survey Data',
+          });
+        } else {
+          Alert.alert('Success', `CSV saved to: ${fileUri}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+      Alert.alert('Error', 'Failed to export CSV');
+    }
+  };
+
+  // Export Screenings as CSV
+  const handleExportScreeningsCSV = async () => {
+    try {
+      if (screenings.length === 0) {
+        Alert.alert('No Data', 'No screening data available to export.');
+        return;
+      }
+
+      const headers = ['Date', 'User ID', 'Age', 'Gender', 'Occupation', 'Qualified', 'Score'];
+      const rows = screenings.map(s => [
+        new Date(s.created_at).toISOString(),
+        s.user_id,
+        s.age,
+        s.gender,
+        `"${(s.occupation || '').replace(/"/g, '""')}"`,
+        s.is_qualified_tester ? 'Yes' : 'No',
+        s.qualification_score,
+      ]);
+
+      const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+
+      if (Platform.OS === 'web') {
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `lifepattern_screenings_${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const fileName = `lifepattern_screenings_${new Date().toISOString().split('T')[0]}.csv`;
+        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+        await FileSystem.writeAsStringAsync(fileUri, csvContent);
+
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: 'text/csv',
+            dialogTitle: 'Export Screening Data',
+          });
+        } else {
+          Alert.alert('Success', `CSV saved to: ${fileUri}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+      Alert.alert('Error', 'Failed to export CSV');
+    }
+  };
+
+  // Copy raw data to clipboard (for quick access)
+  const handleCopyRawData = async (type: 'surveys' | 'screenings') => {
+    try {
+      const data = type === 'surveys' ? surveys : screenings;
+      const jsonString = JSON.stringify(data, null, 2);
+      
+      await Share.share({
+        message: jsonString,
+        title: `LifePattern ${type} Data`,
+      });
+    } catch (error) {
+      console.error('Error sharing data:', error);
     }
   };
 
@@ -363,17 +705,44 @@ export default function AdminDashboard({ navigation }: Props) {
 
         {/* Export Buttons */}
         <View style={styles.exportContainer}>
+          <Text style={styles.exportSectionTitle}>📄 Survey Exports</Text>
           <TouchableOpacity
-            style={styles.exportButton}
-            onPress={handleExportScreenings}
+            style={[styles.exportButton, styles.pdfButton]}
+            onPress={generateSurveyPDFReport}
           >
-            <Text style={styles.exportButtonText}>📥 Export Screenings CSV</Text>
+            <Text style={styles.exportButtonText}>📊 Export Survey Report (PDF)</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.exportButton}
-            onPress={handleExportSurveys}
+            onPress={handleExportSurveysCSV}
           >
-            <Text style={styles.exportButtonText}>📥 Export Surveys CSV</Text>
+            <Text style={styles.exportButtonText}>📥 Export Survey Data (CSV)</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.exportButton, styles.shareButton]}
+            onPress={() => handleCopyRawData('surveys')}
+          >
+            <Text style={styles.exportButtonText}>📋 Share Raw Survey Data</Text>
+          </TouchableOpacity>
+
+          <Text style={[styles.exportSectionTitle, { marginTop: 20 }]}>📋 Screening Exports</Text>
+          <TouchableOpacity
+            style={[styles.exportButton, styles.pdfButton]}
+            onPress={generateScreeningPDFReport}
+          >
+            <Text style={styles.exportButtonText}>📊 Export Screening Report (PDF)</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.exportButton}
+            onPress={handleExportScreeningsCSV}
+          >
+            <Text style={styles.exportButtonText}>📥 Export Screening Data (CSV)</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.exportButton, styles.shareButton]}
+            onPress={() => handleCopyRawData('screenings')}
+          >
+            <Text style={styles.exportButtonText}>📋 Share Raw Screening Data</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -807,12 +1176,26 @@ const styles = StyleSheet.create({
   exportContainer: {
     gap: 12,
     marginTop: 8,
+    paddingBottom: 40,
+  },
+  exportSectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginTop: 8,
+    marginBottom: 4,
   },
   exportButton: {
     backgroundColor: '#28a745',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
+  },
+  pdfButton: {
+    backgroundColor: '#dc3545',
+  },
+  shareButton: {
+    backgroundColor: '#6c757d',
   },
   exportButtonText: {
     color: '#fff',

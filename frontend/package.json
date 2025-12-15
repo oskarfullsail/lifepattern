@@ -50,7 +50,10 @@
     "react-native-svg": "15.8.0",
     "react-native-web": "~0.19.6",
     "stream-browserify": "^3.0.0",
-    "vm-browserify": "^1.1.2"
+    "vm-browserify": "^1.1.2",
+    "expo-print": "~14.0.3",
+    "expo-sharing": "~13.0.1",
+    "expo-file-system": "~18.0.12"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
