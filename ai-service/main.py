@@ -995,7 +995,7 @@ class HeartbeatResponse(BaseModel):
 class DriftAnalysisRequest(BaseModel):
     user_id: str = Field(..., description="User identifier")
     historical_data: list = Field(..., description="List of historical routine data points")
-    window_days: int = Field(default=30, ge=7, le=90, description="Window for baseline calculation")
+    window_days: int = Field(default=30, ge=3, le=90, description="Window for baseline calculation")
 
 class DriftFeature(BaseModel):
     name: str
@@ -1031,7 +1031,7 @@ async def analyze_drift(data: DriftAnalysisRequest):
     try:
         logger.info(f"Received drift analysis request for user {data.user_id} with {len(data.historical_data)} data points")
         
-        if len(data.historical_data) < 7:
+        if len(data.historical_data) < 3:
             return DriftAnalysisResponse(
                 user_id=data.user_id,
                 drift_detected=False,
@@ -1039,7 +1039,7 @@ async def analyze_drift(data: DriftAnalysisRequest):
                 severity="none",
                 drift_type="insufficient_data",
                 top_features=[],
-                recommendation="Need at least 7 days of data to analyze behavioral patterns. Keep logging your daily routines!",
+                recommendation="Need at least 3 days of data to analyze behavioral patterns. Keep logging your daily routines!",
                 statistical_analysis={},
                 anomaly_analysis={},
                 baseline_data_points=len(data.historical_data),
@@ -1068,9 +1068,9 @@ async def analyze_drift(data: DriftAnalysisRequest):
             processed_data.append(processed_record)
         
         # Calculate baseline from first portion of data
-        baseline_window = min(data.window_days, len(processed_data) - 7)
-        baseline_data = processed_data[:baseline_window]
-        recent_data = processed_data[-10:] if len(processed_data) >= 10 else processed_data[-7:]
+        baseline_window = min(data.window_days, len(processed_data) - 3)
+        baseline_data = processed_data[:baseline_window] if baseline_window > 0 else processed_data
+        recent_data = processed_data[-10:] if len(processed_data) >= 10 else processed_data[-3:]
         
         # Calculate baseline for user
         drift_detector.calculate_baseline(data.user_id, baseline_data)

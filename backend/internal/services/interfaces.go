@@ -42,6 +42,8 @@ type RepositoryInterface interface {
 	SaveAIReport(report database.AIReport) error
 	GetRoutineLogWithAIReport(logID int) (*database.InsightResponse, error)
 	GetRoutineLogsByUser(userID uuid.UUID, limit int) ([]database.RoutineLog, error)
+	GetRoutineLogsCountByUser(userID uuid.UUID) (int, error)
+	GetAIReportsCountByUser(userID uuid.UUID) (int, error)
 
 	// Database operations
 	Ping() error
@@ -60,5 +62,7 @@ type RoutineServiceInterface interface {
 	CreateRoutineLog(routineLog database.RoutineLog) (*CreateRoutineLogResponse, error)
 	GetInsight(logID int) (*database.InsightResponse, error)
 	GetUserRoutineLogs(userID uuid.UUID, limit int) ([]database.RoutineLog, error)
+	GetUserRoutineLogsCount(userID uuid.UUID) (int, error)
 	GetUserInsights(userID uuid.UUID, limit int) ([]database.InsightResponse, error)
+	GetUserInsightsCount(userID uuid.UUID) (int, error)
 }

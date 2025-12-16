@@ -32,7 +32,7 @@ class DriftDetectorAlt:
         """
         Calculate user baseline from historical routine data
         """
-        if len(historical_data) < 7:  # Need at least a week of data
+        if len(historical_data) < 3:  # Need at least 3 days of data
             return self._get_default_baseline()
             
         df = pd.DataFrame(historical_data)
@@ -95,7 +95,7 @@ class DriftDetectorAlt:
         """
         Detect drift using statistical methods (t-test, z-score analysis)
         """
-        if len(recent_data) < 10:  # Need at least 10 data points
+        if len(recent_data) < 3:  # Need at least 3 data points
             return {'drift_detected': False, 'confidence': 0.0, 'drift_type': 'insufficient_data'}
         
         if user_id not in self.user_baselines:
@@ -163,7 +163,7 @@ class DriftDetectorAlt:
         """
         Detect anomalies using Isolation Forest
         """
-        if len(recent_data) < 5:
+        if len(recent_data) < 3:  # Need at least 3 data points
             return {'anomaly_detected': False, 'confidence': 0.0, 'anomaly_type': 'insufficient_data'}
         
         # Prepare features for anomaly detection

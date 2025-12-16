@@ -212,7 +212,7 @@ export const createRoutineLog = async (payload: RoutineLogPayload) => {
 };
 
 export const getUserRoutineLogs = async (user_id: string, limit = 10) => {
-  const res = await apiClient.get<{ logs: RoutineLogPayload[]; user_id: string }>(`/api/logs`, {
+  const res = await apiClient.get<{ logs: RoutineLogPayload[]; user_id: string; total_count: number }>(`/api/logs`, {
     params: { user_id, limit },
   });
   return res.data;
@@ -226,7 +226,7 @@ export const getInsight = async (log_id: number) => {
 };
 
 export const getUserInsights = async (user_id: string, limit = 10) => {
-  const res = await apiClient.get<{ user_id: string; insights: InsightResponse[]; count: number }>(`/api/user-insights`, {
+  const res = await apiClient.get<{ user_id: string; insights: InsightResponse[]; count: number; total_count: number }>(`/api/user-insights`, {
     params: { user_id, limit },
   });
   return res.data;

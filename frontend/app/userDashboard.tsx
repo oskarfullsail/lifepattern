@@ -46,6 +46,7 @@ export default function UserDashboard({ navigation }: Props) {
   const [linkStatus, setLinkStatus] = useState<LinkStatusResponse | null>(null);
   const [watchData, setWatchData] = useState<WatchData | null>(null);
   const [routineLogs, setRoutineLogs] = useState<RoutineLogPayload[]>([]);
+  const [totalLogsCount, setTotalLogsCount] = useState<number>(0);
   const [insightsCount, setInsightsCount] = useState<number>(0);
 
   // Feature states
@@ -236,20 +237,22 @@ export default function UserDashboard({ navigation }: Props) {
 
       console.log('📊 Loading routine logs and insights for user:', userId);
 
-      // Fetch routine logs
+      // Fetch routine logs (get last 5 for display, but total_count for stats)
       try {
         const logsData = await getUserRoutineLogs(userId, 5); // Get last 5 logs
-        console.log(`✅ Loaded ${logsData.logs?.length || 0} routine logs`);
+        console.log(`✅ Loaded ${logsData.logs?.length || 0} routine logs (total: ${logsData.total_count || 0})`);
         setRoutineLogs(logsData.logs || []);
+        setTotalLogsCount(logsData.total_count || logsData.logs?.length || 0);
       } catch (logsError) {
         console.error('❌ Error loading routine logs:', logsError);
         setRoutineLogs([]);
+        setTotalLogsCount(0);
       }
 
-      // Fetch insights count
+      // Fetch insights count (use total_count from API)
       try {
         const insightsData = await getUserInsights(userId, 1);
-        const count = insightsData?.count || 0;
+        const count = insightsData?.total_count || insightsData?.count || 0;
         console.log(`✅ User has ${count} AI insights`);
         setInsightsCount(count);
       } catch (insightsError) {
@@ -641,7 +644,7 @@ export default function UserDashboard({ navigation }: Props) {
                 <View style={styles.statItem}>
                   <Text style={styles.statIcon}>📈</Text>
                   <Text style={styles.statLabel}>Total Logs</Text>
-                  <Text style={styles.statValue}>{routineLogs.length}</Text>
+                  <Text style={styles.statValue}>{totalLogsCount}</Text>
                 </View>
                 <View style={styles.statItem}>
                   <Text style={styles.statIcon}>🤖</Text>

@@ -174,6 +174,26 @@ func (s *RoutineService) GetUserInsights(userID uuid.UUID, limit int) ([]databas
 	return insights, nil
 }
 
+// GetUserRoutineLogsCount returns the total count of routine logs for a user
+func (s *RoutineService) GetUserRoutineLogsCount(userID uuid.UUID) (int, error) {
+	count, err := s.repo.GetRoutineLogsCountByUser(userID)
+	if err != nil {
+		log.Printf("❌ Failed to get routine logs count for user %s: %v", userID, err)
+		return 0, err
+	}
+	return count, nil
+}
+
+// GetUserInsightsCount returns the total count of AI insights for a user
+func (s *RoutineService) GetUserInsightsCount(userID uuid.UUID) (int, error) {
+	count, err := s.repo.GetAIReportsCountByUser(userID)
+	if err != nil {
+		log.Printf("❌ Failed to get AI reports count for user %s: %v", userID, err)
+		return 0, err
+	}
+	return count, nil
+}
+
 // Response types
 type CreateRoutineLogResponse struct {
 	LogID      int                `json:"log_id"`

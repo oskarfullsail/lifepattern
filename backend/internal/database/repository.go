@@ -340,6 +340,30 @@ func (r *Repository) GetRoutineLogsByUser(userID uuid.UUID, limit int) ([]Routin
 	return logs, nil
 }
 
+// GetRoutineLogsCountByUser returns the total count of routine logs for a user
+func (r *Repository) GetRoutineLogsCountByUser(userID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM routine_logs WHERE user_id = $1`
+	var count int
+	err := r.db.QueryRow(query, userID).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get routine logs count: %w", err)
+	}
+	return count, nil
+}
+
+// GetAIReportsCountByUser returns the total count of AI reports for a user
+func (r *Repository) GetAIReportsCountByUser(userID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM ai_reports ar 
+		INNER JOIN routine_logs rl ON ar.routine_log_id = rl.id 
+		WHERE rl.user_id = $1`
+	var count int
+	err := r.db.QueryRow(query, userID).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get AI reports count: %w", err)
+	}
+	return count, nil
+}
+
 // SaveLinkToken saves a link token to the database
 func (r *Repository) SaveLinkToken(linkToken LinkToken) error {
 	query := `INSERT INTO link_tokens (id, token_hash, user_id, created_at, expires_at, device_label) 

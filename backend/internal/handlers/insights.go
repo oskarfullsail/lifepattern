@@ -84,11 +84,19 @@ func (h *InsightHandler) GetUserInsights(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Get total count of insights for this user
+	totalCount, err := h.routineService.GetUserInsightsCount(userID)
+	if err != nil {
+		// If we can't get the count, just use the length of insights
+		totalCount = len(insights)
+	}
+
 	// Return insights in the format expected by frontend
 	response := map[string]interface{}{
-		"user_id":  userID.String(),
-		"insights": insights,
-		"count":    len(insights),
+		"user_id":     userID.String(),
+		"insights":    insights,
+		"count":       totalCount,
+		"total_count": totalCount,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

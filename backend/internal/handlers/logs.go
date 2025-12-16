@@ -136,10 +136,18 @@ func (h *LogHandler) GetUserRoutineLogs(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Get total count of logs for this user
+	totalCount, err := h.routineService.GetUserRoutineLogsCount(userID)
+	if err != nil {
+		// If we can't get the count, just use the length of logs
+		totalCount = len(logs)
+	}
+
 	// Return logs in the format expected by frontend
 	response := map[string]interface{}{
-		"user_id": userID.String(),
-		"logs":    logs,
+		"user_id":     userID.String(),
+		"logs":        logs,
+		"total_count": totalCount,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

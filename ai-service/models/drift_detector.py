@@ -25,7 +25,7 @@ class DriftDetector:
         """
         Calculate user baseline from historical routine data
         """
-        if len(historical_data) < 7:  # Need at least a week of data
+        if len(historical_data) < 3:  # Need at least 3 days of data
             return self._get_default_baseline()
             
         df = pd.DataFrame(historical_data)

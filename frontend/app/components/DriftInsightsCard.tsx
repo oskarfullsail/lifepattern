@@ -228,7 +228,7 @@ const DriftInsightsCard: React.FC<Props> = ({ userId, onRefresh, autoRefresh = t
         <View style={styles.noDataBox}>
           <Text style={styles.noDataIcon}>📊</Text>
           <Text style={styles.noDataText}>
-            Keep logging your daily routines! We need at least 7 days of data to analyze behavioral patterns.
+            Keep logging your daily routines! We need at least 3 days of data to analyze behavioral patterns.
           </Text>
         </View>
       )}
