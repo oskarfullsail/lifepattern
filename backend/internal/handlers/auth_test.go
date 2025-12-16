@@ -160,6 +160,44 @@ func (m *MockRepository) UpdateLinkToken(linkToken database.LinkToken) error {
 	return args.Error(0)
 }
 
+// UserCredential methods
+func (m *MockRepository) SaveUserCredential(cred database.UserCredential) error {
+	args := m.Called(cred)
+	return args.Error(0)
+}
+
+func (m *MockRepository) GetUserCredentialByUsername(username string) (*database.UserCredential, error) {
+	args := m.Called(username)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*database.UserCredential), args.Error(1)
+}
+
+func (m *MockRepository) GetUserCredentialByUserID(userID uuid.UUID) (*database.UserCredential, error) {
+	args := m.Called(userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*database.UserCredential), args.Error(1)
+}
+
+func (m *MockRepository) UpdateUserCredentialLastUsed(credID uuid.UUID) error {
+	args := m.Called(credID)
+	return args.Error(0)
+}
+
+// Count methods
+func (m *MockRepository) GetRoutineLogsCountByUser(userID uuid.UUID) (int, error) {
+	args := m.Called(userID)
+	return args.Int(0), args.Error(1)
+}
+
+func (m *MockRepository) GetAIReportsCountByUser(userID uuid.UUID) (int, error) {
+	args := m.Called(userID)
+	return args.Int(0), args.Error(1)
+}
+
 // Test setup helper
 func setupAuthTest(t *testing.T) (*AuthHandler, *MockRepository) {
 	mockRepo := new(MockRepository)

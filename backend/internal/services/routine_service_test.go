@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -128,6 +129,46 @@ func (m *MockRepository) GetUserLinkTokens(userID uuid.UUID) ([]database.LinkTok
 
 func (m *MockRepository) UpdateLinkToken(linkToken database.LinkToken) error {
 	return nil
+}
+
+// UserCredential methods
+func (m *MockRepository) SaveUserCredential(cred database.UserCredential) error {
+	return nil
+}
+
+func (m *MockRepository) GetUserCredentialByUsername(username string) (*database.UserCredential, error) {
+	return nil, nil
+}
+
+func (m *MockRepository) GetUserCredentialByUserID(userID uuid.UUID) (*database.UserCredential, error) {
+	return nil, nil
+}
+
+func (m *MockRepository) UpdateUserCredentialLastUsed(credID uuid.UUID) error {
+	return nil
+}
+
+// Count methods
+func (m *MockRepository) GetRoutineLogsCountByUser(userID uuid.UUID) (int, error) {
+	count := 0
+	for _, log := range m.routineLogs {
+		if log.UserID == userID {
+			count++
+		}
+	}
+	return count, nil
+}
+
+func (m *MockRepository) GetAIReportsCountByUser(userID uuid.UUID) (int, error) {
+	count := 0
+	for _, log := range m.routineLogs {
+		if log.UserID == userID {
+			if _, exists := m.aiReports[log.ID]; exists {
+				count++
+			}
+		}
+	}
+	return count, nil
 }
 
 // Mock AI service for testing
@@ -287,7 +328,7 @@ func TestGetInsight(t *testing.T) {
 		ConfidenceScore:    0.85,
 		AnomalyType:        "test_anomaly",
 		Recommendations:    []string{"Test recommendation"},
-		AIServiceResponse:  `{"test": "response"}`,
+		AIServiceResponse:  json.RawMessage(`{"test": "response"}`),
 		DriftAnalysis:      []byte(`{"drift": "analysis"}`),
 		BaselineComparison: []byte(`{"baseline": "comparison"}`),
 		ModelVersion:       "1.0.0",
@@ -422,7 +463,7 @@ func TestGetUserInsights(t *testing.T) {
 			ConfidenceScore:    0.85 + float64(i)*0.05,
 			AnomalyType:        "test_anomaly",
 			Recommendations:    []string{"Test recommendation"},
-			AIServiceResponse:  `{"test": "response"}`,
+			AIServiceResponse:  json.RawMessage(`{"test": "response"}`),
 			DriftAnalysis:      []byte(`{"drift": "analysis"}`),
 			BaselineComparison: []byte(`{"baseline": "comparison"}`),
 			ModelVersion:       "1.0.0",
@@ -473,7 +514,7 @@ func TestGetUserInsightsWithLimit(t *testing.T) {
 			ConfidenceScore:    0.85,
 			AnomalyType:        "test_anomaly",
 			Recommendations:    []string{"Test recommendation"},
-			AIServiceResponse:  `{"test": "response"}`,
+			AIServiceResponse:  json.RawMessage(`{"test": "response"}`),
 			DriftAnalysis:      []byte(`{"drift": "analysis"}`),
 			BaselineComparison: []byte(`{"baseline": "comparison"}`),
 			ModelVersion:       "1.0.0",

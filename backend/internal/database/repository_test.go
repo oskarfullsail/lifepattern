@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"encoding/json"
 	"os"
 	"testing"
 	"time"
@@ -419,7 +420,7 @@ func TestSaveAIReport(t *testing.T) {
 		ConfidenceScore:    0.85,
 		AnomalyType:        "high_screen_time",
 		Recommendations:    []string{"Reduce screen time", "Take more breaks"},
-		AIServiceResponse:  `{"is_anomaly": true, "confidence": 0.85}`,
+		AIServiceResponse:  json.RawMessage(`{"is_anomaly": true, "confidence": 0.85}`),
 		DriftAnalysis:      []byte(`{"drift": "analysis"}`),
 		BaselineComparison: []byte(`{"baseline": "comparison"}`),
 		ModelVersion:       "1.0.0",
@@ -464,7 +465,7 @@ func TestGetRoutineLogWithAIReport(t *testing.T) {
 		ConfidenceScore:    0.92,
 		AnomalyType:        "sleep_deprivation",
 		Recommendations:    []string{"Get more sleep", "Reduce stress"},
-		AIServiceResponse:  `{"is_anomaly": true, "confidence": 0.92}`,
+		AIServiceResponse:  json.RawMessage(`{"is_anomaly": true, "confidence": 0.92}`),
 		DriftAnalysis:      []byte(`{"drift": "analysis"}`),
 		BaselineComparison: []byte(`{"baseline": "comparison"}`),
 		ModelVersion:       "1.0.0",

@@ -108,6 +108,32 @@ func (m *MockHealthRepository) UpdateLinkToken(linkToken database.LinkToken) err
 	return errors.New("not implemented")
 }
 
+// UserCredential methods
+func (m *MockHealthRepository) SaveUserCredential(cred database.UserCredential) error {
+	return errors.New("not implemented")
+}
+
+func (m *MockHealthRepository) GetUserCredentialByUsername(username string) (*database.UserCredential, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *MockHealthRepository) GetUserCredentialByUserID(userID uuid.UUID) (*database.UserCredential, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *MockHealthRepository) UpdateUserCredentialLastUsed(credID uuid.UUID) error {
+	return errors.New("not implemented")
+}
+
+// Count methods
+func (m *MockHealthRepository) GetRoutineLogsCountByUser(userID uuid.UUID) (int, error) {
+	return 0, errors.New("not implemented")
+}
+
+func (m *MockHealthRepository) GetAIReportsCountByUser(userID uuid.UUID) (int, error) {
+	return 0, errors.New("not implemented")
+}
+
 // Mock AI service for testing health
 type MockHealthAIService struct {
 	shouldFail bool

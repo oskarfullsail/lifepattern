@@ -47,7 +47,7 @@ func NewMockInsightRoutineService(shouldFail bool) *MockInsightRoutineService {
 				ConfidenceScore:    0.85,
 				AnomalyType:        "test_anomaly",
 				Recommendations:    []string{"Test recommendation"},
-				AIServiceResponse:  `{"test": "response"}`,
+				AIServiceResponse:  json.RawMessage(`{"test": "response"}`),
 				DriftAnalysis:      []byte(`{"drift": "analysis"}`),
 				BaselineComparison: []byte(`{"baseline": "comparison"}`),
 				ModelVersion:       "1.0.0",
@@ -80,6 +80,23 @@ func (m *MockInsightRoutineService) GetUserInsights(userID uuid.UUID, limit int)
 		return m.insights, nil
 	}
 	return []database.InsightResponse{*m.insight}, nil
+}
+
+func (m *MockInsightRoutineService) GetUserRoutineLogsCount(userID uuid.UUID) (int, error) {
+	if m.shouldFail {
+		return 0, errors.New("service error")
+	}
+	return len(m.insights), nil
+}
+
+func (m *MockInsightRoutineService) GetUserInsightsCount(userID uuid.UUID) (int, error) {
+	if m.shouldFail {
+		return 0, errors.New("service error")
+	}
+	if len(m.insights) > 0 {
+		return len(m.insights), nil
+	}
+	return 1, nil
 }
 
 func TestNewInsightHandler(t *testing.T) {

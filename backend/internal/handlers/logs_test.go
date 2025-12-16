@@ -75,6 +75,20 @@ func (m *MockRoutineService) GetUserInsights(userID uuid.UUID, limit int) ([]dat
 	return m.insights, nil
 }
 
+func (m *MockRoutineService) GetUserRoutineLogsCount(userID uuid.UUID) (int, error) {
+	if m.shouldFail {
+		return 0, errors.New("service error")
+	}
+	return len(m.logs), nil
+}
+
+func (m *MockRoutineService) GetUserInsightsCount(userID uuid.UUID) (int, error) {
+	if m.shouldFail {
+		return 0, errors.New("service error")
+	}
+	return len(m.insights), nil
+}
+
 func TestNewLogHandler(t *testing.T) {
 	mockService := NewMockRoutineService(false)
 	handler := NewLogHandler(mockService)
