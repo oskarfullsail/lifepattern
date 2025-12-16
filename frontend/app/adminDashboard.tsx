@@ -110,11 +110,17 @@ export default function AdminDashboard({ navigation }: Props) {
   };
 
   const handleLogout = async () => {
-    await AsyncStorage.removeItem('adminAuthenticated');
-    setIsAuthenticated(false);
-    setStats(null);
-    setScreenings([]);
-    setSurveys([]);
+    if (isLoading) return; // Prevent double triggers
+    setIsLoading(true);
+    try {
+      await AsyncStorage.removeItem('adminAuthenticated');
+      setIsAuthenticated(false);
+      setStats(null);
+      setScreenings([]);
+      setSurveys([]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const loadData = async () => {

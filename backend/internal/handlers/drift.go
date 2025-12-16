@@ -49,7 +49,7 @@ func (h *DriftHandler) GetDriftAnalysis(w http.ResponseWriter, r *http.Request) 
 	log.Printf("📊 Fetching historical logs for user %s", userID)
 
 	// Fetch user's historical routine logs (last 60 days for good baseline)
-	logs, err := h.routineService.GetUserLogs(userID, 60)
+	logs, err := h.routineService.GetUserRoutineLogs(userID, 60)
 	if err != nil {
 		log.Printf("❌ Failed to fetch user logs: %v", err)
 		http.Error(w, `{"error": "Failed to fetch user data"}`, http.StatusInternalServerError)
@@ -59,7 +59,7 @@ func (h *DriftHandler) GetDriftAnalysis(w http.ResponseWriter, r *http.Request) 
 	log.Printf("📊 Found %d historical logs for user %s", len(logs), userID)
 
 	// Check minimum data requirement
-	if len(logs) < 7 {
+	if len(logs) < 3 {
 		response := map[string]interface{}{
 			"user_id":        userIDStr,
 			"drift_detected": false,
@@ -67,7 +67,7 @@ func (h *DriftHandler) GetDriftAnalysis(w http.ResponseWriter, r *http.Request) 
 			"severity":       "none",
 			"drift_type":     "insufficient_data",
 			"top_features":   []interface{}{},
-			"recommendation": "Need at least 7 days of data to analyze behavioral patterns. Keep logging your daily routines!",
+			"recommendation": "Need at least 3 days of data to analyze behavioral patterns. Keep logging your daily routines!",
 			"data_points":    len(logs),
 			"timestamp":      time.Now().Format(time.RFC3339),
 		}
@@ -86,7 +86,7 @@ func (h *DriftHandler) GetDriftAnalysis(w http.ResponseWriter, r *http.Request) 
 	driftResponse, err := h.aiService.AnalyzeDrift(ctx, userIDStr, logs)
 	if err != nil {
 		log.Printf("❌ AI service drift analysis failed: %v", err)
-		
+
 		// Return graceful fallback response
 		response := map[string]interface{}{
 			"user_id":        userIDStr,
@@ -107,11 +107,10 @@ func (h *DriftHandler) GetDriftAnalysis(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	log.Printf("✅ Drift analysis completed: detected=%v, severity=%s", 
+	log.Printf("✅ Drift analysis completed: detected=%v, severity=%s",
 		driftResponse.DriftDetected, driftResponse.Severity)
 
 	// Return successful response
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(driftResponse)
 }
-

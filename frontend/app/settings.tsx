@@ -35,6 +35,7 @@ export default function Settings({ navigation }: Props) {
     types: [],
     typeLabel: '',
   });
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     loadBiometricSettings();
@@ -82,6 +83,14 @@ export default function Settings({ navigation }: Props) {
   };
 
   const performLogout = async () => {
+    // Prevent double logout
+    if (isLoggingOut) {
+      console.log('⚠️ Logout already in progress, skipping');
+      return;
+    }
+    
+    setIsLoggingOut(true);
+    
     try {
       console.log('🚪 Starting logout...');
 
@@ -106,10 +115,17 @@ export default function Settings({ navigation }: Props) {
           routes: [{ name: 'Home' }],
         })
       );
+    } finally {
+      setIsLoggingOut(false);
     }
   };
 
   const handleLogout = () => {
+    // Prevent triggering if already logging out
+    if (isLoggingOut) {
+      return;
+    }
+    
     if (Platform.OS === 'web') {
       // Use browser confirm for web
       if (window.confirm('Are you sure you want to logout?')) {

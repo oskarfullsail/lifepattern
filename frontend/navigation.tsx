@@ -86,6 +86,7 @@ export function navigateToLogin() {
 
 export default function Navigation() {
   const [navigationError, setNavigationError] = useState(false);
+  const isHandlingSessionExpiry = useRef(false);
 
   // Subscribe to auth events for session expiry handling
   useEffect(() => {
@@ -97,6 +98,14 @@ export default function Navigation() {
           console.log(`🔐 Auth event received in Navigation: ${event}`);
           
           if (event === 'sessionExpired' || event === 'loginRequired') {
+            // Prevent handling multiple session expiry events
+            if (isHandlingSessionExpiry.current) {
+              console.log('⏳ Already handling session expiry, skipping duplicate');
+              return;
+            }
+            
+            isHandlingSessionExpiry.current = true;
+            
             // Show alert and navigate to login
             if (Platform.OS === 'web') {
               window.alert(message || 'Your session has expired. Please log in again.');
@@ -117,9 +126,15 @@ export default function Navigation() {
                 })
               );
             }
+            
+            // Reset flag after a delay to allow future session expiry events
+            setTimeout(() => {
+              isHandlingSessionExpiry.current = false;
+            }, 5000);
           }
         } catch (error) {
           console.error('Error handling auth event:', error);
+          isHandlingSessionExpiry.current = false;
         }
       });
     } catch (error) {

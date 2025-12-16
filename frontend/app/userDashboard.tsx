@@ -61,6 +61,9 @@ export default function UserDashboard({ navigation }: Props) {
   
   // Service warm-up status
   const [serviceStatus, setServiceStatus] = useState<ServiceStatus | null>(null);
+  
+  // Logout state to prevent double triggers
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     checkAuthenticationAndInitialize();
@@ -344,6 +347,14 @@ export default function UserDashboard({ navigation }: Props) {
   };
 
   const handleLogout = async () => {
+    // Prevent double logout
+    if (isLoggingOut) {
+      console.log('⚠️ Logout already in progress, skipping');
+      return;
+    }
+    
+    setIsLoggingOut(true);
+    
     try {
       await userManager.logout();
       Alert.alert('Logged Out', 'You have been logged out.');
@@ -351,6 +362,8 @@ export default function UserDashboard({ navigation }: Props) {
     } catch (error) {
       console.error('Error logging out:', error);
       Alert.alert('Error', 'Failed to log out.');
+    } finally {
+      setIsLoggingOut(false);
     }
   };
 

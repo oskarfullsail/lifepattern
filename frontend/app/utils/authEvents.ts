@@ -9,6 +9,8 @@ type AuthEventListener = (event: AuthEventType, message?: string) => void;
 
 class AuthEventEmitter {
   private listeners: AuthEventListener[] = [];
+  private lastSessionExpiredTime: number = 0;
+  private sessionExpiredDebounceMs: number = 3000; // 3 second debounce
 
   /**
    * Subscribe to auth events
@@ -44,8 +46,18 @@ class AuthEventEmitter {
 
   /**
    * Emit session expired event - used when token refresh fails
+   * Debounced to prevent multiple alerts from simultaneous API failures
    */
   emitSessionExpired(reason?: string): void {
+    const now = Date.now();
+    
+    // Debounce: skip if we just emitted a session expired event
+    if (now - this.lastSessionExpiredTime < this.sessionExpiredDebounceMs) {
+      console.log('⏳ Session expired event debounced (already emitted recently)');
+      return;
+    }
+    
+    this.lastSessionExpiredTime = now;
     this.emit('sessionExpired', reason || 'Your session has expired. Please log in again.');
   }
 
