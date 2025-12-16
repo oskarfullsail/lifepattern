@@ -17,7 +17,9 @@ import screenTimeMonitor from './services/screenTimeMonitor';
 import type { AIProductivityInsight, AICoachSettings } from './services/aiProductivityCoach';
 import { getAICoachTips, AICoachTip, AICoachResponse } from './api/aiInsightsService';
 import { fetchAiHeartbeat, AiHeartbeatResponse } from './api/heartbeat';
+import { fetchDriftInsights, DriftInsightsResponse, DriftFeature } from './api/endpoint';
 import aiWakeupService, { AIServiceStatus } from './services/aiWakeupService';
+import userManager from './utils/userManager';
 
 type AIProductivityInsightsScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -52,6 +54,10 @@ export default function AIProductivityInsights({ navigation }: Props) {
     lastChecked: null,
     retryCount: 0,
   });
+
+  // Drift detection state
+  const [driftData, setDriftData] = useState<DriftInsightsResponse | null>(null);
+  const [driftLoading, setDriftLoading] = useState(false);
 
   useEffect(() => {
     let unsubscribe: (() => void) | null = null;
@@ -142,6 +148,26 @@ export default function AIProductivityInsights({ navigation }: Props) {
         console.log('⚠️ Could not fetch AI Coach tips:', error);
       }
 
+      // Load drift detection insights
+      try {
+        setDriftLoading(true);
+        const userId = await userManager.getUserId();
+        console.log('🔍 Loading drift insights for user:', userId);
+        if (userId) {
+          const drift = await fetchDriftInsights(userId);
+          console.log('📊 Drift API response:', JSON.stringify(drift, null, 2));
+          setDriftData(drift);
+          console.log('✅ Drift insights loaded:', drift.drift_detected ? 'Drift detected' : 'Stable', 'baseline_data_points:', drift.baseline_data_points);
+        } else {
+          console.log('⚠️ No user ID available for drift insights');
+        }
+      } catch (error: any) {
+        console.log('⚠️ Could not fetch drift insights:', error?.message || error);
+      } finally {
+        console.log('🏁 Drift loading complete');
+        setDriftLoading(false);
+      }
+
       // Load local AI coach settings
       const coachSettings = await aiProductivityCoach.loadAICoachSettings();
       setSettings(coachSettings);
@@ -228,6 +254,245 @@ export default function AIProductivityInsights({ navigation }: Props) {
       case 'low': return '#10b981';
       default: return '#6b7280';
     }
+  };
+
+  // Generate daily recovery plan based on drift features
+  const generateDailyRecoveryPlan = (features: DriftFeature[]): { day: string; actions: { icon: string; action: string; target: string }[] }[] => {
+    const days = ['Today', 'Tomorrow', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Day 7'];
+    const plan: { day: string; actions: { icon: string; action: string; target: string }[] }[] = [];
+
+    // Sort features by absolute percent change (most drifted first)
+    const sortedFeatures = [...features].sort((a, b) => Math.abs(b.percent_change) - Math.abs(a.percent_change));
+
+    days.forEach((day, dayIndex) => {
+      const actions: { icon: string; action: string; target: string }[] = [];
+
+      sortedFeatures.forEach((feature) => {
+        const change = feature.percent_change;
+        const baseline = feature.baseline_mean;
+        const current = feature.current_value;
+
+        // Calculate gradual target (move 15% closer to baseline each day)
+        const progressFactor = Math.min((dayIndex + 1) * 0.15, 1);
+        const targetValue = current + (baseline - current) * progressFactor;
+
+        switch (feature.name) {
+          case 'sleep_hours':
+            if (change < -5) {
+              actions.push({
+                icon: '😴',
+                action: dayIndex === 0 ? 'Go to bed 30 min earlier tonight' : `Target ${targetValue.toFixed(1)} hours of sleep`,
+                target: `Baseline: ${baseline.toFixed(1)}h`,
+              });
+            }
+            break;
+          case 'water_intake':
+            if (change < -10) {
+              actions.push({
+                icon: '💧',
+                action: dayIndex === 0 ? 'Drink a glass of water now' : `Aim for ${targetValue.toFixed(1)}L today`,
+                target: `Baseline: ${baseline.toFixed(1)}L`,
+              });
+            }
+            break;
+          case 'exercise_duration':
+            if (change < -15) {
+              actions.push({
+                icon: '🏃',
+                action: dayIndex === 0 ? 'Take a 15-min walk' : `Exercise for ${Math.round(targetValue)} mins`,
+                target: `Baseline: ${Math.round(baseline)} mins`,
+              });
+            }
+            break;
+          case 'screen_time':
+            if (change > 10) {
+              actions.push({
+                icon: '📱',
+                action: dayIndex === 0 ? 'Set a 2-hour phone-free block' : `Reduce to ${targetValue.toFixed(1)}h screen time`,
+                target: `Baseline: ${baseline.toFixed(1)}h`,
+              });
+            }
+            break;
+          case 'stress_level':
+            if (change > 15) {
+              actions.push({
+                icon: '🧘',
+                action: dayIndex === 0 ? '5-min breathing exercise now' : `Target stress level ${targetValue.toFixed(1)}/10`,
+                target: `Baseline: ${baseline.toFixed(1)}/10`,
+              });
+            }
+            break;
+          case 'health_score':
+            if (change < -5) {
+              actions.push({
+                icon: '❤️',
+                action: dayIndex === 0 ? 'Review your health habits' : `Improve health score to ${(targetValue * 100).toFixed(0)}%`,
+                target: `Baseline: ${(baseline * 100).toFixed(0)}%`,
+              });
+            }
+            break;
+        }
+      });
+
+      // Only add days with actions
+      if (actions.length > 0) {
+        plan.push({ day, actions: actions.slice(0, 3) }); // Max 3 actions per day
+      }
+    });
+
+    return plan.slice(0, 5); // Return first 5 days with actions
+  };
+
+  const getSeverityColor = (severity: string): string => {
+    switch (severity) {
+      case 'high': return '#ef4444';
+      case 'moderate': return '#f59e0b';
+      case 'low': return '#3b82f6';
+      default: return '#10b981';
+    }
+  };
+
+  const getSeverityIcon = (severity: string): string => {
+    switch (severity) {
+      case 'high': return '⚠️';
+      case 'moderate': return '📊';
+      case 'low': return 'ℹ️';
+      default: return '✅';
+    }
+  };
+
+  const renderDriftRecoverySection = () => {
+    // Show message if no data
+    if (!driftData) {
+      return (
+        <View style={styles.driftSection}>
+          <View style={styles.driftHeader}>
+            <Text style={styles.driftSectionTitle}>🔍 Behavioral Drift Analysis</Text>
+          </View>
+          <View style={styles.driftLoadingCard}>
+            <Text style={styles.driftLoadingText}>No drift data available. Pull to refresh.</Text>
+          </View>
+        </View>
+      );
+    }
+
+    // Show message if insufficient data
+    if (driftData.baseline_data_points < 3) {
+      return (
+        <View style={styles.driftSection}>
+          <View style={styles.driftHeader}>
+            <Text style={styles.driftSectionTitle}>🔍 Behavioral Drift Analysis</Text>
+            <Text style={styles.driftDataPoints}>
+              Based on {driftData.baseline_data_points} days of data
+            </Text>
+          </View>
+          <View style={styles.insufficientDataCard}>
+            <Text style={styles.insufficientDataIcon}>📊</Text>
+            <Text style={styles.insufficientDataText}>
+              Keep logging your daily routines! We need at least 3 days of data to analyze behavioral patterns.
+            </Text>
+          </View>
+        </View>
+      );
+    }
+
+    const severityColor = getSeverityColor(driftData.severity);
+    const recoveryPlan = driftData.drift_detected && driftData.top_features?.length > 0
+      ? generateDailyRecoveryPlan(driftData.top_features)
+      : [];
+
+    return (
+      <View style={styles.driftSection}>
+        {/* Drift Status Header */}
+        <View style={styles.driftHeader}>
+          <Text style={styles.driftSectionTitle}>🔍 Behavioral Drift Analysis</Text>
+          <Text style={styles.driftDataPoints}>
+            Based on {driftData.baseline_data_points} days of data
+          </Text>
+        </View>
+
+        {/* Drift Status Card */}
+        <View style={[styles.driftStatusCard, { borderLeftColor: severityColor }]}>
+          <View style={styles.driftStatusHeader}>
+            <Text style={styles.driftStatusIcon}>{getSeverityIcon(driftData.severity)}</Text>
+            <View style={styles.driftStatusContent}>
+              <Text style={[styles.driftStatusTitle, { color: severityColor }]}>
+                {driftData.drift_detected
+                  ? `${driftData.severity.charAt(0).toUpperCase() + driftData.severity.slice(1)} Drift Detected`
+                  : '✅ Patterns Stable'}
+              </Text>
+              <Text style={styles.driftScore}>
+                Drift Score: {(driftData.drift_score * 100).toFixed(0)}%
+              </Text>
+            </View>
+          </View>
+
+          <Text style={styles.driftRecommendation}>{driftData.recommendation}</Text>
+        </View>
+
+        {/* Recovery Plan - Only show when drift is detected */}
+        {driftData.drift_detected && recoveryPlan.length > 0 && (
+          <View style={styles.recoveryPlanContainer}>
+            <View style={styles.recoveryPlanHeader}>
+              <Text style={styles.recoveryPlanTitle}>📅 Your Recovery Plan</Text>
+              <Text style={styles.recoveryPlanSubtitle}>
+                Follow these daily actions to return to baseline stability
+              </Text>
+            </View>
+
+            {recoveryPlan.map((dayPlan, dayIndex) => (
+              <View key={dayPlan.day} style={[
+                styles.dayPlanCard,
+                dayIndex === 0 && styles.dayPlanCardToday
+              ]}>
+                <View style={styles.dayPlanHeader}>
+                  <Text style={[
+                    styles.dayPlanDay,
+                    dayIndex === 0 && styles.dayPlanDayToday
+                  ]}>
+                    {dayPlan.day}
+                  </Text>
+                  {dayIndex === 0 && (
+                    <View style={styles.todayBadge}>
+                      <Text style={styles.todayBadgeText}>START HERE</Text>
+                    </View>
+                  )}
+                </View>
+
+                {dayPlan.actions.map((action, actionIndex) => (
+                  <View key={actionIndex} style={styles.actionItem}>
+                    <Text style={styles.actionIcon}>{action.icon}</Text>
+                    <View style={styles.actionContent}>
+                      <Text style={styles.actionText}>{action.action}</Text>
+                      <Text style={styles.actionTarget}>{action.target}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ))}
+
+            {/* Motivation Message */}
+            <View style={styles.motivationCard}>
+              <Text style={styles.motivationIcon}>💪</Text>
+              <Text style={styles.motivationText}>
+                Small daily changes lead to big improvements! Follow this plan consistently and you'll see your patterns stabilize within a week.
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Stable Patterns Message */}
+        {!driftData.drift_detected && (
+          <View style={styles.stableCard}>
+            <Text style={styles.stableIcon}>🎉</Text>
+            <Text style={styles.stableTitle}>Great Job!</Text>
+            <Text style={styles.stableText}>
+              Your behavioral patterns are stable. Keep maintaining your healthy routines!
+            </Text>
+          </View>
+        )}
+      </View>
+    );
   };
 
   const renderScreenTimeProgress = () => {
@@ -450,6 +715,16 @@ export default function AIProductivityInsights({ navigation }: Props) {
           ) : null}
           
           {renderScreenTimeProgress()}
+
+          {/* Drift Detection & Recovery Section */}
+          {driftLoading ? (
+            <View style={styles.driftLoadingCard}>
+              <ActivityIndicator size="small" color="#6366f1" />
+              <Text style={styles.driftLoadingText}>Analyzing behavioral patterns...</Text>
+            </View>
+          ) : (
+            renderDriftRecoverySection()
+          )}
 
           {!settings?.enabled && (
             <View style={styles.disabledCard}>
@@ -1141,5 +1416,223 @@ const styles = StyleSheet.create({
   centerNavIcon: {
     fontSize: 28,
     color: '#fff',
+  },
+  // Drift Detection Styles
+  driftSection: {
+    marginBottom: 16,
+  },
+  driftHeader: {
+    marginBottom: 12,
+  },
+  driftSectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginBottom: 4,
+  },
+  driftDataPoints: {
+    fontSize: 13,
+    color: '#64748b',
+  },
+  driftLoadingCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  driftLoadingText: {
+    marginLeft: 12,
+    fontSize: 14,
+    color: '#6366f1',
+  },
+  insufficientDataCard: {
+    backgroundColor: '#fef3c7',
+    borderRadius: 16,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  insufficientDataIcon: {
+    fontSize: 28,
+    marginRight: 12,
+  },
+  insufficientDataText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#92400e',
+    lineHeight: 20,
+  },
+  driftStatusCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  driftStatusHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  driftStatusIcon: {
+    fontSize: 28,
+    marginRight: 12,
+  },
+  driftStatusContent: {
+    flex: 1,
+  },
+  driftStatusTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  driftScore: {
+    fontSize: 14,
+    color: '#64748b',
+  },
+  driftRecommendation: {
+    fontSize: 14,
+    color: '#475569',
+    lineHeight: 20,
+    backgroundColor: '#f8fafc',
+    padding: 12,
+    borderRadius: 8,
+  },
+  recoveryPlanContainer: {
+    marginTop: 8,
+  },
+  recoveryPlanHeader: {
+    marginBottom: 16,
+  },
+  recoveryPlanTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginBottom: 4,
+  },
+  recoveryPlanSubtitle: {
+    fontSize: 13,
+    color: '#64748b',
+  },
+  dayPlanCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  dayPlanCardToday: {
+    backgroundColor: '#faf5ff',
+    borderWidth: 2,
+    borderColor: '#7c3aed',
+  },
+  dayPlanHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  dayPlanDay: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  dayPlanDayToday: {
+    color: '#7c3aed',
+  },
+  todayBadge: {
+    backgroundColor: '#7c3aed',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginLeft: 10,
+  },
+  todayBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  actionItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+    paddingLeft: 4,
+  },
+  actionIcon: {
+    fontSize: 20,
+    marginRight: 12,
+    width: 28,
+  },
+  actionContent: {
+    flex: 1,
+  },
+  actionText: {
+    fontSize: 14,
+    color: '#1e293b',
+    fontWeight: '500',
+    lineHeight: 20,
+  },
+  actionTarget: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginTop: 2,
+  },
+  motivationCard: {
+    backgroundColor: '#f0fdf4',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 8,
+  },
+  motivationIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  motivationText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#166534',
+    lineHeight: 20,
+  },
+  stableCard: {
+    backgroundColor: '#f0fdf4',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  stableIcon: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  stableTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#166534',
+    marginBottom: 8,
+  },
+  stableText: {
+    fontSize: 14,
+    color: '#166534',
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });
