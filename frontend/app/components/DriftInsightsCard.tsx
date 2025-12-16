@@ -223,8 +223,8 @@ const DriftInsightsCard: React.FC<Props> = ({ userId, onRefresh, autoRefresh = t
         </>
       )}
 
-      {/* No Data Message */}
-      {driftData.baseline_data_points < 7 && (
+      {/* No Data Message - show only when below minimum threshold (3 days) */}
+      {driftData.baseline_data_points < 3 && (
         <View style={styles.noDataBox}>
           <Text style={styles.noDataIcon}>📊</Text>
           <Text style={styles.noDataText}>

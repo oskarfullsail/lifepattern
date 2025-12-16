@@ -61,15 +61,15 @@ func (h *DriftHandler) GetDriftAnalysis(w http.ResponseWriter, r *http.Request) 
 	// Check minimum data requirement
 	if len(logs) < 3 {
 		response := map[string]interface{}{
-			"user_id":        userIDStr,
-			"drift_detected": false,
-			"drift_score":    0.0,
-			"severity":       "none",
-			"drift_type":     "insufficient_data",
-			"top_features":   []interface{}{},
-			"recommendation": "Need at least 3 days of data to analyze behavioral patterns. Keep logging your daily routines!",
-			"data_points":    len(logs),
-			"timestamp":      time.Now().Format(time.RFC3339),
+			"user_id":              userIDStr,
+			"drift_detected":       false,
+			"drift_score":          0.0,
+			"severity":             "none",
+			"drift_type":           "insufficient_data",
+			"top_features":         []interface{}{},
+			"recommendation":       "Need at least 3 days of data to analyze behavioral patterns. Keep logging your daily routines!",
+			"baseline_data_points": len(logs),
+			"analysis_timestamp":   time.Now().Format(time.RFC3339),
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -87,22 +87,22 @@ func (h *DriftHandler) GetDriftAnalysis(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		log.Printf("❌ AI service drift analysis failed: %v", err)
 
-		// Return graceful fallback response
+		// Return graceful fallback response with correct field names for frontend
 		response := map[string]interface{}{
-			"user_id":        userIDStr,
-			"drift_detected": false,
-			"drift_score":    0.0,
-			"severity":       "unknown",
-			"drift_type":     "analysis_error",
-			"top_features":   []interface{}{},
-			"recommendation": "Unable to analyze drift patterns at this time. Please try again later.",
-			"error":          err.Error(),
-			"data_points":    len(logs),
-			"timestamp":      time.Now().Format(time.RFC3339),
+			"user_id":              userIDStr,
+			"drift_detected":       false,
+			"drift_score":          0.0,
+			"severity":             "none",
+			"drift_type":           "analysis_error",
+			"top_features":         []interface{}{},
+			"recommendation":       "Unable to analyze drift patterns at this time. Please try again later.",
+			"error":                err.Error(),
+			"baseline_data_points": len(logs),
+			"analysis_timestamp":   time.Now().Format(time.RFC3339),
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusServiceUnavailable)
+		// Return 200 so frontend receives the data instead of catching an error
 		json.NewEncoder(w).Encode(response)
 		return
 	}
