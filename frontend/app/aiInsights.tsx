@@ -7,10 +7,12 @@ import {
   ScrollView,
   Dimensions,
   Platform,
+  Alert,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation';
+import { fetchFeatureFlags } from './api/endpoint';
 
 type AIInsightsScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'AIInsights'>;
 type AIInsightsScreenRouteProp = RouteProp<RootStackParamList, 'AIInsights'>;
@@ -68,6 +70,37 @@ const { width } = Dimensions.get('window');
 
 export default function AIInsights({ navigation, route }: Props) {
   const { aiResponse, logId, userId } = route.params as { aiResponse: AIResponse; logId: number; userId: string };
+  const [showSurveyBanner, setShowSurveyBanner] = useState(false);
+
+  // Fetch feature flags to determine if survey prompt should be shown
+  useEffect(() => {
+    const checkFeatureFlags = async () => {
+      try {
+        const flags = await fetchFeatureFlags();
+        setShowSurveyBanner(flags.enable_survey_prompt);
+      } catch (error) {
+        console.log('⚠️ Could not fetch feature flags:', error);
+      }
+    };
+    checkFeatureFlags();
+  }, []);
+
+  const handleSurveyPrompt = () => {
+    Alert.alert(
+      'Share Your Feedback 💬',
+      'Your insights help us improve LifePattern AI. Would you like to take a quick survey?',
+      [
+        {
+          text: 'Not Now',
+          style: 'cancel',
+        },
+        {
+          text: 'Take Survey',
+          onPress: () => navigation.navigate('UsabilitySurvey'),
+        },
+      ]
+    );
+  };
 
   const getPriorityColor = (priority: number) => {
     if (priority >= 5) return '#ef4444'; // Red - Critical
@@ -445,6 +478,20 @@ export default function AIInsights({ navigation, route }: Props) {
               maintain healthy habits and catch potential issues early.
             </Text>
           </View>
+
+          {/* Survey Prompt Banner - Only shown when feature flag is enabled */}
+          {showSurveyBanner && (
+            <TouchableOpacity style={styles.surveyBanner} onPress={handleSurveyPrompt}>
+              <View style={styles.surveyBannerContent}>
+                <Text style={styles.surveyBannerIcon}>💬</Text>
+                <View style={styles.surveyBannerTextContainer}>
+                  <Text style={styles.surveyBannerTitle}>Help Us Improve!</Text>
+                  <Text style={styles.surveyBannerText}>Share your feedback with a quick survey</Text>
+                </View>
+                <Text style={styles.surveyBannerArrow}>→</Text>
+              </View>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Bottom Navigation Spacer */}
@@ -973,6 +1020,43 @@ const styles = StyleSheet.create({
   },
   centerNavIcon: {
     fontSize: 28,
+  },
+  surveyBanner: {
+    backgroundColor: '#7c3aed',
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 16,
+    shadowColor: '#7c3aed',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  surveyBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  surveyBannerIcon: {
+    fontSize: 28,
+    marginRight: 12,
+  },
+  surveyBannerTextContainer: {
+    flex: 1,
+  },
+  surveyBannerTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  surveyBannerText: {
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: 13,
+  },
+  surveyBannerArrow: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '600',
   },
 });
 

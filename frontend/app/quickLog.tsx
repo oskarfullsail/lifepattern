@@ -13,7 +13,7 @@ import {
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation';
-import { createRoutineLog, RoutineLogPayload } from './api/endpoint';
+import { createRoutineLog, RoutineLogPayload, fetchFeatureFlags } from './api/endpoint';
 import userManager from './utils/userManager';
 import { makeRequestWithWakeUp } from './utils/backendHealth';
 
@@ -324,6 +324,33 @@ export default function QuickLog({ navigation }: Props) {
 
       console.log('✅ Log created:', response);
 
+      // Check if survey prompt is enabled
+      const featureFlags = await fetchFeatureFlags();
+      const showSurveyPrompt = featureFlags.enable_survey_prompt;
+
+      // Helper function to show survey prompt
+      const promptForSurvey = (onDecline: () => void) => {
+        if (showSurveyPrompt) {
+          Alert.alert(
+            'Help Us Improve! 💬',
+            'Would you like to take a quick survey to share your feedback?',
+            [
+              {
+                text: 'Not Now',
+                style: 'cancel',
+                onPress: onDecline,
+              },
+              {
+                text: 'Take Survey',
+                onPress: () => navigation.navigate('UsabilitySurvey'),
+              },
+            ]
+          );
+        } else {
+          onDecline();
+        }
+      };
+
       // Navigate to AI Insights if we have AI analysis
       if (response.has_ai && response.ai_result) {
           navigation.navigate('AIInsights', {
@@ -331,13 +358,21 @@ export default function QuickLog({ navigation }: Props) {
             logId: response.log_id,
             userId: userId, // Use the userId we already have
           });
+          // Survey prompt will be shown after viewing AI insights (handled in AIInsights screen)
       } else {
         Alert.alert('Success', 'Your health data has been logged!', [
           {
             text: 'View Data',
-            onPress: () => navigation.navigate('DataVisualization', {}),
+            onPress: () => {
+              promptForSurvey(() => navigation.navigate('DataVisualization', {}));
+            },
           },
-          { text: 'OK', onPress: () => navigation.goBack() },
+          { 
+            text: 'OK', 
+            onPress: () => {
+              promptForSurvey(() => navigation.goBack());
+            },
+          },
         ]);
       }
     } catch (error: any) {

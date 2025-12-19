@@ -481,4 +481,34 @@ export const fetchDriftInsights = async (userId: string): Promise<DriftInsightsR
       error: error.message,
     };
   }
+};
+
+// ============================================================================
+// Feature Configuration API
+// ============================================================================
+
+export interface FeatureFlagsResponse {
+  enable_survey_prompt: boolean;
+}
+
+/**
+ * Fetch feature flags from the backend
+ * This allows dynamic feature toggling without app updates
+ */
+export const fetchFeatureFlags = async (): Promise<FeatureFlagsResponse> => {
+  try {
+    const res = await apiClient.get<FeatureFlagsResponse>('/api/config/features', {
+      timeout: 5000, // Quick timeout for config
+    });
+    
+    console.log('✅ Feature flags received:', res.data);
+    return res.data;
+  } catch (error: any) {
+    console.error('⚠️ Failed to fetch feature flags, using defaults:', error.message);
+    
+    // Return safe defaults if fetch fails
+    return {
+      enable_survey_prompt: false,
+    };
+  }
 }; 

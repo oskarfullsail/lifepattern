@@ -17,7 +17,8 @@ import {
   syncWatchData,
   WatchData,
   createRoutineLog,
-  RoutineLogPayload
+  RoutineLogPayload,
+  fetchFeatureFlags
 } from './api/endpoint';
 import userManager from './utils/userManager';
 import { makeRequestWithWakeUp } from './utils/backendHealth';
@@ -581,6 +582,33 @@ export default function DataImport({ navigation, route }: Props) {
         bed_time: '',
         meal_times: '',
       });
+
+      // Check if survey prompt is enabled
+      const featureFlags = await fetchFeatureFlags();
+      const showSurveyPrompt = featureFlags.enable_survey_prompt;
+
+      // Helper function to show survey prompt
+      const promptForSurvey = (onDecline: () => void) => {
+        if (showSurveyPrompt) {
+          Alert.alert(
+            'Help Us Improve! 💬',
+            'Would you like to take a quick survey to share your feedback?',
+            [
+              {
+                text: 'Not Now',
+                style: 'cancel',
+                onPress: onDecline,
+              },
+              {
+                text: 'Take Survey',
+                onPress: () => navigation.navigate('UsabilitySurvey'),
+              },
+            ]
+          );
+        } else {
+          onDecline();
+        }
+      };
       
       // Navigate to AI Insights if we have AI analysis
       if (response.has_ai && response.ai_result) {
@@ -589,6 +617,7 @@ export default function DataImport({ navigation, route }: Props) {
           logId: response.log_id,
           userId: userId, // Use the userId we already have
         });
+        // Survey prompt will be shown after viewing AI insights (handled in AIInsights screen)
       } else {
         // Fallback to simple success message if no AI response
         Alert.alert(
@@ -597,7 +626,9 @@ export default function DataImport({ navigation, route }: Props) {
           [
             {
               text: 'OK',
-              onPress: () => navigation.goBack()
+              onPress: () => {
+                promptForSurvey(() => navigation.goBack());
+              }
             }
           ]
         );

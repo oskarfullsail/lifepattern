@@ -12,6 +12,12 @@ type Config struct {
 	Database DatabaseConfig
 	AI       AIConfig
 	Auth     AuthConfig
+	Features FeatureConfig
+}
+
+// FeatureConfig holds feature flags that can be toggled via environment variables
+type FeatureConfig struct {
+	EnableSurveyPrompt bool
 }
 
 // ServerConfig holds server-related configuration
@@ -75,6 +81,9 @@ func Load() *Config {
 			ChallengeExpiry:    getEnvAsDuration("CHALLENGE_EXPIRY", 5*time.Minute),
 			LinkTokenExpiry:    getEnvAsDuration("LINK_TOKEN_EXPIRY", 10*time.Minute),
 		},
+		Features: FeatureConfig{
+			EnableSurveyPrompt: getEnvAsBool("ENABLE_SURVEY_PROMPT", false),
+		},
 	}
 }
 
@@ -112,6 +121,23 @@ func getEnvAsSlice(key string, defaultValue []string) []string {
 		// Simple comma-separated values for now
 		// In production, you might want more sophisticated parsing
 		return []string{value}
+	}
+	return defaultValue
+}
+
+// getEnvAsBool gets an environment variable as a boolean or returns a default value
+// Accepts: "true", "1", "yes", "on" (case-insensitive) as true values
+func getEnvAsBool(key string, defaultValue bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	// Check for truthy values
+	switch value {
+	case "true", "TRUE", "True", "1", "yes", "YES", "Yes", "on", "ON", "On":
+		return true
+	case "false", "FALSE", "False", "0", "no", "NO", "No", "off", "OFF", "Off":
+		return false
 	}
 	return defaultValue
 }
