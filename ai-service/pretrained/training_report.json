@@ -1,0 +1,99 @@
+{
+  "trained_at": "2025-12-19T21:53:34.376049",
+  "training_duration_seconds": 0.640044,
+  "total_samples": 500,
+  "source_datasets": [
+    "synthetic_sample"
+  ],
+  "metrics_trained": [
+    "sleep_hours",
+    "steps",
+    "heart_rate",
+    "heart_rate_resting",
+    "exercise_duration",
+    "active_energy",
+    "stress_level",
+    "water_intake",
+    "sleep_quality"
+  ],
+  "metric_coverage": {
+    "sleep_hours": 1.0,
+    "steps": 1.0,
+    "heart_rate": 1.0,
+    "heart_rate_resting": 1.0,
+    "exercise_duration": 1.0,
+    "active_energy": 1.0,
+    "stress_level": 1.0,
+    "water_intake": 1.0,
+    "sleep_quality": 1.0
+  },
+  "isolation_forest_trained": true,
+  "isolation_forest_contamination": 0.1,
+  "isolation_forest_n_estimators": 100,
+  "validation_vs_literature": {
+    "sleep_hours": {
+      "trained_mean": 7.5053784979821705,
+      "literature_mean": 7.5,
+      "mean_diff_pct": 0.07171330642893992,
+      "trained_std": 1.264755828484829,
+      "literature_std": 1.2,
+      "std_diff_pct": 5.396319040402424,
+      "within_10pct": true
+    },
+    "steps": {
+      "trained_mean": 8641.404,
+      "literature_mean": 7500,
+      "mean_diff_pct": 15.218720000000005,
+      "trained_std": 4604.123297739105,
+      "literature_std": 3000,
+      "std_diff_pct": 53.47077659130348,
+      "within_10pct": false
+    },
+    "heart_rate": {
+      "trained_mean": 72.85,
+      "literature_mean": 72,
+      "mean_diff_pct": 1.1805555555555478,
+      "trained_std": 11.951882696880856,
+      "literature_std": 12,
+      "std_diff_pct": 0.40097752599286274,
+      "within_10pct": true
+    },
+    "heart_rate_resting": {
+      "trained_mean": 64.764,
+      "literature_mean": 65,
+      "mean_diff_pct": 0.36307692307692957,
+      "trained_std": 7.867166198829157,
+      "literature_std": 10,
+      "std_diff_pct": 21.328338011708432,
+      "within_10pct": true
+    },
+    "exercise_duration": {
+      "trained_mean": 0.397721585734705,
+      "literature_mean": 0.4,
+      "mean_diff_pct": 0.5696035663237536,
+      "trained_std": 0.3872426975772826,
+      "literature_std": 0.3,
+      "std_diff_pct": 29.080899192427534,
+      "within_10pct": true
+    },
+    "stress_level": {
+      "trained_mean": 5.180834172076427,
+      "literature_mean": 4.5,
+      "mean_diff_pct": 15.12964826836504,
+      "trained_std": 2.033294458158416,
+      "literature_std": 2.0,
+      "std_diff_pct": 1.6647229079207904,
+      "within_10pct": false
+    },
+    "water_intake": {
+      "trained_mean": 2.2068125277086414,
+      "literature_mean": 2.2,
+      "mean_diff_pct": 0.30966035039278494,
+      "trained_std": 0.5922410861651364,
+      "literature_std": 0.6,
+      "std_diff_pct": 1.2931523058106003,
+      "within_10pct": true
+    }
+  },
+  "warnings": []
+}
