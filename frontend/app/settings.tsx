@@ -371,9 +371,7 @@ export default function Settings({ navigation }: Props) {
 
         <TouchableOpacity 
           style={styles.settingItem}
-          onPress={() => {
-            Linking.openURL('mailto:support@lifepattern.ai?subject=LifePattern Support Request');
-          }}
+          onPress={() => navigation.navigate('Support')}
         >
           <Text style={styles.settingIcon}>📧</Text>
           <View style={styles.settingContent}>

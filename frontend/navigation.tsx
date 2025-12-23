@@ -35,6 +35,7 @@ import {
   NotificationsScreen,
   HealthPermissionsScreen,
   HelpFAQScreen,
+  SupportScreen,
 } from './app/settingsScreens';
 
 export type RootStackParamList = {
@@ -65,6 +66,7 @@ export type RootStackParamList = {
   Notifications: undefined;
   HelpFAQ: undefined;
   HealthPermissions: undefined;
+  Support: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -381,6 +383,11 @@ export default function Navigation() {
           name="HelpFAQ"
           component={HelpFAQScreen}
           options={{ title: 'Help & FAQ', headerShown: false }}
+        />
+        <Stack.Screen
+          name="Support"
+          component={SupportScreen}
+          options={{ title: 'Support', headerShown: false }}
         />
       </Stack.Navigator>
       <StatusBar style="auto" />

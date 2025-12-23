@@ -11,4 +11,5 @@ export { default as DeleteDataScreen } from './DeleteData';
 export { default as NotificationsScreen } from './Notifications';
 export { default as HealthPermissionsScreen } from './HealthPermissions';
 export { default as HelpFAQScreen } from './HelpFAQ';
+export { default as SupportScreen } from './Support';
 
