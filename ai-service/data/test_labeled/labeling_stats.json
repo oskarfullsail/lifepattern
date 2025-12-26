@@ -1,0 +1,39 @@
+{
+  "total_samples": 500,
+  "train_samples": 350,
+  "val_samples": 75,
+  "test_samples": 75,
+  "anomaly_rate": 0.276,
+  "train_anomaly_rate": 0.2742857142857143,
+  "val_anomaly_rate": 0.28,
+  "test_anomaly_rate": 0.28,
+  "high_confidence_anomalies": 90,
+  "criteria_breakdown": {
+    "threshold_count": 87,
+    "zscore_count": 121,
+    "health_drop_count": 23,
+    "ai_service_count": 0
+  },
+  "created_at": "2025-12-24T16:02:02.143354",
+  "metrics_used": [
+    "sleep_hours",
+    "screen_time",
+    "exercise_duration",
+    "water_intake",
+    "stress_level"
+  ],
+  "zscore_threshold": 2.0,
+  "health_drop_threshold": 0.2,
+  "baselines_used": "pretrained/baselines.json",
+  "pretrained_metrics": [
+    "sleep_hours",
+    "steps",
+    "heart_rate",
+    "heart_rate_resting",
+    "exercise_duration",
+    "active_energy",
+    "stress_level",
+    "water_intake",
+    "sleep_quality"
+  ]
+}

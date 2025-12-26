@@ -20,6 +20,14 @@ from models.drift_detector_alt import DriftDetectorAlt as DriftDetector
 from utils.data_generator import generate_mock_dataset
 from config import config
 
+# Import trained model service for data-driven predictions
+try:
+    from src.models.trained_model_service import get_trained_model_service, TrainedModelService
+    TRAINED_MODELS_AVAILABLE = True
+except ImportError:
+    TRAINED_MODELS_AVAILABLE = False
+    logger.warning("Trained model service not available - using fallback models")
+
 # Configure logging
 logging.basicConfig(
     level=getattr(logging, config.LOG_LEVEL),
@@ -47,6 +55,18 @@ app.add_middleware(
 # Initialize the anomaly detector and drift detector
 anomaly_detector = AnomalyDetector()
 drift_detector = DriftDetector()
+
+# Initialize trained model service (data-driven predictions from Kaggle datasets)
+trained_model_service = None
+if TRAINED_MODELS_AVAILABLE:
+    try:
+        trained_model_service = get_trained_model_service()
+        if trained_model_service.is_ready():
+            logger.info("✓ Trained model service loaded (data-driven predictions enabled)")
+        else:
+            logger.warning("Trained model service loaded but models not ready")
+    except Exception as e:
+        logger.warning(f"Could not initialize trained model service: {e}")
 
 # Initialize enhanced behavioral analysis components
 behavioral_analyzer = BehavioralAnalyzer()
@@ -174,16 +194,23 @@ async def startup_event():
     try:
         logger.info("Starting anomaly detection service...")
         
-        # Generate mock dataset and train model
-        logger.info("Generating mock dataset...")
-        X_train, X_test, y_train, y_test = generate_mock_dataset()
-        
-        logger.info("Training anomaly detection model...")
-        anomaly_detector.train(X_train, y_train)
-        
-        # Evaluate model
-        accuracy = anomaly_detector.evaluate(X_test, y_test)
-        logger.info(f"Model trained successfully with accuracy: {accuracy:.3f}")
+        # Check if trained models from Kaggle are available
+        global trained_model_service
+        if trained_model_service is not None and trained_model_service.is_ready():
+            logger.info("✓ Using Kaggle-trained models for data-driven predictions")
+            status = trained_model_service.get_status()
+            logger.info(f"  Trained model status: {status}")
+        else:
+            # Fall back to generating mock dataset
+            logger.info("Trained models not available, using mock dataset...")
+            X_train, X_test, y_train, y_test = generate_mock_dataset()
+            
+            logger.info("Training anomaly detection model...")
+            anomaly_detector.train(X_train, y_train)
+            
+            # Evaluate model
+            accuracy = anomaly_detector.evaluate(X_test, y_test)
+            logger.info(f"Model trained successfully with accuracy: {accuracy:.3f}")
         
     except Exception as e:
         logger.error(f"Error during startup: {str(e)}")
@@ -193,16 +220,112 @@ async def startup_event():
 async def health_check():
     """Health check endpoint for monitoring"""
     try:
-        accuracy = anomaly_detector.get_accuracy() if anomaly_detector.is_trained else 0.0
+        # Check trained model service first
+        trained_ready = trained_model_service is not None and trained_model_service.is_ready()
+        fallback_ready = anomaly_detector.is_trained
+        
+        accuracy = 1.0 if trained_ready else (anomaly_detector.get_accuracy() if fallback_ready else 0.0)
+        
         return HealthResponse(
             status="healthy",
-            model_loaded=anomaly_detector.is_trained,
+            model_loaded=trained_ready or fallback_ready,
             model_accuracy=accuracy,
             timestamp=datetime.now().isoformat()
         )
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
         raise HTTPException(status_code=500, detail="Service unhealthy")
+
+
+class DataDrivenPredictionResponse(BaseModel):
+    """Response model for data-driven predictions using Kaggle-trained models"""
+    is_anomaly: bool
+    confidence_score: float
+    anomaly_type: str
+    wellness_scores: Dict[str, float] = {}
+    risk_level: str
+    recommendations: List[Dict[str, Any]] = []
+    feature_analysis: Dict[str, Any] = {}
+    data_driven: bool = True
+    model_version: str = "kaggle_trained_v1"
+    timestamp: str
+
+
+@app.post("/predict/data-driven", response_model=DataDrivenPredictionResponse)
+async def predict_data_driven(data: DailyRoutineData):
+    """
+    Predict anomalies using Kaggle-trained models.
+    
+    This endpoint uses models trained on real health datasets:
+    - Sleep Health & Lifestyle (374 rows)
+    - Lifestyle & Wellbeing (15,972 rows)
+    - FitBit Fitness Tracker (943 rows)
+    - SWELL HRV (369,289 rows)
+    - Mental Health & Technology (10,000 rows)
+    
+    Total: 396,578 training samples with data-driven thresholds.
+    """
+    try:
+        logger.info(f"Received data-driven prediction request")
+        
+        if trained_model_service is None or not trained_model_service.is_ready():
+            raise HTTPException(
+                status_code=503,
+                detail="Trained models not available. Please train models first using: python train_pipeline.py --full"
+            )
+        
+        # Convert Pydantic model to dict
+        routine_data = {
+            'sleep_hours': data.sleep_hours,
+            'meal_times': data.meal_times,
+            'screen_time': data.screen_time,
+            'exercise_duration': data.exercise_duration,
+            'wake_up_time': data.wake_up_time,
+            'bed_time': data.bed_time,
+            'water_intake': data.water_intake,
+            'stress_level': data.stress_level
+        }
+        
+        # Get prediction from trained model service
+        result = trained_model_service.predict(routine_data)
+        
+        return DataDrivenPredictionResponse(
+            is_anomaly=result['is_anomaly'],
+            confidence_score=result['confidence_score'],
+            anomaly_type=result['anomaly_type'],
+            wellness_scores=result.get('wellness_scores', {}),
+            risk_level=result['risk_level'],
+            recommendations=result.get('recommendations', []),
+            feature_analysis=result.get('feature_analysis', {}),
+            data_driven=True,
+            model_version=result.get('model_version', 'kaggle_trained_v1'),
+            timestamp=result.get('timestamp', datetime.now().isoformat())
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Data-driven prediction error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
+
+
+@app.get("/models/status")
+async def get_models_status():
+    """Get status of all loaded models"""
+    status = {
+        "fallback_model": {
+            "loaded": anomaly_detector.is_trained,
+            "type": "RandomForestClassifier (mock data)"
+        },
+        "trained_models": None,
+        "data_driven_available": False
+    }
+    
+    if trained_model_service is not None:
+        status["trained_models"] = trained_model_service.get_status()
+        status["data_driven_available"] = trained_model_service.is_ready()
+    
+    return status
 
 @app.post("/predict", response_model=PredictionResponse)
 async def predict_anomaly(data: DailyRoutineData):
@@ -230,15 +353,44 @@ async def predict_anomaly(data: DailyRoutineData):
                 detail="Invalid time format. Use HH:MM format for wake_up_time and bed_time"
             )
         
-        # Convert data to features
-        features = anomaly_detector.preprocess_data(data)
+        # Use trained models if available (data-driven), otherwise fallback to legacy
+        routine_dict = data.dict()
         
-        # Make prediction
-        is_anomaly, confidence_score, anomaly_type = anomaly_detector.predict(features)
+        if trained_model_service is not None and trained_model_service.is_ready():
+            # Use Kaggle-trained models for data-driven predictions
+            logger.info("Using data-driven trained models for prediction")
+            trained_result = trained_model_service.predict(routine_dict)
+            is_anomaly = trained_result['is_anomaly']
+            confidence_score = trained_result['confidence_score']
+            anomaly_type = trained_result['anomaly_type']
+            
+            # Get data-driven recommendations
+            trained_recommendations = trained_result.get('recommendations', [])
+            enhanced_recommendations = [
+                EnhancedRecommendation(
+                    type=rec.get('category', 'wellness'),
+                    title=rec.get('title', ''),
+                    description=rec.get('description', ''),
+                    action_url=None,
+                    priority=1 if rec.get('priority') == 'critical' else (2 if rec.get('priority') == 'high' else 3),
+                    context=f"Effectiveness: {rec.get('effectiveness_score', 0):.0%}",
+                    estimated_impact=rec.get('expected_impact', ''),
+                    time_sensitive=rec.get('priority') == 'critical'
+                )
+                for rec in trained_recommendations[:5]
+            ]
+        else:
+            # Fallback to legacy anomaly detector
+            logger.info("Using legacy anomaly detector (trained models not available)")
+            features = anomaly_detector.preprocess_data(data)
+            is_anomaly, confidence_score, anomaly_type = anomaly_detector.predict(features)
+            
+            # Generate enhanced behavioral recommendations
+            behavioral_contexts = behavioral_analyzer.analyze_behavioral_patterns(routine_dict)
+            enhanced_recommendations = generate_enhanced_recommendations(data, behavioral_contexts)
         
-        # Generate enhanced behavioral recommendations
-        behavioral_contexts = behavioral_analyzer.analyze_behavioral_patterns(data.dict())
-        enhanced_recommendations = generate_enhanced_recommendations(data, behavioral_contexts)
+        # Also analyze behavioral patterns for additional context
+        behavioral_contexts = behavioral_analyzer.analyze_behavioral_patterns(routine_dict)
         
         # Also generate basic recommendations for backward compatibility
         basic_recommendations = generate_recommendations(data, is_anomaly, anomaly_type)

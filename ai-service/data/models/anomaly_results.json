@@ -1,0 +1,31 @@
+{
+  "model_type": "IsolationForest",
+  "contamination": 0.43326407415439083,
+  "n_estimators": 100,
+  "n_samples": 374,
+  "features_used": [
+    "sleep_hours",
+    "stress_level",
+    "exercise_minutes",
+    "sleep_hours_zscore",
+    "stress_sleep_ratio",
+    "recovery_score"
+  ],
+  "detected_anomalies": 158,
+  "detected_anomaly_rate": 0.42245989304812837,
+  "anomaly_score_stats": {
+    "mean": 0.0025415745814775363,
+    "std": 0.051623456204050566,
+    "min": -0.18446402804669348,
+    "max": 0.07666503771245997,
+    "threshold": 0.0
+  },
+  "label_comparison": {
+    "precision": 1.0,
+    "recall": 0.42245989304812837,
+    "f1": 0.5939849624060151,
+    "true_anomaly_rate": 1.0,
+    "detected_rate": 0.42245989304812837
+  },
+  "trained_at": "2025-12-24T18:08:49.827727"
+}

@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -436,4 +437,126 @@ func (r *Repository) UpdateLinkToken(linkToken LinkToken) error {
 	}
 	log.Printf("✅ Updated link token %s", linkToken.ID)
 	return nil
+}
+
+// GetAllRoutineLogs retrieves all routine logs from the database (for admin export)
+func (r *Repository) GetAllRoutineLogs() ([]RoutineLog, error) {
+	query := `SELECT id, user_id, sleep_hours, meal_times, screen_time, exercise_duration,
+		wake_up_time, bed_time, water_intake, stress_level, log_date, created_at, updated_at
+		FROM routine_logs 
+		ORDER BY created_at DESC`
+
+	rows, err := r.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all routine logs: %w", err)
+	}
+	defer rows.Close()
+
+	var logs []RoutineLog
+	for rows.Next() {
+		var log RoutineLog
+		err := rows.Scan(&log.ID, &log.UserID, &log.SleepHours, &log.MealTimes, &log.ScreenTime,
+			&log.ExerciseDuration, &log.WakeUpTime, &log.BedTime, &log.WaterIntake, &log.StressLevel,
+			&log.LogDate, &log.CreatedAt, &log.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan routine log: %w", err)
+		}
+		logs = append(logs, log)
+	}
+	log.Printf("✅ Retrieved %d routine logs", len(logs))
+	return logs, nil
+}
+
+// RoutineLogWithAIReport combines routine log with its AI report for export
+type RoutineLogWithAIReport struct {
+	RoutineLog RoutineLog
+	AIReport   *AIReport
+}
+
+// GetAllRoutineLogsWithAIReports retrieves all routine logs with their AI reports
+func (r *Repository) GetAllRoutineLogsWithAIReports() ([]RoutineLogWithAIReport, error) {
+	query := `SELECT 
+		rl.id, rl.user_id, rl.sleep_hours, rl.meal_times, rl.screen_time,
+		rl.exercise_duration, rl.wake_up_time, rl.bed_time, rl.water_intake, rl.stress_level,
+		rl.log_date, rl.created_at, rl.updated_at,
+		ar.id, ar.routine_log_id, ar.is_anomaly, ar.confidence_score, ar.anomaly_type,
+		ar.recommendations, ar.enhanced_recommendations, ar.behavioral_contexts,
+		ar.ai_service_response, ar.drift_analysis, ar.baseline_comparison,
+		ar.model_version, ar.created_at
+		FROM routine_logs rl
+		LEFT JOIN ai_reports ar ON rl.id = ar.routine_log_id
+		ORDER BY rl.created_at DESC`
+
+	rows, err := r.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get routine logs with AI reports: %w", err)
+	}
+	defer rows.Close()
+
+	var results []RoutineLogWithAIReport
+	for rows.Next() {
+		var result RoutineLogWithAIReport
+		var aiID, aiRoutineLogID sql.NullInt64
+		var aiIsAnomaly sql.NullBool
+		var aiConfidence sql.NullFloat64
+		var aiType, aiModelVersion sql.NullString
+		var aiRecommendations, aiEnhancedRec, aiBehavioralCtx, aiServiceResp, aiDrift, aiBaseline []byte
+		var aiCreatedAt sql.NullTime
+
+		err := rows.Scan(
+			&result.RoutineLog.ID, &result.RoutineLog.UserID, &result.RoutineLog.SleepHours,
+			&result.RoutineLog.MealTimes, &result.RoutineLog.ScreenTime, &result.RoutineLog.ExerciseDuration,
+			&result.RoutineLog.WakeUpTime, &result.RoutineLog.BedTime, &result.RoutineLog.WaterIntake,
+			&result.RoutineLog.StressLevel, &result.RoutineLog.LogDate, &result.RoutineLog.CreatedAt,
+			&result.RoutineLog.UpdatedAt,
+			&aiID, &aiRoutineLogID, &aiIsAnomaly, &aiConfidence, &aiType,
+			&aiRecommendations, &aiEnhancedRec, &aiBehavioralCtx,
+			&aiServiceResp, &aiDrift, &aiBaseline,
+			&aiModelVersion, &aiCreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan routine log with AI report: %w", err)
+		}
+
+		// If there's an AI report, populate it
+		if aiID.Valid {
+			result.AIReport = &AIReport{
+				ID:                      int(aiID.Int64),
+				RoutineLogID:            int(aiRoutineLogID.Int64),
+				IsAnomaly:               aiIsAnomaly.Bool,
+				ConfidenceScore:         aiConfidence.Float64,
+				AnomalyType:             aiType.String,
+				Recommendations:         JSONStringArray{},
+				EnhancedRecommendations: aiEnhancedRec,
+				BehavioralContexts:      JSONStringArray{},
+				AIServiceResponse:       aiServiceResp,
+				DriftAnalysis:           aiDrift,
+				BaselineComparison:      aiBaseline,
+				ModelVersion:            aiModelVersion.String,
+				CreatedAt:               aiCreatedAt.Time,
+			}
+			// Parse recommendations
+			if len(aiRecommendations) > 0 {
+				json.Unmarshal(aiRecommendations, &result.AIReport.Recommendations)
+			}
+			if len(aiBehavioralCtx) > 0 {
+				json.Unmarshal(aiBehavioralCtx, &result.AIReport.BehavioralContexts)
+			}
+		}
+
+		results = append(results, result)
+	}
+	log.Printf("✅ Retrieved %d routine logs with AI reports", len(results))
+	return results, nil
+}
+
+// GetRoutineLogsCount returns total count of routine logs
+func (r *Repository) GetRoutineLogsCount() (int, error) {
+	query := `SELECT COUNT(*) FROM routine_logs`
+	var count int
+	err := r.db.QueryRow(query).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get routine logs count: %w", err)
+	}
+	return count, nil
 }

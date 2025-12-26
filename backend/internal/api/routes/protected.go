@@ -70,5 +70,11 @@ func SetupProtectedRoutes(router *mux.Router, container *container.Container) {
 	protectedRouter.HandleFunc("/admin/questionnaire-stats", container.Handlers.QuestionnaireHandler.GetQuestionnaireStats).Methods("GET", "OPTIONS")
 	log.Println("✅ Admin questionnaire routes registered")
 
+	// Admin endpoints for routine logs export (for thesis data analysis)
+	protectedRouter.HandleFunc("/admin/routine-logs", container.Handlers.AdminLogsHandler.GetAllRoutineLogs).Methods("GET", "OPTIONS")
+	protectedRouter.HandleFunc("/admin/routine-logs/export", container.Handlers.AdminLogsHandler.ExportRoutineLogsCSV).Methods("GET", "OPTIONS")
+	protectedRouter.HandleFunc("/admin/routine-logs/stats", container.Handlers.AdminLogsHandler.GetRoutineLogsStats).Methods("GET", "OPTIONS")
+	log.Println("✅ Admin routine logs routes registered")
+
 	log.Println("🎉 All protected routes configured successfully")
 }

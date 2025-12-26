@@ -1,0 +1,105 @@
+{
+  "model_type": "RandomForestClassifier",
+  "best_params": {
+    "class_weight": "balanced",
+    "max_depth": 10,
+    "min_samples_split": 10,
+    "n_estimators": 50
+  },
+  "cv_f1_score": 0.999979214214118,
+  "validation": {
+    "accuracy": 0.9999747844066771,
+    "precision": 0.999941802944771,
+    "recall": 1.0,
+    "f1": 0.9999709006256366,
+    "roc_auc": 0.9999999922316547
+  },
+  "confusion_matrix": [
+    [
+      22475,
+      1
+    ],
+    [
+      0,
+      17182
+    ]
+  ],
+  "classification_report": {
+    "0": {
+      "precision": 1.0,
+      "recall": 0.9999555080975262,
+      "f1-score": 0.9999777535538698,
+      "support": 22476.0
+    },
+    "1": {
+      "precision": 0.999941802944771,
+      "recall": 1.0,
+      "f1-score": 0.9999709006256366,
+      "support": 17182.0
+    },
+    "accuracy": 0.9999747844066771,
+    "macro avg": {
+      "precision": 0.9999709014723854,
+      "recall": 0.9999777540487631,
+      "f1-score": 0.9999743270897532,
+      "support": 39658.0
+    },
+    "weighted avg": {
+      "precision": 0.9999747858741503,
+      "recall": 0.9999747844066771,
+      "f1-score": 0.9999747844930775,
+      "support": 39658.0
+    }
+  },
+  "feature_importance": {
+    "stress_level_zscore": 0.3123047682994658,
+    "recovery_score": 0.24286156401570783,
+    "stress_sleep_ratio": 0.24264728994371904,
+    "stress_level": 0.16551797617549402,
+    "heart_rate_zscore": 0.009411441101082106,
+    "heart_rate": 0.00901223157633036,
+    "sleep_hours": 0.004500901828586683,
+    "sleep_hours_zscore": 0.0037504553477494657,
+    "sleep_quality_index": 0.002153074451781934,
+    "activity_level": 0.002084406437720802,
+    "steps": 0.0012333512747465577,
+    "health_score": 0.0010381656109222932,
+    "steps_zscore": 0.0009571147119158075,
+    "sleep_zscore_gendered": 0.0009408335738112128,
+    "exercise_minutes": 0.0005904749995294004,
+    "exercise_minutes_zscore": 0.0005106488018001398,
+    "exercise_adequacy": 0.0004428439261168351,
+    "gender_encoded": 4.2457923519725954e-05,
+    "screen_time": 0.0,
+    "water_intake": 0.0
+  },
+  "training_info": {
+    "n_train": 277604,
+    "n_val": 39658,
+    "train_anomaly_rate": 0.4332646503652685,
+    "val_anomaly_rate": 0.4332543244742549,
+    "features_used": [
+      "sleep_hours",
+      "stress_level",
+      "exercise_minutes",
+      "screen_time",
+      "water_intake",
+      "heart_rate",
+      "steps",
+      "sleep_hours_zscore",
+      "stress_level_zscore",
+      "exercise_minutes_zscore",
+      "steps_zscore",
+      "heart_rate_zscore",
+      "sleep_quality_index",
+      "stress_sleep_ratio",
+      "exercise_adequacy",
+      "recovery_score",
+      "gender_encoded",
+      "sleep_zscore_gendered",
+      "activity_level",
+      "health_score"
+    ],
+    "trained_at": "2025-12-24T18:08:48.197699"
+  }
+}

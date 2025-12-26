@@ -1,0 +1,49 @@
+{
+  "model_type": "RandomForestRegressor (MultiOutput)",
+  "r2_scores": {
+    "mental_clarity": 0.9998679223797464,
+    "energy_score": 0.9996984304502654,
+    "mood_score": 0.9996679338299834,
+    "focus_score": 0.9998808712794817
+  },
+  "rmse_scores": {
+    "mental_clarity": 0.14602550081123428,
+    "energy_score": 0.25515387164898906,
+    "mood_score": 0.26619275507454654,
+    "focus_score": 0.1355721683614471
+  },
+  "mae_scores": {
+    "mental_clarity": 0.03278371954848963,
+    "energy_score": 0.06561051693404563,
+    "mood_score": 0.06371379233513272,
+    "focus_score": 0.031457219251336425
+  },
+  "feature_importance": {
+    "sleep_hours": 0.019521369060318514,
+    "stress_level": 0.016146381561200508,
+    "exercise_minutes": 0.3393313023539264,
+    "recovery_score": 0.5916434772106831,
+    "sleep_quality_index": 0.013911474730807396,
+    "gender_encoded": 0.00018726934442213166,
+    "health_score": 0.019258725738642027
+  },
+  "training_info": {
+    "n_samples": 374,
+    "features_used": [
+      "sleep_hours",
+      "stress_level",
+      "exercise_minutes",
+      "recovery_score",
+      "sleep_quality_index",
+      "gender_encoded",
+      "health_score"
+    ],
+    "targets": [
+      "mental_clarity",
+      "energy_score",
+      "mood_score",
+      "focus_score"
+    ],
+    "trained_at": "2025-12-24T18:08:49.212881"
+  }
+}

@@ -1,12 +1,31 @@
 /**
  * Automation Initialization Module
  * Sets up all automation services on app startup
+ * 
+ * CRITICAL: All initialization is NON-BLOCKING to prevent app freeze
+ * Apple App Store requires responsive UI within 3 seconds of launch
  */
 
 import smartReminders from '../services/smartReminders';
 import healthSync from '../services/healthSync';
 import passiveTracking from '../services/passiveTracking';
 import aiProductivityCoach from '../services/aiProductivityCoach';
+
+// Timeout for each individual service initialization (ms)
+const SERVICE_INIT_TIMEOUT = 5000;
+
+// Helper to add timeout to any promise
+const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => 
+      setTimeout(() => {
+        console.warn(`⏱️ Service initialization timed out after ${timeoutMs}ms`);
+        resolve(fallback);
+      }, timeoutMs)
+    )
+  ]);
+};
 
 export interface AutomationStatus {
   reminders: {
@@ -245,8 +264,91 @@ export const resetAutomation = async (): Promise<void> => {
   }
 };
 
+/**
+ * NON-BLOCKING initialization for app startup
+ * This function returns immediately and runs initialization in background
+ * 
+ * CRITICAL: This is what App.tsx should call to prevent freeze
+ */
+export const initializeAutomationNonBlocking = (): void => {
+  console.log('🚀 Starting non-blocking automation initialization...');
+  
+  // Run initialization in background - don't await!
+  // This ensures the app UI renders immediately
+  (async () => {
+    try {
+      // Initialize each service with individual timeouts
+      // Services that fail or timeout are skipped gracefully
+      
+      // Smart Reminders (with timeout)
+      try {
+        console.log('🔔 [BG] Initializing Smart Reminders...');
+        await withTimeout(
+          smartReminders.initializeReminderSystem(),
+          SERVICE_INIT_TIMEOUT,
+          false
+        );
+        console.log('✅ [BG] Smart Reminders ready');
+      } catch (error) {
+        console.warn('⚠️ [BG] Smart Reminders failed:', error);
+      }
+
+      // Health Sync (with timeout)
+      try {
+        console.log('🏥 [BG] Initializing Health Sync...');
+        await withTimeout(
+          healthSync.initializeHealthSync(),
+          SERVICE_INIT_TIMEOUT,
+          false
+        );
+        console.log('✅ [BG] Health Sync ready');
+      } catch (error) {
+        console.warn('⚠️ [BG] Health Sync failed:', error);
+      }
+
+      // Passive Tracking (with timeout)
+      try {
+        console.log('📡 [BG] Initializing Passive Tracking...');
+        await withTimeout(
+          passiveTracking.initializePassiveTracking(),
+          SERVICE_INIT_TIMEOUT,
+          false
+        );
+        console.log('✅ [BG] Passive Tracking ready');
+      } catch (error) {
+        console.warn('⚠️ [BG] Passive Tracking failed:', error);
+      }
+
+      // AI Productivity Coach - SKIP initial check on startup
+      // This was likely causing the freeze due to network call
+      try {
+        console.log('🤖 [BG] Loading AI Coach settings...');
+        await withTimeout(
+          aiProductivityCoach.loadAICoachSettings(),
+          SERVICE_INIT_TIMEOUT,
+          { enabled: false, checkInterval: 2, minDataPoints: 3, interventionStyle: 'supportive' as const, focusAreas: [] }
+        );
+        console.log('✅ [BG] AI Coach settings loaded');
+        // NOTE: We do NOT run runAIProductivityCheck() on startup
+        // This prevents network blocking on cold start
+      } catch (error) {
+        console.warn('⚠️ [BG] AI Coach failed:', error);
+      }
+
+      console.log('✅ [BG] Background initialization complete');
+    } catch (error) {
+      console.error('❌ [BG] Background initialization error:', error);
+      // Never throw - background initialization should never crash the app
+    }
+  })();
+  
+  // Return immediately - don't wait for background work
+  console.log('↩️ initializeAutomationNonBlocking returned (background work continues)');
+};
+
 export default {
   initializeAutomation,
+  initializeAutomationNonBlocking,
   shutdownAutomation,
   getAutomationStatus,
   resetAutomation,

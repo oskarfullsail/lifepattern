@@ -21,22 +21,57 @@ interface Props {
 
 const { width } = Dimensions.get('window');
 
+// Maximum time to wait for auth check before showing landing page
+const AUTH_CHECK_TIMEOUT_MS = 2000;
+
+// Helper to add timeout to auth check
+const withAuthTimeout = <T,>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => 
+      setTimeout(() => {
+        console.log('⏱️ Auth check timed out - showing landing page');
+        resolve(fallback);
+      }, timeoutMs)
+    )
+  ]);
+};
+
 export default function HomeScreen({ navigation }: Props) {
   const [isLoading, setIsLoading] = useState(true);
+  const hasCheckedAuth = React.useRef(false);
 
   const checkAuthStatus = useCallback(async () => {
+    // Prevent multiple auth checks
+    if (hasCheckedAuth.current) {
+      return;
+    }
+    
     try {
       setIsLoading(true);
-      const isAuthenticated = await userManager.isAuthenticated();
+      console.log('[HomeScreen] 🔐 Checking auth status...');
+      
+      // CRITICAL: Add timeout to prevent freeze on slow/no network
+      // If auth check takes too long, show landing page anyway
+      const isAuthenticated = await withAuthTimeout(
+        userManager.isAuthenticated(),
+        AUTH_CHECK_TIMEOUT_MS,
+        false // Default to not authenticated on timeout
+      );
+      
+      hasCheckedAuth.current = true;
+      
       if (isAuthenticated) {
-        // User is authenticated, navigate to dashboard
+        console.log('[HomeScreen] ✅ User authenticated - navigating to dashboard');
         navigation.replace('UserDashboard');
       } else {
-        // User is not authenticated, show landing page
+        console.log('[HomeScreen] ℹ️ User not authenticated - showing landing page');
         setIsLoading(false);
       }
     } catch (error) {
-      console.error('Error checking auth status:', error);
+      console.error('[HomeScreen] ❌ Auth check error:', error);
+      // NEVER block - always show landing page on error
+      hasCheckedAuth.current = true;
       setIsLoading(false);
     }
   }, [navigation]);
@@ -44,6 +79,8 @@ export default function HomeScreen({ navigation }: Props) {
   // Check auth status on mount and every time screen comes into focus
   useFocusEffect(
     useCallback(() => {
+      // Reset flag when screen loses focus to allow re-check
+      hasCheckedAuth.current = false;
       checkAuthStatus();
     }, [checkAuthStatus])
   );

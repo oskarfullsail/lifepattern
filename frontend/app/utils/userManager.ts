@@ -492,16 +492,17 @@ export class UserManager {
   }
 
   // Check if user is authenticated
+  // OPTIMIZED: Fast path for cold start - doesn't block on network
   async isAuthenticated(): Promise<boolean> {
     try {
-      // Check if we have a current session
+      // Check if we have a current session (local storage only - fast)
       const user = await this.getCurrentUser();
       if (!user) {
         console.log('❌ No user session found');
         return false;
       }
       
-      // Check if we have access token
+      // Check if we have access token (local storage only - fast)
       const accessToken = await secureStorage.getItemAsync('accessToken');
       if (!accessToken) {
         console.log('❌ No access token found');
@@ -514,15 +515,48 @@ export class UserManager {
         return false;
       }
       
-      // Validate token is not expired (basic check)
-      if (this.isTokenExpired(accessToken)) {
-        console.log('⚠️ Access token expired, attempting refresh...');
-        const refreshed = await this.refreshTokenIfNeeded();
-        return refreshed;
+      // FAST PATH: If token is not expired, return immediately
+      // This avoids network calls on cold start
+      if (!this.isTokenExpired(accessToken)) {
+        console.log('✅ User is authenticated (token valid)');
+        return true;
       }
       
-      console.log('✅ User is authenticated');
-      return true;
+      // Token is expired - try refresh with timeout
+      // Don't block indefinitely on network issues
+      console.log('⚠️ Access token expired, attempting refresh with timeout...');
+      
+      try {
+        const refreshed = await Promise.race([
+          this.refreshTokenIfNeeded(),
+          new Promise<boolean>((resolve) => 
+            setTimeout(() => {
+              console.log('⏱️ Token refresh timed out');
+              resolve(false);
+            }, 3000) // 3 second timeout for refresh
+          )
+        ]);
+        
+        if (refreshed) {
+          console.log('✅ Token refreshed successfully');
+          return true;
+        }
+        
+        // Refresh failed - but if we have a refresh token, 
+        // we might still be able to use the app offline
+        const hasRefreshToken = await secureStorage.getItemAsync('refreshToken');
+        if (hasRefreshToken) {
+          console.log('⚠️ Refresh failed but refresh token exists - allowing offline access');
+          return true; // Allow access, refresh will happen later
+        }
+        
+        return false;
+      } catch (refreshError) {
+        console.warn('⚠️ Token refresh error:', refreshError);
+        // On error, check if we have refresh token for offline access
+        const hasRefreshToken = await secureStorage.getItemAsync('refreshToken');
+        return !!hasRefreshToken;
+      }
     } catch (error) {
       console.error('❌ Error checking authentication:', error);
       return false;

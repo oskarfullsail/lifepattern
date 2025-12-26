@@ -7,3 +7,6 @@ misc_docs
 school_docs
 test-sh
 user_test
+
+# Large data files
+ai-service/data/raw/

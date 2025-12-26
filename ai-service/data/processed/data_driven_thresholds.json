@@ -1,0 +1,247 @@
+{
+  "general": {
+    "sleep_hours": {
+      "critical_low": 4.47,
+      "warning_low": 5.3,
+      "optimal_min": 6.0,
+      "population_mean": 6.840725487997807,
+      "population_median": 7.0,
+      "optimal_max": 8.0,
+      "warning_high": 8.0,
+      "critical_high": 9.0,
+      "population_std": 1.3351632067442667,
+      "iqr": 2.0,
+      "iqr_lower_bound": 3.0,
+      "iqr_upper_bound": 11.0,
+      "min": 0.9666666666666668,
+      "max": 13.266666666666667,
+      "n_samples": 26759
+    },
+    "stress_level": {
+      "critical_low": 2.0,
+      "warning_low": 2.0,
+      "optimal_min": 2.0,
+      "population_mean": 4.502619063671772,
+      "population_median": 2.0,
+      "optimal_max": 8.0,
+      "warning_high": 8.0,
+      "critical_high": 8.0,
+      "population_std": 2.7970094094765607,
+      "iqr": 6.0,
+      "iqr_lower_bound": -7.0,
+      "iqr_upper_bound": 17.0,
+      "min": 0.0,
+      "max": 8.0,
+      "n_samples": 385634
+    },
+    "exercise_minutes": {
+      "critical_low": 0.18,
+      "warning_low": 1.3039999999999987,
+      "optimal_min": 2.44,
+      "population_mean": 9.282460015905276,
+      "population_median": 5.27,
+      "optimal_max": 8.11,
+      "warning_high": 9.23,
+      "critical_high": 45.0,
+      "population_std": 18.230580974122674,
+      "iqr": 5.67,
+      "iqr_lower_bound": -6.0649999999999995,
+      "iqr_upper_bound": 16.615,
+      "min": 0.0,
+      "max": 275.0,
+      "n_samples": 11317
+    },
+    "steps": {
+      "critical_low": 1.0,
+      "warning_low": 2.0,
+      "optimal_min": 3.0,
+      "population_mean": 570.1088553415467,
+      "population_median": 6.0,
+      "optimal_max": 9.0,
+      "warning_high": 10.0,
+      "critical_high": 5854.399999999972,
+      "population_std": 2310.966844986414,
+      "iqr": 6.0,
+      "iqr_lower_bound": -6.0,
+      "iqr_upper_bound": 18.0,
+      "min": 0.0,
+      "max": 36019.0,
+      "n_samples": 17289
+    },
+    "heart_rate": {
+      "critical_low": 57.9353005059012,
+      "warning_low": 62.92238716390082,
+      "optimal_min": 66.71749945785018,
+      "population_mean": 73.93800362318619,
+      "population_median": 74.21101749417227,
+      "optimal_max": 80.32771378641127,
+      "warning_high": 83.49161087544242,
+      "critical_high": 91.8277409163338,
+      "population_std": 10.333755037126569,
+      "iqr": 13.610214328561085,
+      "iqr_lower_bound": 46.30217796500855,
+      "iqr_upper_bound": 100.7430352792529,
+      "min": 48.73724302463632,
+      "max": 113.7523085304102,
+      "n_samples": 369663
+    }
+  },
+  "gender_specific": {
+    "male": {
+      "sleep_hours": {
+        "mean": 6.526405764340209,
+        "std": 1.4401390864345507,
+        "low": 5.29,
+        "high": 7.75,
+        "n_samples": 3539
+      },
+      "stress_level": {
+        "mean": 6.079365079365079,
+        "std": 1.300183137283433,
+        "low": 5.0,
+        "high": 7.0,
+        "n_samples": 189
+      },
+      "exercise_minutes": {
+        "mean": 7.8977140435151165,
+        "std": 13.385883093672213,
+        "low": 2.62,
+        "high": 7.98,
+        "n_samples": 3539
+      },
+      "heart_rate": {
+        "mean": 71.05291005291005,
+        "std": 3.621354292537428,
+        "low": 70.0,
+        "high": 72.0,
+        "n_samples": 189
+      }
+    },
+    "female": {
+      "sleep_hours": {
+        "mean": 6.541434745030251,
+        "std": 1.423386315705501,
+        "low": 5.345,
+        "high": 7.77,
+        "n_samples": 3471
+      },
+      "stress_level": {
+        "mean": 4.675675675675675,
+        "std": 1.9118346250061753,
+        "low": 3.0,
+        "high": 6.0,
+        "n_samples": 185
+      },
+      "exercise_minutes": {
+        "mean": 7.896629213483145,
+        "std": 13.391221639263259,
+        "low": 2.61,
+        "high": 7.94,
+        "n_samples": 3471
+      },
+      "heart_rate": {
+        "mean": 69.25945945945946,
+        "std": 4.431572707600509,
+        "low": 65.0,
+        "high": 73.0,
+        "n_samples": 185
+      }
+    }
+  },
+  "age_specific": {
+    "18-25": {
+      "sleep_hours": {
+        "mean": 6.499427390791026,
+        "std": 1.4372963775389653,
+        "n_samples": 1694
+      },
+      "exercise_minutes": {
+        "mean": 5.046877213695395,
+        "std": 2.911666633973646,
+        "n_samples": 1694
+      }
+    },
+    "26-35": {
+      "sleep_hours": {
+        "mean": 6.540279069767442,
+        "std": 1.4391000808161318,
+        "n_samples": 2150
+      },
+      "heart_rate": {
+        "mean": 71.84042553191489,
+        "std": 4.271191799353899,
+        "n_samples": 94
+      },
+      "exercise_minutes": {
+        "mean": 6.999144186046512,
+        "std": 10.744984039234215,
+        "n_samples": 2150
+      }
+    },
+    "36-45": {
+      "sleep_hours": {
+        "mean": 6.545344522968198,
+        "std": 1.412695253578743,
+        "n_samples": 2264
+      },
+      "heart_rate": {
+        "mean": 69.32352941176471,
+        "std": 3.112492372893334,
+        "n_samples": 170
+      },
+      "exercise_minutes": {
+        "mean": 9.189218197879859,
+        "std": 15.420661695323357,
+        "n_samples": 2264
+      }
+    },
+    "46-55": {
+      "sleep_hours": {
+        "mean": 6.493295561850802,
+        "std": 1.4361388356645275,
+        "n_samples": 2118
+      },
+      "heart_rate": {
+        "mean": 70.98701298701299,
+        "std": 5.632363032402696,
+        "n_samples": 77
+      },
+      "exercise_minutes": {
+        "mean": 6.9101699716713885,
+        "std": 11.951491087925255,
+        "n_samples": 2118
+      }
+    },
+    "56-100": {
+      "sleep_hours": {
+        "mean": 6.53237895716946,
+        "std": 1.4628479575686175,
+        "n_samples": 2148
+      },
+      "heart_rate": {
+        "mean": 67.81818181818181,
+        "std": 0.7269175268963398,
+        "n_samples": 33
+      },
+      "exercise_minutes": {
+        "mean": 6.1130819366852895,
+        "std": 9.20802141139989,
+        "n_samples": 2148
+      }
+    }
+  },
+  "metadata": {
+    "total_samples": 396578,
+    "anomaly_rate": 0.43326407415439083,
+    "sources": {
+      "hrv": 369289,
+      "lifestyle": 15972,
+      "mental_health": 10000,
+      "fitbit": 943,
+      "sleep_health": 374
+    },
+    "generated_at": "2025-12-24T17:58:15.914052",
+    "generated_from": "kaggle_datasets",
+    "description": "Data-driven thresholds calculated from Kaggle health datasets. These replace hardcoded LITERATURE_BASELINES values."
+  }
+}

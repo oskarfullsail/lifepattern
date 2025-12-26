@@ -1,0 +1,134 @@
+{
+  "trained_at": "2025-12-24T16:03:41.624364",
+  "data_summary": {
+    "train_samples": 350,
+    "val_samples": 75,
+    "test_samples": 75,
+    "total_samples": 500,
+    "features_used": [
+      "sleep_hours",
+      "exercise_duration",
+      "water_intake",
+      "stress_level",
+      "meal_count",
+      "wake_up_hour",
+      "bed_time_hour",
+      "sleep_consistency",
+      "activity_balance",
+      "health_score"
+    ],
+    "n_features": 10
+  },
+  "class_distribution": {
+    "train": {
+      "normal": 254,
+      "anomaly": 96,
+      "anomaly_rate": 0.2742857142857143
+    },
+    "val": {
+      "normal": 54,
+      "anomaly": 21,
+      "anomaly_rate": 0.28
+    },
+    "test": {
+      "normal": 54,
+      "anomaly": 21,
+      "anomaly_rate": 0.28
+    }
+  },
+  "random_forest": {
+    "model_type": "RandomForestClassifier",
+    "hyperparameters": {
+      "class_weight": null,
+      "max_depth": 15,
+      "min_samples_leaf": 1,
+      "min_samples_split": 5,
+      "n_estimators": 200
+    },
+    "validation_metrics": {
+      "accuracy": 0.7733333333333333,
+      "precision": 0.6666666666666666,
+      "recall": 0.38095238095238093,
+      "f1": 0.4848484848484849,
+      "roc_auc": 0.7927689594356261
+    },
+    "n_train_samples": 350,
+    "n_val_samples": 75,
+    "class_distribution_train": {
+      "normal": 254,
+      "anomaly": 96
+    }
+  },
+  "isolation_forest": {
+    "model_type": "IsolationForest",
+    "contamination": 0.1,
+    "n_estimators": 100,
+    "n_train_samples": 254,
+    "predicted_anomalies": 26,
+    "anomaly_score_stats": {
+      "mean": 0.06133673498083215,
+      "std": 0.04756535300381988,
+      "min": -0.10400750323404628,
+      "max": 0.1265731037779364
+    }
+  },
+  "test_metrics": {
+    "accuracy": 0.8266666666666667,
+    "precision": 0.7857142857142857,
+    "recall": 0.5238095238095238,
+    "f1": 0.6285714285714286,
+    "roc_auc": 0.7627865961199294,
+    "confusion_matrix": {
+      "true_negatives": 51,
+      "false_positives": 3,
+      "false_negatives": 10,
+      "true_positives": 11
+    },
+    "classification_report": {
+      "0": {
+        "precision": 0.8360655737704918,
+        "recall": 0.9444444444444444,
+        "f1-score": 0.8869565217391304,
+        "support": 54.0
+      },
+      "1": {
+        "precision": 0.7857142857142857,
+        "recall": 0.5238095238095238,
+        "f1-score": 0.6285714285714286,
+        "support": 21.0
+      },
+      "accuracy": 0.8266666666666667,
+      "macro avg": {
+        "precision": 0.8108899297423888,
+        "recall": 0.7341269841269842,
+        "f1-score": 0.7577639751552795,
+        "support": 75.0
+      },
+      "weighted avg": {
+        "precision": 0.8219672131147542,
+        "recall": 0.8266666666666667,
+        "f1-score": 0.8146086956521739,
+        "support": 75.0
+      }
+    },
+    "false_positive_rate": 0.05555555555555555,
+    "specificity": 0.9444444444444444
+  },
+  "feature_importance": {
+    "exercise_duration": 0.2855998305582896,
+    "sleep_consistency": 0.19312145932560226,
+    "stress_level": 0.14765797817293,
+    "water_intake": 0.14163423475162334,
+    "sleep_hours": 0.12745063739091553,
+    "health_score": 0.10453585980063929,
+    "meal_count": 0.0,
+    "wake_up_hour": 0.0,
+    "bed_time_hour": 0.0,
+    "activity_balance": 0.0
+  },
+  "model_files": {
+    "random_forest": "anomaly_model.joblib",
+    "isolation_forest": "isolation_forest.joblib",
+    "scaler": "scaler.joblib"
+  }
+}
