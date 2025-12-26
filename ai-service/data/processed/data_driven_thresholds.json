@@ -240,7 +240,7 @@
       "fitbit": 943,
       "sleep_health": 374
     },
-    "generated_at": "2025-12-24T17:58:15.914052",
+    "generated_at": "2025-12-26T11:18:53.326907",
     "generated_from": "kaggle_datasets",
     "description": "Data-driven thresholds calculated from Kaggle health datasets. These replace hardcoded LITERATURE_BASELINES values."
   }

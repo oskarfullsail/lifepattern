@@ -89,10 +89,10 @@ class EnhancedRecommendation(BaseModel):
     type: str
     title: str
     description: str
-    action_url: str = None
-    priority: int = None
-    context: str = None
-    estimated_impact: str = None
+    action_url: Optional[str] = None
+    priority: Optional[int] = None
+    context: Optional[str] = None
+    estimated_impact: Optional[str] = None
     time_sensitive: bool = False
 
 class PredictionResponse(BaseModel):
