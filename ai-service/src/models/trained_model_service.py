@@ -314,7 +314,14 @@ class TrainedModelService:
             'timestamp': datetime.now().isoformat()
         }
         
+        # First, determine anomaly type based on thresholds (always reliable)
+        threshold_anomaly_type = self._determine_anomaly_type(routine_data)
+        threshold_is_anomaly = threshold_anomaly_type != 'normal'
+        
         # Classifier prediction
+        classifier_anomaly = False
+        classifier_confidence = 0.5
+        
         if self.classifier is not None:
             try:
                 # Get expected feature names from trained model
@@ -327,16 +334,26 @@ class TrainedModelService:
                 prediction = self.classifier.predict(X)[0]
                 probabilities = self.classifier.predict_proba(X)[0]
                 
-                result['is_anomaly'] = bool(prediction == 1)
-                result['confidence_score'] = float(max(probabilities))
-                result['anomaly_type'] = self._determine_anomaly_type(routine_data)
+                classifier_anomaly = bool(prediction == 1)
+                classifier_confidence = float(max(probabilities))
                 
             except Exception as e:
                 logger.warning(f"Classifier prediction failed: {e}")
-                # Fall back to threshold-based detection
-                result['anomaly_type'] = self._determine_anomaly_type(routine_data)
-                result['is_anomaly'] = result['anomaly_type'] != 'normal'
-                result['confidence_score'] = 0.7 if result['is_anomaly'] else 0.3
+        
+        # Combine classifier + threshold-based detection
+        # If either flags anomaly, mark as anomaly (hybrid approach)
+        result['is_anomaly'] = classifier_anomaly or threshold_is_anomaly
+        result['anomaly_type'] = threshold_anomaly_type  # Use threshold-based type
+        
+        # Confidence: use classifier if available, otherwise threshold-based
+        if result['is_anomaly']:
+            if threshold_is_anomaly and not classifier_anomaly:
+                # Threshold caught it, classifier missed it
+                result['confidence_score'] = 0.75
+            else:
+                result['confidence_score'] = classifier_confidence
+        else:
+            result['confidence_score'] = classifier_confidence
         
         # Wellness prediction
         if self.wellness_predictor is not None:
@@ -502,6 +519,26 @@ class TrainedModelService:
         exercise_low = self.get_threshold('exercise_minutes', 'warning_low') or 15
         if exercise < exercise_low:
             anomaly_types.append('low_exercise')
+        
+        # Check heart rate (NEW)
+        heart_rate = routine_data.get('heart_rate')
+        if heart_rate is not None and heart_rate > 100:  # Elevated resting HR
+            anomaly_types.append('high_heart_rate')
+        
+        # Check sugar intake (NEW)
+        sugar_intake = routine_data.get('sugar_intake')
+        if sugar_intake is not None and sugar_intake > 50:  # WHO recommends < 50g/day
+            anomaly_types.append('high_sugar_intake')
+        
+        # Check hydration
+        water = routine_data.get('water_intake', 2)
+        if water < 1.5:
+            anomaly_types.append('low_hydration')
+        
+        # Check screen time
+        screen = routine_data.get('screen_time', 4)
+        if screen > 8:
+            anomaly_types.append('high_screen_time')
         
         if len(anomaly_types) > 1:
             return 'combined_risk'

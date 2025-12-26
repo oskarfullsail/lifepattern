@@ -1,0 +1,402 @@
+{
+  "version": "1.0.0",
+  "last_updated": "2025-12-26",
+  "source": "Evidence-based wellness research, CDC, APA, NIH, Sleep Foundation",
+  "categories": {
+    "low_sleep": {
+      "name": "Sleep Deficiency",
+      "threshold": "< 6 hours",
+      "interventions": [
+        {
+          "id": "sleep_001",
+          "title": "Sleep Schedule Optimization",
+          "description": "Establish a consistent sleep-wake schedule based on your circadian rhythm.",
+          "category": "sleep",
+          "priority": "high",
+          "actions": [
+            "Set a fixed bedtime and wake time (even weekends)",
+            "Create a 30-minute wind-down routine",
+            "Avoid blue light 2 hours before bed",
+            "Keep bedroom temperature at 65-68°F (18-20°C)"
+          ],
+          "expected_impact": "Improved sleep quality and duration within 2-4 weeks",
+          "time_to_implement": "Immediate start, 2-4 weeks for habit formation",
+          "evidence_source": "Sleep Foundation Research, CDC Guidelines",
+          "effectiveness_score": 0.85
+        },
+        {
+          "id": "sleep_002",
+          "title": "Sleep Environment Audit",
+          "description": "Optimize your bedroom for better sleep quality.",
+          "category": "sleep",
+          "priority": "medium",
+          "actions": [
+            "Use blackout curtains or sleep mask",
+            "Reduce noise with earplugs or white noise",
+            "Ensure mattress and pillows are comfortable",
+            "Remove electronics from bedroom"
+          ],
+          "expected_impact": "15-25% improvement in sleep quality",
+          "time_to_implement": "1-3 days for setup",
+          "evidence_source": "American Academy of Sleep Medicine",
+          "effectiveness_score": 0.75
+        },
+        {
+          "id": "sleep_003",
+          "title": "Caffeine & Alcohol Timing",
+          "description": "Adjust stimulant consumption to improve sleep.",
+          "category": "sleep",
+          "priority": "medium",
+          "actions": [
+            "No caffeine after 2:00 PM",
+            "Limit alcohol to 3+ hours before bed",
+            "Replace evening coffee with herbal tea",
+            "Track caffeine sources (chocolate, soda)"
+          ],
+          "expected_impact": "Faster sleep onset, fewer awakenings",
+          "time_to_implement": "Immediate",
+          "evidence_source": "Journal of Clinical Sleep Medicine",
+          "effectiveness_score": 0.70
+        }
+      ]
+    },
+    "high_stress": {
+      "name": "Elevated Stress",
+      "threshold": "> 7/10",
+      "interventions": [
+        {
+          "id": "stress_001",
+          "title": "Immediate Stress Relief Protocol",
+          "description": "Quick techniques to reduce acute stress response.",
+          "category": "stress",
+          "priority": "critical",
+          "actions": [
+            "4-7-8 breathing: Inhale 4s, hold 7s, exhale 8s (3 cycles)",
+            "Progressive muscle relaxation (5 minutes)",
+            "Cold water on wrists and face",
+            "Step outside for fresh air (even 2 minutes)"
+          ],
+          "expected_impact": "Cortisol reduction within 20 minutes",
+          "time_to_implement": "Immediate (5-10 minutes)",
+          "evidence_source": "American Psychological Association, Stress Research",
+          "effectiveness_score": 0.90
+        },
+        {
+          "id": "stress_002",
+          "title": "Mindfulness-Based Stress Reduction",
+          "description": "Regular mindfulness practice to build stress resilience.",
+          "category": "mindfulness",
+          "priority": "high",
+          "actions": [
+            "Start with 5-minute daily meditation",
+            "Use guided apps (Headspace, Calm, Insight Timer)",
+            "Practice body scan before sleep",
+            "Try mindful eating at one meal daily"
+          ],
+          "expected_impact": "31% reduction in stress markers after 8 weeks",
+          "time_to_implement": "8 weeks for full benefits, immediate relief possible",
+          "evidence_source": "MBSR Research (Jon Kabat-Zinn), NIH Studies",
+          "effectiveness_score": 0.88
+        },
+        {
+          "id": "stress_003",
+          "title": "Work Boundary Setting",
+          "description": "Establish clear work-life boundaries to reduce chronic stress.",
+          "category": "stress",
+          "priority": "high",
+          "actions": [
+            "Define clear work end time",
+            "Create 'shutdown ritual' at end of workday",
+            "Disable work notifications after hours",
+            "Designate device-free zones at home"
+          ],
+          "expected_impact": "Reduced burnout risk, improved recovery",
+          "time_to_implement": "1-2 weeks to establish",
+          "evidence_source": "Work-Life Balance Research, WHO Burnout Studies",
+          "effectiveness_score": 0.80
+        },
+        {
+          "id": "stress_004",
+          "title": "Social Support Activation",
+          "description": "Leverage social connections for stress buffering.",
+          "category": "social",
+          "priority": "medium",
+          "actions": [
+            "Schedule weekly call with friend/family",
+            "Share stressors with trusted person",
+            "Join a support group or community",
+            "Practice gratitude with others"
+          ],
+          "expected_impact": "Social support reduces stress impact by 40%",
+          "time_to_implement": "Ongoing",
+          "evidence_source": "Social Psychology Research, Harvard Happiness Study",
+          "effectiveness_score": 0.82
+        }
+      ]
+    },
+    "high_heart_rate": {
+      "name": "Elevated Resting Heart Rate",
+      "threshold": "> 100 bpm",
+      "interventions": [
+        {
+          "id": "heart_001",
+          "title": "Cardiovascular Health Protocol",
+          "description": "Lower resting heart rate through lifestyle changes.",
+          "category": "heart_health",
+          "priority": "high",
+          "actions": [
+            "Practice deep breathing exercises daily",
+            "Reduce caffeine intake gradually",
+            "Add 30 minutes of cardio exercise 3x/week",
+            "Monitor heart rate at consistent times"
+          ],
+          "expected_impact": "5-10 bpm reduction in resting heart rate",
+          "time_to_implement": "4-6 weeks",
+          "evidence_source": "American Heart Association Guidelines",
+          "effectiveness_score": 0.82
+        },
+        {
+          "id": "heart_002",
+          "title": "Stress-Induced Heart Rate Management",
+          "description": "Address stress as a root cause of elevated heart rate.",
+          "category": "heart_health",
+          "priority": "high",
+          "actions": [
+            "Practice vagal breathing (slow exhale)",
+            "Use heart rate variability training",
+            "Reduce stimulants (caffeine, nicotine)",
+            "Ensure adequate sleep (7-8 hours)"
+          ],
+          "expected_impact": "Improved heart rate variability",
+          "time_to_implement": "2-4 weeks",
+          "evidence_source": "Journal of Clinical Psychology, HRV Research",
+          "effectiveness_score": 0.78
+        }
+      ]
+    },
+    "high_sugar_intake": {
+      "name": "Excessive Sugar Consumption",
+      "threshold": "> 50g/day",
+      "interventions": [
+        {
+          "id": "sugar_001",
+          "title": "Sugar Reduction Protocol",
+          "description": "Gradually reduce sugar intake for better metabolic health.",
+          "category": "nutrition",
+          "priority": "high",
+          "actions": [
+            "Track daily sugar intake using an app",
+            "Replace sugary drinks with water or herbal tea",
+            "Choose whole fruits over fruit juices",
+            "Read nutrition labels for hidden sugars"
+          ],
+          "expected_impact": "Reduced energy crashes, improved mood stability",
+          "time_to_implement": "2-4 weeks for habit change",
+          "evidence_source": "WHO Sugar Guidelines, AHA Recommendations",
+          "effectiveness_score": 0.80
+        },
+        {
+          "id": "sugar_002",
+          "title": "Blood Sugar Stabilization",
+          "description": "Balance blood sugar throughout the day.",
+          "category": "nutrition",
+          "priority": "medium",
+          "actions": [
+            "Eat protein with every meal",
+            "Choose complex carbs over simple sugars",
+            "Avoid eating sugar on an empty stomach",
+            "Space meals 4-5 hours apart"
+          ],
+          "expected_impact": "Stable energy levels, reduced cravings",
+          "time_to_implement": "1-2 weeks",
+          "evidence_source": "Diabetes Research, Glycemic Index Studies",
+          "effectiveness_score": 0.75
+        },
+        {
+          "id": "sugar_003",
+          "title": "Sugar Craving Management",
+          "description": "Handle sugar cravings without giving in.",
+          "category": "nutrition",
+          "priority": "medium",
+          "actions": [
+            "Wait 15 minutes before acting on cravings",
+            "Eat a handful of nuts or seeds instead",
+            "Stay hydrated (cravings often signal thirst)",
+            "Get enough sleep (fatigue increases cravings)"
+          ],
+          "expected_impact": "50% reduction in sugar cravings",
+          "time_to_implement": "Immediate",
+          "evidence_source": "Behavioral Nutrition Research",
+          "effectiveness_score": 0.72
+        }
+      ]
+    },
+    "low_exercise": {
+      "name": "Insufficient Physical Activity",
+      "threshold": "< 15 min/day",
+      "interventions": [
+        {
+          "id": "exercise_001",
+          "title": "Movement Integration Strategy",
+          "description": "Incorporate physical activity into daily routine without dedicated workout time.",
+          "category": "exercise",
+          "priority": "high",
+          "actions": [
+            "Take 5-minute walking breaks every hour",
+            "Use stairs instead of elevator",
+            "Walk during phone calls",
+            "Do 10 squats after each bathroom break"
+          ],
+          "expected_impact": "30-50% increase in daily activity",
+          "time_to_implement": "Immediate",
+          "evidence_source": "CDC Physical Activity Guidelines, NEAT Research",
+          "effectiveness_score": 0.75
+        },
+        {
+          "id": "exercise_002",
+          "title": "Micro-Workout Protocol",
+          "description": "Short, effective exercise bursts that fit any schedule.",
+          "category": "exercise",
+          "priority": "medium",
+          "actions": [
+            "7-minute HIIT workout (apps available)",
+            "20 pushups and 30 squats daily",
+            "10-minute yoga session",
+            "Dance to 2-3 favorite songs"
+          ],
+          "expected_impact": "Similar benefits to longer workouts",
+          "time_to_implement": "7-20 minutes daily",
+          "evidence_source": "Exercise Physiology Research, American College of Sports Medicine",
+          "effectiveness_score": 0.80
+        }
+      ]
+    },
+    "low_hydration": {
+      "name": "Insufficient Hydration",
+      "threshold": "< 1.5L/day",
+      "interventions": [
+        {
+          "id": "hydration_001",
+          "title": "Hydration Habit Building",
+          "description": "Systematic approach to meeting daily water intake goals.",
+          "category": "hydration",
+          "priority": "medium",
+          "actions": [
+            "Drink water immediately upon waking",
+            "Set hourly hydration reminders",
+            "Link water to existing habits (before meals)",
+            "Use marked water bottle to track intake"
+          ],
+          "expected_impact": "Improved energy, cognition, and mood",
+          "time_to_implement": "1-2 weeks for habit formation",
+          "evidence_source": "Hydration Research, European Journal of Nutrition",
+          "effectiveness_score": 0.70
+        }
+      ]
+    },
+    "high_screen_time": {
+      "name": "Excessive Screen Time",
+      "threshold": "> 8 hours/day",
+      "interventions": [
+        {
+          "id": "screen_001",
+          "title": "Digital Wellness Protocol",
+          "description": "Reduce excessive screen time impact on health and sleep.",
+          "category": "screen_time",
+          "priority": "high",
+          "actions": [
+            "Enable 'Do Not Disturb' from 9PM",
+            "Use blue light filters in evening",
+            "Set app time limits for social media",
+            "Create phone-free zones (bedroom, dining)"
+          ],
+          "expected_impact": "Better sleep, reduced anxiety, improved focus",
+          "time_to_implement": "Immediate setup",
+          "evidence_source": "Digital Wellness Research, Screen Time Studies",
+          "effectiveness_score": 0.78
+        }
+      ]
+    },
+    "combined_risk": {
+      "name": "Multiple Risk Factors",
+      "threshold": "2+ categories flagged",
+      "interventions": [
+        {
+          "id": "combined_001",
+          "title": "Wellness Reset Protocol",
+          "description": "Comprehensive approach when multiple health areas need attention.",
+          "category": "combined",
+          "priority": "critical",
+          "actions": [
+            "Priority 1: Fix sleep schedule first",
+            "Priority 2: Add daily stress relief practice",
+            "Priority 3: Increase movement gradually",
+            "Priority 4: Improve hydration and nutrition"
+          ],
+          "expected_impact": "Holistic health improvement across all metrics",
+          "time_to_implement": "4-8 weeks for full implementation",
+          "evidence_source": "Integrative Health Research, Lifestyle Medicine",
+          "effectiveness_score": 0.85
+        },
+        {
+          "id": "combined_002",
+          "title": "Daily Wellness Checklist",
+          "description": "Simple daily checklist to maintain baseline wellness.",
+          "category": "combined",
+          "priority": "high",
+          "actions": [
+            "Morning: Water, stretch, sunlight exposure",
+            "Midday: Movement break, balanced lunch",
+            "Evening: Wind-down routine, limit screens",
+            "Night: Consistent bedtime, relaxation"
+          ],
+          "expected_impact": "Sustained wellness maintenance",
+          "time_to_implement": "Start immediately, refine over 2 weeks",
+          "evidence_source": "Preventive Medicine Research",
+          "effectiveness_score": 0.80
+        }
+      ]
+    },
+    "poor_nutrition": {
+      "name": "Poor Dietary Habits",
+      "threshold": "< 3 fruits/veggies per day",
+      "interventions": [
+        {
+          "id": "nutrition_001",
+          "title": "Meal Timing Optimization",
+          "description": "Align eating patterns with circadian rhythm for better health.",
+          "category": "nutrition",
+          "priority": "medium",
+          "actions": [
+            "Eat breakfast within 1 hour of waking",
+            "Maintain consistent meal times daily",
+            "Avoid eating 3 hours before bed",
+            "Space meals 4-5 hours apart"
+          ],
+          "expected_impact": "Improved energy, digestion, and weight management",
+          "time_to_implement": "1-2 weeks",
+          "evidence_source": "Chrononutrition Research, Time-Restricted Eating Studies",
+          "effectiveness_score": 0.72
+        },
+        {
+          "id": "nutrition_002",
+          "title": "Fruit & Vegetable Increase",
+          "description": "Boost daily intake of fruits and vegetables.",
+          "category": "nutrition",
+          "priority": "medium",
+          "actions": [
+            "Add one serving of vegetables to each meal",
+            "Keep cut fruits ready in fridge",
+            "Replace one snack with fruit daily",
+            "Try one new vegetable each week"
+          ],
+          "expected_impact": "Improved energy, immunity, and mood",
+          "time_to_implement": "Immediate",
+          "evidence_source": "WHO Dietary Guidelines, USDA MyPlate",
+          "effectiveness_score": 0.74
+        }
+      ]
+    }
+  }
+}
+

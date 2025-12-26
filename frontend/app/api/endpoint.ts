@@ -13,6 +13,9 @@ export interface RoutineLogPayload {
   water_intake: number;
   stress_level: number;
   log_date: string;
+  // New health features (optional)
+  heart_rate?: number;
+  sugar_intake?: number;
 }
 
 export interface CreateRoutineLogResponse {

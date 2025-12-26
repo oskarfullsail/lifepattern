@@ -29,6 +29,9 @@ type AIServiceRequest struct {
 	BedTime          string   `json:"bed_time"`
 	WaterIntake      float64  `json:"water_intake"`
 	StressLevel      int      `json:"stress_level"`
+	// New health features
+	HeartRate   *float64 `json:"heart_rate,omitempty"`
+	SugarIntake *float64 `json:"sugar_intake,omitempty"`
 }
 
 type AIServiceResponse struct {

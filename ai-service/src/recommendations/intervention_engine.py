@@ -5,17 +5,19 @@ Data-Driven Intervention Engine
 Generates personalized recommendations based on:
 1. Detected anomaly types
 2. User's historical patterns
-3. Evidence-based interventions from research datasets
+3. Evidence-based interventions loaded from JSON dataset
 
-Uses the Dreaddit dataset (stress analysis) and wellness research
-to provide contextual, effective recommendations.
+The interventions are loaded dynamically from:
+  data/recommendations/interventions.json
+
+This allows easy updates without code changes.
 """
 
 import json
 import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from enum import Enum
 
 logging.basicConfig(level=logging.INFO)
@@ -33,6 +35,7 @@ class InterventionCategory(Enum):
     SOCIAL = "social"
     MINDFULNESS = "mindfulness"
     COMBINED = "combined"
+    HEART_HEALTH = "heart_health"
 
 
 class Priority(Enum):
@@ -59,11 +62,30 @@ class Intervention:
     
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'Intervention':
+        """Create Intervention from dictionary."""
+        return cls(
+            id=data.get('id', ''),
+            title=data.get('title', ''),
+            description=data.get('description', ''),
+            category=data.get('category', ''),
+            priority=data.get('priority', 'medium'),
+            actions=data.get('actions', []),
+            expected_impact=data.get('expected_impact', ''),
+            time_to_implement=data.get('time_to_implement', ''),
+            evidence_source=data.get('evidence_source', ''),
+            effectiveness_score=float(data.get('effectiveness_score', 0.5))
+        )
 
 
 class InterventionEngine:
     """
     Data-driven intervention recommendation engine.
+    
+    Loads recommendations dynamically from JSON file, making it easy
+    to update interventions without code changes.
     
     Provides personalized recommendations based on:
     - Anomaly type detected
@@ -72,282 +94,142 @@ class InterventionEngine:
     - Evidence-based interventions
     """
     
-    def __init__(self):
+    def __init__(self, interventions_path: Optional[str] = None):
         self.interventions: Dict[str, List[Intervention]] = {}
+        self.metadata: Dict[str, Any] = {}
+        
+        # Find interventions JSON file
+        if interventions_path is None:
+            base_path = Path(__file__).parent.parent.parent
+            interventions_path = base_path / 'data' / 'recommendations' / 'interventions.json'
+        else:
+            interventions_path = Path(interventions_path)
+        
+        self.interventions_path = interventions_path
+        
+        # Load interventions
         self._load_interventions()
-        logger.info(f"InterventionEngine initialized with {self._count_interventions()} interventions")
+        logger.info(f"InterventionEngine initialized with {self._count_interventions()} interventions from {self.interventions_path}")
     
     def _count_interventions(self) -> int:
         return sum(len(v) for v in self.interventions.values())
     
     def _load_interventions(self):
-        """Load evidence-based interventions database"""
+        """Load evidence-based interventions from JSON file."""
         
-        # SLEEP interventions (based on sleep research)
+        if self.interventions_path.exists():
+            try:
+                with open(self.interventions_path, 'r') as f:
+                    data = json.load(f)
+                
+                self.metadata = {
+                    'version': data.get('version', '1.0.0'),
+                    'last_updated': data.get('last_updated', ''),
+                    'source': data.get('source', '')
+                }
+                
+                categories = data.get('categories', {})
+                
+                for category_key, category_data in categories.items():
+                    interventions_data = category_data.get('interventions', [])
+                    self.interventions[category_key] = [
+                        Intervention.from_dict(i) for i in interventions_data
+                    ]
+                    
+                logger.info(f"Loaded {len(categories)} categories from JSON")
+                return
+                
+            except Exception as e:
+                logger.warning(f"Failed to load interventions from JSON: {e}")
+        
+        # Fallback to hardcoded interventions if JSON not found
+        logger.warning("Using fallback hardcoded interventions")
+        self._load_fallback_interventions()
+    
+    def _load_fallback_interventions(self):
+        """Fallback hardcoded interventions if JSON fails to load."""
+        
+        # Basic fallback interventions
         self.interventions['low_sleep'] = [
             Intervention(
                 id="sleep_001",
                 title="Sleep Schedule Optimization",
-                description="Establish a consistent sleep-wake schedule based on your circadian rhythm.",
-                category=InterventionCategory.SLEEP.value,
-                priority=Priority.HIGH.value,
-                actions=[
-                    "Set a fixed bedtime and wake time (even weekends)",
-                    "Create a 30-minute wind-down routine",
-                    "Avoid blue light 2 hours before bed",
-                    "Keep bedroom temperature at 65-68°F (18-20°C)"
-                ],
-                expected_impact="Improved sleep quality and duration within 2-4 weeks",
-                time_to_implement="Immediate start, 2-4 weeks for habit formation",
-                evidence_source="Sleep Foundation Research, CDC Guidelines",
-                effectiveness_score=0.85
-            ),
-            Intervention(
-                id="sleep_002",
-                title="Sleep Environment Audit",
-                description="Optimize your bedroom for better sleep quality.",
-                category=InterventionCategory.SLEEP.value,
-                priority=Priority.MEDIUM.value,
-                actions=[
-                    "Use blackout curtains or sleep mask",
-                    "Reduce noise with earplugs or white noise",
-                    "Ensure mattress and pillows are comfortable",
-                    "Remove electronics from bedroom"
-                ],
-                expected_impact="15-25% improvement in sleep quality",
-                time_to_implement="1-3 days for setup",
-                evidence_source="American Academy of Sleep Medicine",
-                effectiveness_score=0.75
-            ),
-            Intervention(
-                id="sleep_003",
-                title="Caffeine & Alcohol Timing",
-                description="Adjust stimulant consumption to improve sleep.",
-                category=InterventionCategory.SLEEP.value,
-                priority=Priority.MEDIUM.value,
-                actions=[
-                    "No caffeine after 2:00 PM",
-                    "Limit alcohol to 3+ hours before bed",
-                    "Replace evening coffee with herbal tea",
-                    "Track caffeine sources (chocolate, soda)"
-                ],
-                expected_impact="Faster sleep onset, fewer awakenings",
+                description="Establish a consistent sleep-wake schedule.",
+                category="sleep",
+                priority="high",
+                actions=["Set fixed bedtime", "Create wind-down routine", "Avoid screens before bed"],
+                expected_impact="Improved sleep quality within 2-4 weeks",
                 time_to_implement="Immediate",
-                evidence_source="Journal of Clinical Sleep Medicine",
-                effectiveness_score=0.70
+                evidence_source="Sleep Foundation",
+                effectiveness_score=0.85
             )
         ]
         
-        # STRESS interventions (informed by Dreaddit stress research)
         self.interventions['high_stress'] = [
             Intervention(
                 id="stress_001",
-                title="Immediate Stress Relief Protocol",
-                description="Quick techniques to reduce acute stress response.",
-                category=InterventionCategory.STRESS.value,
-                priority=Priority.CRITICAL.value,
-                actions=[
-                    "4-7-8 breathing: Inhale 4s, hold 7s, exhale 8s (3 cycles)",
-                    "Progressive muscle relaxation (5 minutes)",
-                    "Cold water on wrists and face",
-                    "Step outside for fresh air (even 2 minutes)"
-                ],
+                title="Immediate Stress Relief",
+                description="Quick techniques to reduce stress.",
+                category="stress",
+                priority="critical",
+                actions=["4-7-8 breathing", "Take a short walk", "Progressive relaxation"],
                 expected_impact="Cortisol reduction within 20 minutes",
-                time_to_implement="Immediate (5-10 minutes)",
-                evidence_source="American Psychological Association, Stress Research",
+                time_to_implement="Immediate",
+                evidence_source="APA",
                 effectiveness_score=0.90
-            ),
+            )
+        ]
+        
+        self.interventions['high_heart_rate'] = [
             Intervention(
-                id="stress_002",
-                title="Mindfulness-Based Stress Reduction",
-                description="Regular mindfulness practice to build stress resilience.",
-                category=InterventionCategory.MINDFULNESS.value,
-                priority=Priority.HIGH.value,
-                actions=[
-                    "Start with 5-minute daily meditation",
-                    "Use guided apps (Headspace, Calm, Insight Timer)",
-                    "Practice body scan before sleep",
-                    "Try mindful eating at one meal daily"
-                ],
-                expected_impact="31% reduction in stress markers after 8 weeks",
-                time_to_implement="8 weeks for full benefits, immediate relief possible",
-                evidence_source="MBSR Research (Jon Kabat-Zinn), NIH Studies",
-                effectiveness_score=0.88
-            ),
-            Intervention(
-                id="stress_003",
-                title="Work Boundary Setting",
-                description="Establish clear work-life boundaries to reduce chronic stress.",
-                category=InterventionCategory.STRESS.value,
-                priority=Priority.HIGH.value,
-                actions=[
-                    "Define clear work end time",
-                    "Create 'shutdown ritual' at end of workday",
-                    "Disable work notifications after hours",
-                    "Designate device-free zones at home"
-                ],
-                expected_impact="Reduced burnout risk, improved recovery",
-                time_to_implement="1-2 weeks to establish",
-                evidence_source="Work-Life Balance Research, WHO Burnout Studies",
-                effectiveness_score=0.80
-            ),
-            Intervention(
-                id="stress_004",
-                title="Social Support Activation",
-                description="Leverage social connections for stress buffering.",
-                category=InterventionCategory.SOCIAL.value,
-                priority=Priority.MEDIUM.value,
-                actions=[
-                    "Schedule weekly call with friend/family",
-                    "Share stressors with trusted person",
-                    "Join a support group or community",
-                    "Practice gratitude with others"
-                ],
-                expected_impact="Social support reduces stress impact by 40%",
-                time_to_implement="Ongoing",
-                evidence_source="Social Psychology Research, Harvard Happiness Study",
+                id="heart_001",
+                title="Heart Rate Management",
+                description="Lower elevated resting heart rate.",
+                category="heart_health",
+                priority="high",
+                actions=["Deep breathing", "Reduce caffeine", "Regular cardio exercise"],
+                expected_impact="5-10 bpm reduction",
+                time_to_implement="4-6 weeks",
+                evidence_source="AHA",
                 effectiveness_score=0.82
             )
         ]
         
-        # EXERCISE interventions
-        self.interventions['low_exercise'] = [
+        self.interventions['high_sugar_intake'] = [
             Intervention(
-                id="exercise_001",
-                title="Movement Integration Strategy",
-                description="Incorporate physical activity into daily routine without dedicated workout time.",
-                category=InterventionCategory.EXERCISE.value,
-                priority=Priority.HIGH.value,
-                actions=[
-                    "Take 5-minute walking breaks every hour",
-                    "Use stairs instead of elevator",
-                    "Walk during phone calls",
-                    "Do 10 squats after each bathroom break"
-                ],
-                expected_impact="30-50% increase in daily activity",
-                time_to_implement="Immediate",
-                evidence_source="CDC Physical Activity Guidelines, NEAT Research",
-                effectiveness_score=0.75
-            ),
-            Intervention(
-                id="exercise_002",
-                title="Micro-Workout Protocol",
-                description="Short, effective exercise bursts that fit any schedule.",
-                category=InterventionCategory.EXERCISE.value,
-                priority=Priority.MEDIUM.value,
-                actions=[
-                    "7-minute HIIT workout (apps available)",
-                    "20 pushups and 30 squats daily",
-                    "10-minute yoga session",
-                    "Dance to 2-3 favorite songs"
-                ],
-                expected_impact="Similar benefits to longer workouts",
-                time_to_implement="7-20 minutes daily",
-                evidence_source="Exercise Physiology Research, American College of Sports Medicine",
+                id="sugar_001",
+                title="Sugar Reduction Protocol",
+                description="Gradually reduce sugar intake.",
+                category="nutrition",
+                priority="high",
+                actions=["Track sugar intake", "Replace sugary drinks", "Read nutrition labels"],
+                expected_impact="Reduced energy crashes, improved mood",
+                time_to_implement="2-4 weeks",
+                evidence_source="WHO, AHA",
                 effectiveness_score=0.80
             )
         ]
         
-        # HYDRATION interventions
-        self.interventions['low_hydration'] = [
-            Intervention(
-                id="hydration_001",
-                title="Hydration Habit Building",
-                description="Systematic approach to meeting daily water intake goals.",
-                category=InterventionCategory.HYDRATION.value,
-                priority=Priority.MEDIUM.value,
-                actions=[
-                    "Drink water immediately upon waking",
-                    "Set hourly hydration reminders",
-                    "Link water to existing habits (before meals)",
-                    "Use marked water bottle to track intake"
-                ],
-                expected_impact="Improved energy, cognition, and mood",
-                time_to_implement="1-2 weeks for habit formation",
-                evidence_source="Hydration Research, European Journal of Nutrition",
-                effectiveness_score=0.70
-            )
-        ]
-        
-        # SCREEN TIME interventions
-        self.interventions['high_screen_time'] = [
-            Intervention(
-                id="screen_001",
-                title="Digital Wellness Protocol",
-                description="Reduce excessive screen time impact on health and sleep.",
-                category=InterventionCategory.SCREEN_TIME.value,
-                priority=Priority.HIGH.value,
-                actions=[
-                    "Enable 'Do Not Disturb' from 9PM",
-                    "Use blue light filters in evening",
-                    "Set app time limits for social media",
-                    "Create phone-free zones (bedroom, dining)"
-                ],
-                expected_impact="Better sleep, reduced anxiety, improved focus",
-                time_to_implement="Immediate setup",
-                evidence_source="Digital Wellness Research, Screen Time Studies",
-                effectiveness_score=0.78
-            )
-        ]
-        
-        # COMBINED/HOLISTIC interventions
         self.interventions['combined_risk'] = [
             Intervention(
                 id="combined_001",
                 title="Wellness Reset Protocol",
-                description="Comprehensive approach when multiple health areas need attention.",
-                category=InterventionCategory.COMBINED.value,
-                priority=Priority.CRITICAL.value,
-                actions=[
-                    "Priority 1: Fix sleep schedule first",
-                    "Priority 2: Add daily stress relief practice",
-                    "Priority 3: Increase movement gradually",
-                    "Priority 4: Improve hydration and nutrition"
-                ],
-                expected_impact="Holistic health improvement across all metrics",
-                time_to_implement="4-8 weeks for full implementation",
-                evidence_source="Integrative Health Research, Lifestyle Medicine",
+                description="Comprehensive approach for multiple risk factors.",
+                category="combined",
+                priority="critical",
+                actions=["Fix sleep first", "Add stress relief", "Increase movement", "Improve nutrition"],
+                expected_impact="Holistic health improvement",
+                time_to_implement="4-8 weeks",
+                evidence_source="Lifestyle Medicine",
                 effectiveness_score=0.85
-            ),
-            Intervention(
-                id="combined_002",
-                title="Daily Wellness Checklist",
-                description="Simple daily checklist to maintain baseline wellness.",
-                category=InterventionCategory.COMBINED.value,
-                priority=Priority.HIGH.value,
-                actions=[
-                    "Morning: Water, stretch, sunlight exposure",
-                    "Midday: Movement break, balanced lunch",
-                    "Evening: Wind-down routine, limit screens",
-                    "Night: Consistent bedtime, relaxation"
-                ],
-                expected_impact="Sustained wellness maintenance",
-                time_to_implement="Start immediately, refine over 2 weeks",
-                evidence_source="Preventive Medicine Research",
-                effectiveness_score=0.80
             )
         ]
-        
-        # NUTRITION interventions
-        self.interventions['poor_nutrition'] = [
-            Intervention(
-                id="nutrition_001",
-                title="Meal Timing Optimization",
-                description="Align eating patterns with circadian rhythm for better health.",
-                category=InterventionCategory.NUTRITION.value,
-                priority=Priority.MEDIUM.value,
-                actions=[
-                    "Eat breakfast within 1 hour of waking",
-                    "Maintain consistent meal times daily",
-                    "Avoid eating 3 hours before bed",
-                    "Space meals 4-5 hours apart"
-                ],
-                expected_impact="Improved energy, digestion, and weight management",
-                time_to_implement="1-2 weeks",
-                evidence_source="Chrononutrition Research, Time-Restricted Eating Studies",
-                effectiveness_score=0.72
-            )
-        ]
+    
+    def reload_interventions(self):
+        """Reload interventions from JSON file (hot reload)."""
+        self.interventions.clear()
+        self._load_interventions()
+        logger.info(f"Reloaded {self._count_interventions()} interventions")
     
     def get_recommendations(
         self,
@@ -375,7 +257,6 @@ class InterventionEngine:
         
         # Add interventions based on risk level
         if risk_level in ['CRITICAL', 'HIGH']:
-            # For critical/high risk, prioritize immediate relief
             priority_order = [Priority.CRITICAL.value, Priority.HIGH.value, Priority.MEDIUM.value]
         else:
             priority_order = [Priority.HIGH.value, Priority.MEDIUM.value, Priority.LOW.value]
@@ -395,24 +276,52 @@ class InterventionEngine:
             rec['personalized'] = True
             recommendations.append(rec)
         
-        # If we have combined risk, also add from other categories
-        if anomaly_type == 'combined_risk' or len(recommendations) < max_recommendations:
-            # Check for specific issues in routine data
-            if routine_data.get('sleep_hours', 7) < 6:
-                for intervention in self.interventions.get('low_sleep', [])[:1]:
-                    if intervention.id not in [r['id'] for r in recommendations]:
-                        rec = intervention.to_dict()
-                        rec['data_driven'] = True
-                        recommendations.append(rec)
-            
-            if routine_data.get('stress_level', 5) > 7:
-                for intervention in self.interventions.get('high_stress', [])[:1]:
-                    if intervention.id not in [r['id'] for r in recommendations]:
-                        rec = intervention.to_dict()
-                        rec['data_driven'] = True
-                        recommendations.append(rec)
+        # Add specific interventions based on routine data
+        if len(recommendations) < max_recommendations:
+            self._add_data_specific_recommendations(routine_data, recommendations, max_recommendations)
         
         return recommendations[:max_recommendations]
+    
+    def _add_data_specific_recommendations(
+        self, 
+        routine_data: Dict[str, Any], 
+        recommendations: List[Dict], 
+        max_recs: int
+    ):
+        """Add recommendations based on specific routine data values."""
+        existing_ids = [r['id'] for r in recommendations]
+        
+        # Check sleep
+        if routine_data.get('sleep_hours', 7) < 6:
+            for intervention in self.interventions.get('low_sleep', [])[:1]:
+                if intervention.id not in existing_ids:
+                    rec = intervention.to_dict()
+                    rec['data_driven'] = True
+                    recommendations.append(rec)
+        
+        # Check stress
+        if routine_data.get('stress_level', 5) > 7:
+            for intervention in self.interventions.get('high_stress', [])[:1]:
+                if intervention.id not in existing_ids:
+                    rec = intervention.to_dict()
+                    rec['data_driven'] = True
+                    recommendations.append(rec)
+        
+        # Check heart rate
+        if routine_data.get('heart_rate', 72) > 100:
+            for intervention in self.interventions.get('high_heart_rate', [])[:1]:
+                if intervention.id not in existing_ids:
+                    rec = intervention.to_dict()
+                    rec['data_driven'] = True
+                    recommendations.append(rec)
+        
+        # Check sugar intake
+        if routine_data.get('sugar_intake', 25) > 50:
+            for intervention in self.interventions.get('high_sugar_intake', [])[:1]:
+                if intervention.id not in existing_ids:
+                    rec = intervention.to_dict()
+                    rec['data_driven'] = True
+                    recommendations.append(rec)
     
     def get_immediate_relief(self, anomaly_type: str) -> Optional[Dict[str, Any]]:
         """Get the most effective immediate relief intervention."""
@@ -440,7 +349,10 @@ class InterventionEngine:
             'categories': list(self.interventions.keys()),
             'interventions_per_category': {
                 k: len(v) for k, v in self.interventions.items()
-            }
+            },
+            'metadata': self.metadata,
+            'source_file': str(self.interventions_path),
+            'file_exists': self.interventions_path.exists()
         }
 
 
@@ -454,4 +366,3 @@ def get_intervention_engine() -> InterventionEngine:
     if _intervention_engine is None:
         _intervention_engine = InterventionEngine()
     return _intervention_engine
-

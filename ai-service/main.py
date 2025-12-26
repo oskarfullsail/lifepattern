@@ -84,6 +84,9 @@ class DailyRoutineData(BaseModel):
     bed_time: str = Field(..., description="Bed time (HH:MM format)")
     water_intake: float = Field(..., ge=0, description="Liters of water consumed")
     stress_level: int = Field(..., ge=1, le=10, description="Stress level (1-10 scale)")
+    # New optional features
+    heart_rate: Optional[float] = Field(None, ge=30, le=220, description="Resting heart rate (BPM)")
+    sugar_intake: Optional[float] = Field(None, ge=0, le=500, description="Daily sugar intake (grams)")
 
 class EnhancedRecommendation(BaseModel):
     type: str

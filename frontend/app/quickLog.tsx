@@ -50,6 +50,9 @@ export default function QuickLog({ navigation }: Props) {
   const [stressLevel, setStressLevel] = useState<number>(5);
   const [wakeUpTime, setWakeUpTime] = useState<string>('');
   const [bedTime, setBedTime] = useState<string>('');
+  // New health features
+  const [heartRate, setHeartRate] = useState<string>('');
+  const [sugarIntake, setSugarIntake] = useState<string>('');
   
   // Validation error states
   const [errors, setErrors] = useState<{[key: string]: string}>({});
@@ -140,6 +143,37 @@ export default function QuickLog({ navigation }: Props) {
 
   const handleBedTimeChange = (text: string) => {
     setBedTime(validateTimeInput(text, 'bedTime'));
+  };
+
+  // Validate integer input (for heart rate, sugar intake)
+  const validateIntegerInput = (text: string, fieldName: string, min: number, max: number): string => {
+    if (!text) {
+      setErrors(prev => ({ ...prev, [fieldName]: '' }));
+      return '';
+    }
+    
+    const sanitized = text.replace(/[^0-9]/g, '');
+    const numValue = parseInt(sanitized, 10);
+    
+    if (!isNaN(numValue)) {
+      if (numValue < min) {
+        setErrors(prev => ({ ...prev, [fieldName]: `Minimum is ${min}` }));
+      } else if (numValue > max) {
+        setErrors(prev => ({ ...prev, [fieldName]: `Maximum is ${max}` }));
+      } else {
+        setErrors(prev => ({ ...prev, [fieldName]: '' }));
+      }
+    }
+    
+    return sanitized;
+  };
+
+  const handleHeartRateChange = (text: string) => {
+    setHeartRate(validateIntegerInput(text, 'heartRate', 30, 220));
+  };
+
+  const handleSugarIntakeChange = (text: string) => {
+    setSugarIntake(validateIntegerInput(text, 'sugarIntake', 0, 500));
   };
 
   useEffect(() => {
@@ -293,6 +327,10 @@ export default function QuickLog({ navigation }: Props) {
       const sleepHoursValue = Math.round(sleepHoursNum * 10) / 10; // Round to 1 decimal
       const waterIntakeValue = Math.round(waterIntakeNum * 10) / 10; // Round to 1 decimal
 
+      // Parse optional new health fields
+      const heartRateValue = heartRate ? parseInt(heartRate, 10) : undefined;
+      const sugarIntakeValue = sugarIntake ? parseInt(sugarIntake, 10) : undefined;
+
       const payload: RoutineLogPayload = {
         user_id: userId,
         sleep_hours: sleepHoursValue,
@@ -304,6 +342,9 @@ export default function QuickLog({ navigation }: Props) {
         bed_time: bedTime || '23:00',
         meal_times: ['08:00', '12:00', '18:00'],
         log_date: new Date().toISOString().split('T')[0],
+        // New health features
+        heart_rate: heartRateValue,
+        sugar_intake: sugarIntakeValue,
       };
 
       console.log('📤 Quick log submission:', {
@@ -627,6 +668,125 @@ export default function QuickLog({ navigation }: Props) {
           />
           {errors.waterIntake ? <Text style={styles.errorText}>{errors.waterIntake}</Text> : null}
           <Text style={styles.inputHint}>Enter liters of water consumed</Text>
+        </View>
+
+        {/* Heart Rate Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>❤️ Heart Rate</Text>
+            {renderAutoFillBadge('heart_rate')}
+          </View>
+
+          <Text style={styles.label}>Resting heart rate (BPM)</Text>
+          <View style={styles.presetButtonRow}>
+            {[60, 70, 80, 90].map((bpm) => (
+              <TouchableOpacity
+                key={bpm}
+                style={[
+                  styles.presetButton,
+                  heartRate === bpm.toString() && styles.presetButtonActive,
+                ]}
+                onPress={() => setHeartRate(bpm.toString())}
+              >
+                <Text
+                  style={[
+                    styles.presetButtonText,
+                    heartRate === bpm.toString() && styles.presetButtonTextActive,
+                  ]}
+                >
+                  {bpm}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.label}>Or enter custom:</Text>
+          <TextInput
+            style={[styles.input, errors.heartRate ? styles.inputError : null]}
+            placeholder="e.g., 72 (30-220 BPM)"
+            keyboardType="number-pad"
+            value={heartRate}
+            onChangeText={handleHeartRateChange}
+            maxLength={3}
+          />
+          {errors.heartRate ? <Text style={styles.errorText}>{errors.heartRate}</Text> : null}
+          
+          <View style={styles.tipCard}>
+            <Text style={styles.tipTitle}>📱 How to measure:</Text>
+            <Text style={styles.tipText}>
+              • Apple Watch/Fitbit: Check heart rate app{'\n'}
+              • Manual: Count pulse for 15 sec × 4{'\n'}
+              • Normal range: 60-100 BPM
+            </Text>
+          </View>
+        </View>
+
+        {/* Sugar Intake Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>🍬 Sugar Intake</Text>
+          </View>
+
+          <Text style={styles.label}>Daily sugar consumption (grams)</Text>
+          <View style={styles.presetButtonRow}>
+            {[25, 50, 75, 100].map((grams) => (
+              <TouchableOpacity
+                key={grams}
+                style={[
+                  styles.presetButton,
+                  sugarIntake === grams.toString() && styles.presetButtonActive,
+                  grams > 50 && styles.presetButtonWarning,
+                  sugarIntake === grams.toString() && grams > 50 && styles.presetButtonWarningActive,
+                ]}
+                onPress={() => setSugarIntake(grams.toString())}
+              >
+                <Text
+                  style={[
+                    styles.presetButtonText,
+                    sugarIntake === grams.toString() && styles.presetButtonTextActive,
+                  ]}
+                >
+                  {grams}g
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.label}>Or enter custom:</Text>
+          <TextInput
+            style={[styles.input, errors.sugarIntake ? styles.inputError : null]}
+            placeholder="e.g., 50 (0-500 grams)"
+            keyboardType="number-pad"
+            value={sugarIntake}
+            onChangeText={handleSugarIntakeChange}
+            maxLength={3}
+          />
+          {errors.sugarIntake ? <Text style={styles.errorText}>{errors.sugarIntake}</Text> : null}
+          
+          <View style={styles.sugarGuide}>
+            <Text style={styles.sugarGuideTitle}>🥤 Quick Reference:</Text>
+            <View style={styles.sugarTable}>
+              <View style={styles.sugarRow}>
+                <Text style={styles.sugarItem}>Soda (12oz)</Text>
+                <Text style={styles.sugarValue}>~39g</Text>
+              </View>
+              <View style={styles.sugarRow}>
+                <Text style={styles.sugarItem}>Orange Juice (8oz)</Text>
+                <Text style={styles.sugarValue}>~21g</Text>
+              </View>
+              <View style={styles.sugarRow}>
+                <Text style={styles.sugarItem}>Frappuccino</Text>
+                <Text style={styles.sugarValue}>~50g</Text>
+              </View>
+              <View style={styles.sugarRow}>
+                <Text style={styles.sugarItem}>Chocolate bar</Text>
+                <Text style={styles.sugarValue}>~24g</Text>
+              </View>
+            </View>
+            <Text style={styles.sugarCalc}>
+              💡 2 sodas = ~78g (exceeds 50g daily limit!)
+            </Text>
+          </View>
         </View>
 
         {/* Stress Level Section */}
@@ -975,5 +1135,78 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#64748b',
+  },
+  // Warning preset button (for high sugar values)
+  presetButtonWarning: {
+    backgroundColor: '#fef3c7',
+    borderWidth: 1,
+    borderColor: '#fbbf24',
+  },
+  presetButtonWarningActive: {
+    backgroundColor: '#f59e0b',
+  },
+  // Tip card for heart rate
+  tipCard: {
+    backgroundColor: '#fef3c7',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#f59e0b',
+  },
+  tipTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#92400e',
+    marginBottom: 6,
+  },
+  tipText: {
+    fontSize: 12,
+    color: '#78350f',
+    lineHeight: 18,
+  },
+  // Sugar intake guide
+  sugarGuide: {
+    backgroundColor: '#fce7f3',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#ec4899',
+  },
+  sugarGuideTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#9d174d',
+    marginBottom: 8,
+  },
+  sugarTable: {
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 8,
+  },
+  sugarRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#fce7f3',
+  },
+  sugarItem: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  sugarValue: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#be185d',
+  },
+  sugarCalc: {
+    fontSize: 12,
+    color: '#9d174d',
+    fontWeight: '600',
+    fontStyle: 'italic',
   },
 });

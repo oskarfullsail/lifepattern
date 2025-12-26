@@ -117,8 +117,11 @@ type RoutineLog struct {
 	WaterIntake      float64         `json:"water_intake" db:"water_intake"`
 	StressLevel      int             `json:"stress_level" db:"stress_level"`
 	LogDate          string          `json:"log_date" db:"log_date"`
-	CreatedAt        time.Time       `json:"created_at,omitempty" db:"created_at"`
-	UpdatedAt        time.Time       `json:"updated_at,omitempty" db:"updated_at"`
+	// New health features
+	HeartRate   *float64  `json:"heart_rate,omitempty" db:"heart_rate"`
+	SugarIntake *float64  `json:"sugar_intake,omitempty" db:"sugar_intake"`
+	CreatedAt   time.Time `json:"created_at,omitempty" db:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at,omitempty" db:"updated_at"`
 }
 
 // AIReport represents an AI analysis report for a routine log

@@ -40,6 +40,8 @@ interface FetchedHealthData {
   water_intake?: number;
   meal_times?: string[];
   calories?: number;
+  // New fields (sugar_intake is manual-only for now)
+  sugar_intake?: number;
 }
 
 export default function DataImport({ navigation, route }: Props) {
@@ -59,6 +61,9 @@ export default function DataImport({ navigation, route }: Props) {
     wake_up_time: '',
     bed_time: '',
     meal_times: '',
+    // New health features
+    heart_rate: '',
+    sugar_intake: '',
   });
   const [loadingMessage, setLoadingMessage] = useState<string>('Loading...');
   const [errors, setErrors] = useState<{[key: string]: string}>({});
@@ -545,6 +550,21 @@ export default function DataImport({ navigation, route }: Props) {
         stressLevel: stressLevelValue,
       });
       
+      // Parse optional new fields
+      const heartRateValue = manualData.heart_rate ? parseInt(manualData.heart_rate, 10) : undefined;
+      const sugarIntakeValue = manualData.sugar_intake ? parseInt(manualData.sugar_intake, 10) : undefined;
+      
+      // Validate new fields if provided
+      if (heartRateValue !== undefined && (isNaN(heartRateValue) || heartRateValue < 30 || heartRateValue > 220)) {
+        Alert.alert('Validation Error', 'Heart rate must be between 30 and 220 BPM');
+        return;
+      }
+      
+      if (sugarIntakeValue !== undefined && (isNaN(sugarIntakeValue) || sugarIntakeValue < 0 || sugarIntakeValue > 500)) {
+        Alert.alert('Validation Error', 'Sugar intake must be between 0 and 500 grams');
+        return;
+      }
+      
       // Prepare payload for backend
       const payload: RoutineLogPayload = {
         user_id: userId,
@@ -557,6 +577,9 @@ export default function DataImport({ navigation, route }: Props) {
         bed_time: manualData.bed_time || '23:00',
         meal_times: mealTimesArray.length > 0 ? mealTimesArray : ['08:00', '12:00', '18:00'],
         log_date: new Date().toISOString().split('T')[0], // Today's date
+        // New optional health features
+        heart_rate: heartRateValue,
+        sugar_intake: sugarIntakeValue,
       };
       
       console.log('📤 Submitting manual data to backend:', payload);
@@ -581,6 +604,8 @@ export default function DataImport({ navigation, route }: Props) {
         wake_up_time: '',
         bed_time: '',
         meal_times: '',
+        heart_rate: '',
+        sugar_intake: '',
       });
 
       // Check if survey prompt is enabled
@@ -1044,6 +1069,80 @@ export default function DataImport({ navigation, route }: Props) {
               onChangeText={(text) => setManualData({...manualData, meal_times: text})}
             />
             <Text style={styles.inputHint}>Enter times in HH:MM format, separated by commas</Text>
+          </View>
+
+          {/* New: Heart Rate Field */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>❤️ Resting Heart Rate (BPM)</Text>
+            <TextInput
+              style={[styles.textInput, errors.heart_rate ? styles.inputError : null]}
+              placeholder="e.g., 72 (beats per minute)"
+              keyboardType="number-pad"
+              value={manualData.heart_rate}
+              onChangeText={(text) => handleFieldChange('heart_rate', text, (t, f) => validateIntegerInput(t, f, 30, 220))}
+              maxLength={3}
+            />
+            {errors.heart_rate ? <Text style={styles.errorText}>{errors.heart_rate}</Text> : null}
+            <Text style={styles.inputHint}>
+              Measure at rest (sitting/lying). Normal: 60-100 BPM. Athletes: 40-60 BPM.
+            </Text>
+            <View style={styles.measureTip}>
+              <Text style={styles.measureTipTitle}>📱 How to measure:</Text>
+              <Text style={styles.measureTipText}>
+                • Apple Watch/Fitbit: Check heart rate app{'\n'}
+                • Manual: Count pulse for 15 sec × 4{'\n'}
+                • Best time: Morning before getting up
+              </Text>
+            </View>
+          </View>
+
+          {/* New: Sugar Intake Field */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>🍬 Sugar Intake (grams)</Text>
+            <TextInput
+              style={[styles.textInput, errors.sugar_intake ? styles.inputError : null]}
+              placeholder="e.g., 50 (grams of sugar)"
+              keyboardType="number-pad"
+              value={manualData.sugar_intake}
+              onChangeText={(text) => handleFieldChange('sugar_intake', text, (t, f) => validateIntegerInput(t, f, 0, 500))}
+              maxLength={3}
+            />
+            {errors.sugar_intake ? <Text style={styles.errorText}>{errors.sugar_intake}</Text> : null}
+            <Text style={styles.inputHint}>
+              WHO recommends &lt;50g/day. Aim for &lt;25g for optimal health.
+            </Text>
+            <View style={styles.sugarGuide}>
+              <Text style={styles.sugarGuideTitle}>🥤 Quick Sugar Reference:</Text>
+              <View style={styles.sugarTable}>
+                <View style={styles.sugarRow}>
+                  <Text style={styles.sugarItem}>🥤 Soda (12oz/355ml)</Text>
+                  <Text style={styles.sugarValue}>~39g</Text>
+                </View>
+                <View style={styles.sugarRow}>
+                  <Text style={styles.sugarItem}>🧃 Orange Juice (8oz)</Text>
+                  <Text style={styles.sugarValue}>~21g</Text>
+                </View>
+                <View style={styles.sugarRow}>
+                  <Text style={styles.sugarItem}>☕ Frappuccino (Grande)</Text>
+                  <Text style={styles.sugarValue}>~50g</Text>
+                </View>
+                <View style={styles.sugarRow}>
+                  <Text style={styles.sugarItem}>🍫 Chocolate bar</Text>
+                  <Text style={styles.sugarValue}>~24g</Text>
+                </View>
+                <View style={styles.sugarRow}>
+                  <Text style={styles.sugarItem}>🍩 Donut</Text>
+                  <Text style={styles.sugarValue}>~15g</Text>
+                </View>
+                <View style={styles.sugarRow}>
+                  <Text style={styles.sugarItem}>🍎 Apple (medium)</Text>
+                  <Text style={styles.sugarValue}>~19g</Text>
+                </View>
+              </View>
+              <Text style={styles.sugarCalc}>
+                💡 Example: 2 sodas = ~78g sugar (exceeds daily limit!)
+              </Text>
+            </View>
           </View>
 
           <TouchableOpacity 
@@ -1706,5 +1805,73 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  // Heart Rate Measurement Tip
+  measureTip: {
+    backgroundColor: '#fef3c7',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: '#f59e0b',
+  },
+  measureTipTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#92400e',
+    marginBottom: 6,
+  },
+  measureTipText: {
+    fontSize: 12,
+    color: '#78350f',
+    lineHeight: 18,
+  },
+  // Sugar Intake Guide
+  sugarGuide: {
+    backgroundColor: '#fce7f3',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: '#ec4899',
+  },
+  sugarGuideTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#9d174d',
+    marginBottom: 8,
+  },
+  sugarTable: {
+    backgroundColor: '#ffffff',
+    borderRadius: 6,
+    padding: 8,
+    marginBottom: 8,
+  },
+  sugarRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#fce7f3',
+  },
+  sugarItem: {
+    fontSize: 12,
+    color: '#6b7280',
+    flex: 1,
+  },
+  sugarValue: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#be185d',
+    minWidth: 50,
+    textAlign: 'right',
+  },
+  sugarCalc: {
+    fontSize: 12,
+    color: '#9d174d',
+    fontWeight: '600',
+    fontStyle: 'italic',
+    marginTop: 4,
   },
 }); 
