@@ -127,16 +127,41 @@ func (m *Migrator) applySchemaMigrations() error {
 		user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 		sleep_hours DECIMAL(3,1),
 		meal_times JSONB,
-		screen_time INTEGER,
-		exercise_duration INTEGER,
+		screen_time DECIMAL(4,1),
+		exercise_duration DECIMAL(4,1),
 		wake_up_time TIME,
 		bed_time TIME,
-		water_intake INTEGER,
+		water_intake DECIMAL(3,1),
 		stress_level INTEGER,
+		heart_rate DECIMAL(5,1),
+		sugar_intake DECIMAL(5,1),
 		log_date DATE NOT NULL,
 		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 		updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 	);
+	
+	-- Add columns if they don't exist (for existing databases)
+	DO $$
+	BEGIN
+		IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'routine_logs' AND column_name = 'heart_rate') THEN
+			ALTER TABLE routine_logs ADD COLUMN heart_rate DECIMAL(5,1);
+		END IF;
+		IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'routine_logs' AND column_name = 'sugar_intake') THEN
+			ALTER TABLE routine_logs ADD COLUMN sugar_intake DECIMAL(5,1);
+		END IF;
+		-- Fix water_intake type if it's INTEGER
+		IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'routine_logs' AND column_name = 'water_intake' AND data_type = 'integer') THEN
+			ALTER TABLE routine_logs ALTER COLUMN water_intake TYPE DECIMAL(3,1);
+		END IF;
+		-- Fix screen_time type if it's INTEGER
+		IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'routine_logs' AND column_name = 'screen_time' AND data_type = 'integer') THEN
+			ALTER TABLE routine_logs ALTER COLUMN screen_time TYPE DECIMAL(4,1);
+		END IF;
+		-- Fix exercise_duration type if it's INTEGER
+		IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'routine_logs' AND column_name = 'exercise_duration' AND data_type = 'integer') THEN
+			ALTER TABLE routine_logs ALTER COLUMN exercise_duration TYPE DECIMAL(4,1);
+		END IF;
+	END $$;
 	
 	-- Create insights table
 	CREATE TABLE IF NOT EXISTS insights (
