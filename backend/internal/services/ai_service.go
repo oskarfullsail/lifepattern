@@ -160,15 +160,21 @@ func (s *AIService) AnalyzeRoutine(routineLog database.RoutineLog) (*AIServiceRe
 
 	log.Printf("🤖 Sending routine data to AI service at %s/predict", s.baseURL)
 
+	// Convert minutes to hours for AI service (DB stores minutes, AI expects hours)
+	screenTimeHours := routineLog.ScreenTime / 60.0
+	exerciseDurationHours := routineLog.ExerciseDuration / 60.0
+
 	request := AIServiceRequest{
 		SleepHours:       routineLog.SleepHours,
 		MealTimes:        routineLog.MealTimes,
-		ScreenTime:       routineLog.ScreenTime,
-		ExerciseDuration: routineLog.ExerciseDuration,
+		ScreenTime:       screenTimeHours,
+		ExerciseDuration: exerciseDurationHours,
 		WakeUpTime:       routineLog.WakeUpTime,
 		BedTime:          routineLog.BedTime,
 		WaterIntake:      routineLog.WaterIntake,
 		StressLevel:      routineLog.StressLevel,
+		HeartRate:        routineLog.HeartRate,
+		SugarIntake:      routineLog.SugarIntake,
 	}
 
 	requestJSON, err := json.Marshal(request)
@@ -177,7 +183,8 @@ func (s *AIService) AnalyzeRoutine(routineLog database.RoutineLog) (*AIServiceRe
 		return nil, fmt.Errorf("failed to marshal AI service request: %w", err)
 	}
 
-	log.Printf("📤 Sending request to AI service: %s", string(requestJSON))
+	log.Printf("📤 Sending request to AI service (screen_time: %.2fh, exercise: %.2fh): %s", 
+		screenTimeHours, exerciseDurationHours, string(requestJSON))
 
 	// Use retry logic for rate limits (no context timeout for this legacy method)
 	ctx := context.Background()
@@ -222,8 +229,8 @@ func (s *AIService) AnalyzeRoutineWithHistory(routineLog database.RoutineLog, hi
 	for i, log := range historicalData {
 		historicalPayload[i] = map[string]interface{}{
 			"sleep_hours":       log.SleepHours,
-			"screen_time":       log.ScreenTime,
-			"exercise_duration": log.ExerciseDuration,
+			"screen_time":       log.ScreenTime / 60.0,       // Convert minutes to hours
+			"exercise_duration": log.ExerciseDuration / 60.0, // Convert minutes to hours
 			"water_intake":      log.WaterIntake,
 			"stress_level":      log.StressLevel,
 			"wake_up_hour":      extractHourFromTime(log.WakeUpTime),
@@ -233,17 +240,23 @@ func (s *AIService) AnalyzeRoutineWithHistory(routineLog database.RoutineLog, hi
 		}
 	}
 
+	// Convert minutes to hours for AI service (DB stores minutes, AI expects hours)
+	screenTimeHours := routineLog.ScreenTime / 60.0
+	exerciseDurationHours := routineLog.ExerciseDuration / 60.0
+
 	// For now, use simple format (AI service doesn't support historical data format yet)
 	// TODO: Update when AI service supports enhanced endpoint
 	request := AIServiceRequest{
 		SleepHours:       routineLog.SleepHours,
 		MealTimes:        routineLog.MealTimes,
-		ScreenTime:       routineLog.ScreenTime,
-		ExerciseDuration: routineLog.ExerciseDuration,
+		ScreenTime:       screenTimeHours,
+		ExerciseDuration: exerciseDurationHours,
 		WakeUpTime:       routineLog.WakeUpTime,
 		BedTime:          routineLog.BedTime,
 		WaterIntake:      routineLog.WaterIntake,
 		StressLevel:      routineLog.StressLevel,
+		HeartRate:        routineLog.HeartRate,
+		SugarIntake:      routineLog.SugarIntake,
 	}
 
 	// Enhanced request with historical context (for future use)
