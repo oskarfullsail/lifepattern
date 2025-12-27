@@ -420,14 +420,16 @@ class TrainedModelService:
         hr_mean = self.get_threshold('heart_rate', 'population_mean') or 72
         hr_std = self.get_threshold('heart_rate', 'population_std') or 10
         
-        # Extract values
-        sleep_hours = routine_data.get('sleep_hours', 7)
-        stress_level = routine_data.get('stress_level', 5)
-        exercise_minutes = routine_data.get('exercise_duration', 0) * 60  # Convert hours to minutes
-        screen_time = routine_data.get('screen_time', 0)
-        water_intake = routine_data.get('water_intake', 2)
-        steps = routine_data.get('steps', 5000)
-        heart_rate = routine_data.get('heart_rate', 72)
+        # Extract values (handle None values explicitly)
+        sleep_hours = routine_data.get('sleep_hours') or 7
+        stress_level = routine_data.get('stress_level') or 5
+        exercise_duration = routine_data.get('exercise_duration') or 0
+        exercise_minutes = exercise_duration * 60  # Convert hours to minutes
+        screen_time = routine_data.get('screen_time') or 0
+        water_intake = routine_data.get('water_intake') or 2
+        steps = routine_data.get('steps') or 5000
+        heart_rate = routine_data.get('heart_rate') or 72  # Default to healthy resting HR
+        sugar_intake = routine_data.get('sugar_intake') or 0  # Default to 0g
         
         # Calculate Z-scores using data-driven thresholds
         sleep_zscore = (sleep_hours - sleep_mean) / sleep_std if sleep_std > 0 else 0
@@ -475,24 +477,24 @@ class TrainedModelService:
         """Calculate composite health score (0-100)."""
         score = 50.0
         
-        # Sleep component (30%)
-        sleep = routine_data.get('sleep_hours', 7)
+        # Sleep component (30%) - handle None values
+        sleep = routine_data.get('sleep_hours') or 7
         sleep_mean = self.get_threshold('sleep_hours', 'population_mean') or 7.0
         sleep_score = max(0, 1 - abs(sleep - sleep_mean) / sleep_mean)
         score += (sleep_score - 0.5) * 30
         
-        # Stress component (25%)
-        stress = routine_data.get('stress_level', 5)
+        # Stress component (25%) - handle None values
+        stress = routine_data.get('stress_level') or 5
         stress_score = (10 - stress) / 10
         score += (stress_score - 0.5) * 25
         
-        # Exercise component (25%)
-        exercise = routine_data.get('exercise_duration', 0)
-        exercise_score = min(exercise / 0.5, 1)  # 30 min = 0.5 hours = 100%
+        # Exercise component (25%) - handle None values
+        exercise = routine_data.get('exercise_duration') or 0
+        exercise_score = min(exercise / 0.5, 1) if exercise else 0  # 30 min = 0.5 hours = 100%
         score += (exercise_score - 0.5) * 25
         
-        # Screen time component (20%)
-        screen = routine_data.get('screen_time', 4)
+        # Screen time component (20%) - handle None values
+        screen = routine_data.get('screen_time') or 4
         screen_score = max(0, 1 - screen / 8)
         score += (screen_score - 0.5) * 20
         
@@ -502,41 +504,42 @@ class TrainedModelService:
         """Determine the type of anomaly based on data-driven thresholds."""
         anomaly_types = []
         
-        # Check sleep
-        sleep = routine_data.get('sleep_hours', 7)
+        # Check sleep - handle None values
+        sleep = routine_data.get('sleep_hours') or 7
         sleep_low = self.get_threshold('sleep_hours', 'warning_low') or 6.0
         if sleep < sleep_low:
             anomaly_types.append('low_sleep')
         
-        # Check stress
-        stress = routine_data.get('stress_level', 5)
+        # Check stress - handle None values
+        stress = routine_data.get('stress_level') or 5
         stress_high = self.get_threshold('stress_level', 'warning_high') or 7.0
         if stress > stress_high:
             anomaly_types.append('high_stress')
         
-        # Check exercise
-        exercise = routine_data.get('exercise_duration', 0) * 60
+        # Check exercise - handle None values
+        exercise_duration = routine_data.get('exercise_duration') or 0
+        exercise = exercise_duration * 60
         exercise_low = self.get_threshold('exercise_minutes', 'warning_low') or 15
         if exercise < exercise_low:
             anomaly_types.append('low_exercise')
         
-        # Check heart rate (NEW)
+        # Check heart rate (NEW) - only if provided
         heart_rate = routine_data.get('heart_rate')
         if heart_rate is not None and heart_rate > 100:  # Elevated resting HR
             anomaly_types.append('high_heart_rate')
         
-        # Check sugar intake (NEW)
+        # Check sugar intake (NEW) - only if provided
         sugar_intake = routine_data.get('sugar_intake')
         if sugar_intake is not None and sugar_intake > 50:  # WHO recommends < 50g/day
             anomaly_types.append('high_sugar_intake')
         
-        # Check hydration
-        water = routine_data.get('water_intake', 2)
+        # Check hydration - handle None values
+        water = routine_data.get('water_intake') or 2
         if water < 1.5:
             anomaly_types.append('low_hydration')
         
-        # Check screen time
-        screen = routine_data.get('screen_time', 4)
+        # Check screen time - handle None values
+        screen = routine_data.get('screen_time') or 4
         if screen > 8:
             anomaly_types.append('high_screen_time')
         
