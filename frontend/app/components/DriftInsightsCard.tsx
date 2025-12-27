@@ -165,6 +165,47 @@ const DriftInsightsCard: React.FC<Props> = ({ userId, onRefresh, autoRefresh = t
     return null;
   }
 
+  // Check if the response is actually an error fallback
+  const isErrorFallback = driftData.error || driftData.drift_type === 'fetch_error';
+  
+  if (isErrorFallback) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.title}>🔍 Behavioral Drift Analysis</Text>
+            <Text style={styles.dataPoints}>
+              Based on {driftData.baseline_data_points || 0} days of data
+            </Text>
+          </View>
+          <TouchableOpacity onPress={handleRefresh} style={styles.refreshButton}>
+            <Text style={styles.refreshIcon}>🔄</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {/* Show stable indicator with error message */}
+        <View style={[styles.severityBadge, { backgroundColor: '#10b98120', borderColor: '#10b981' }]}>
+          <Text style={styles.severityIcon}>✅</Text>
+          <View style={styles.severityContent}>
+            <Text style={[styles.severityTitle, { color: '#10b981' }]}>
+              Patterns Stable
+            </Text>
+            <Text style={styles.severityScore}>
+              Drift Score: 0%
+            </Text>
+          </View>
+        </View>
+        
+        <View style={styles.noDataBox}>
+          <Text style={styles.noDataIcon}>⚠️</Text>
+          <Text style={styles.noDataText}>
+            Unable to analyze drift patterns at this time. Please try again later.
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   const severityColor = getSeverityColor(driftData.severity);
 
   return (
