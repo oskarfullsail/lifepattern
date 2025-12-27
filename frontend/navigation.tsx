@@ -24,6 +24,8 @@ import QuickLogScreen from './app/quickLog';
 import ScreeningQuestionnaireScreen from './app/screeningQuestionnaire';
 import UsabilitySurveyScreen from './app/usabilitySurvey';
 import AdminDashboardScreen from './app/adminDashboard';
+import AllRoutineLogsScreen from './app/screens/AllRoutineLogs';
+import LogDetailScreen from './app/screens/LogDetail';
 
 // Import settings sub-screens
 import {
@@ -67,6 +69,9 @@ export type RootStackParamList = {
   HelpFAQ: undefined;
   HealthPermissions: undefined;
   Support: undefined;
+  // Activity screens
+  AllRoutineLogs: undefined;
+  LogDetail: { logId: number };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -388,6 +393,16 @@ export default function Navigation() {
           name="Support"
           component={SupportScreen}
           options={{ title: 'Support', headerShown: false }}
+        />
+        <Stack.Screen
+          name="AllRoutineLogs"
+          component={AllRoutineLogsScreen}
+          options={{ title: 'All Activity', headerShown: false }}
+        />
+        <Stack.Screen
+          name="LogDetail"
+          component={LogDetailScreen}
+          options={{ title: 'Log Details', headerShown: false }}
         />
       </Stack.Navigator>
       <StatusBar style="auto" />

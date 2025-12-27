@@ -18,6 +18,11 @@ export interface RoutineLogPayload {
   sugar_intake?: number;
 }
 
+// RoutineLog with ID (for fetched logs)
+export interface RoutineLog extends RoutineLogPayload {
+  id: number;
+}
+
 export interface CreateRoutineLogResponse {
   log_id: number;
   message: string;
@@ -36,8 +41,15 @@ export interface InsightResponse {
     confidence_score: number;
     anomaly_type: string;
     recommendations: string[];
+    enhanced_recommendations?: Array<{
+      category: string;
+      title: string;
+      description: string;
+      priority: string;
+      actions?: string[];
+    }>;
     ai_service_response: string;
-  };
+  } | null;
 }
 
 // Authentication Types

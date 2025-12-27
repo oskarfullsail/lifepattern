@@ -334,6 +334,10 @@ export default function UserDashboard({ navigation }: Props) {
     navigation.navigate('DataVisualization', {});
   };
 
+  const handleViewAllLogs = () => {
+    navigation.navigate('AllRoutineLogs');
+  };
+
   const handleManageDevices = () => {
     navigation.navigate('CrossDeviceLinking');
   };
@@ -612,7 +616,7 @@ export default function UserDashboard({ navigation }: Props) {
         <View style={styles.activitySection}>
           <View style={styles.activityHeader}>
             <Text style={styles.sectionTitle}>Recent Activity</Text>
-            <TouchableOpacity onPress={handleViewData}>
+            <TouchableOpacity onPress={handleViewAllLogs}>
               <Text style={styles.viewAllText}>View All →</Text>
             </TouchableOpacity>
           </View>
