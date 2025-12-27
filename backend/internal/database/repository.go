@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -248,14 +249,39 @@ func (r *Repository) GetMobileChallenge(challengeID uuid.UUID) (*MobileChallenge
 }
 
 // SaveRoutineLog saves a routine log to the database
+// Uses the extended schema with heart_rate and sugar_intake if available,
+// falls back to legacy schema if those columns don't exist yet
 func (r *Repository) SaveRoutineLog(routineLog RoutineLog) (int, error) {
-	query := `INSERT INTO routine_logs (user_id, sleep_hours, meal_times, screen_time, 
-		exercise_duration, wake_up_time, bed_time, water_intake, stress_level, log_date) 
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`
-
 	var id int
-	err := r.db.QueryRow(query, routineLog.UserID, routineLog.SleepHours, routineLog.MealTimes, routineLog.ScreenTime,
-		routineLog.ExerciseDuration, routineLog.WakeUpTime, routineLog.BedTime, routineLog.WaterIntake, routineLog.StressLevel, routineLog.LogDate).Scan(&id)
+	var err error
+
+	// Try the new schema with heart_rate and sugar_intake first
+	if routineLog.HeartRate != nil || routineLog.SugarIntake != nil {
+		query := `INSERT INTO routine_logs (user_id, sleep_hours, meal_times, screen_time, 
+			exercise_duration, wake_up_time, bed_time, water_intake, stress_level, log_date,
+			heart_rate, sugar_intake) 
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`
+
+		err = r.db.QueryRow(query, routineLog.UserID, routineLog.SleepHours, routineLog.MealTimes, routineLog.ScreenTime,
+			routineLog.ExerciseDuration, routineLog.WakeUpTime, routineLog.BedTime, routineLog.WaterIntake, routineLog.StressLevel, routineLog.LogDate,
+			routineLog.HeartRate, routineLog.SugarIntake).Scan(&id)
+
+		// If error is about missing columns, fall back to legacy query
+		if err != nil && (strings.Contains(err.Error(), "heart_rate") || strings.Contains(err.Error(), "sugar_intake") || strings.Contains(err.Error(), "column")) {
+			log.Printf("⚠️ New columns not available, falling back to legacy schema")
+			err = nil // Reset error to try legacy query
+		}
+	}
+
+	// Fall back to legacy schema (without heart_rate and sugar_intake)
+	if id == 0 && err == nil {
+		query := `INSERT INTO routine_logs (user_id, sleep_hours, meal_times, screen_time, 
+			exercise_duration, wake_up_time, bed_time, water_intake, stress_level, log_date) 
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`
+
+		err = r.db.QueryRow(query, routineLog.UserID, routineLog.SleepHours, routineLog.MealTimes, routineLog.ScreenTime,
+			routineLog.ExerciseDuration, routineLog.WakeUpTime, routineLog.BedTime, routineLog.WaterIntake, routineLog.StressLevel, routineLog.LogDate).Scan(&id)
+	}
 
 	if err != nil {
 		return 0, fmt.Errorf("failed to save routine log: %w", err)
