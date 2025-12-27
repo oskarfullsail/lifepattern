@@ -635,26 +635,44 @@ export default function DataImport({ navigation, route }: Props) {
         }
       };
       
-      // Navigate to AI Insights if we have AI analysis
+      // Navigate to detailed log view with AI insights
       if (response.has_ai && response.ai_result) {
-        navigation.navigate('AIInsights', {
-          aiResponse: response.ai_result,
-          logId: response.log_id,
-          userId: userId, // Use the userId we already have
-        });
-        // Survey prompt will be shown after viewing AI insights (handled in AIInsights screen)
+        Alert.alert(
+          '✅ Data Saved!',
+          'Your health data has been analyzed. View your AI insights?',
+          [
+            {
+              text: 'View Insights',
+              onPress: () => {
+                navigation.navigate('LogDetail', { logId: response.log_id });
+              },
+            },
+            {
+              text: 'Go to Dashboard',
+              onPress: () => {
+                promptForSurvey(() => navigation.navigate('UserDashboard'));
+              },
+            },
+          ]
+        );
       } else {
         // Fallback to simple success message if no AI response
         Alert.alert(
-          'Success',
+          '✅ Success',
           'Your health data has been saved successfully!',
           [
+            {
+              text: 'View Details',
+              onPress: () => {
+                navigation.navigate('LogDetail', { logId: response.log_id });
+              },
+            },
             {
               text: 'OK',
               onPress: () => {
                 promptForSurvey(() => navigation.goBack());
-              }
-            }
+              },
+            },
           ]
         );
       }

@@ -392,29 +392,51 @@ export default function QuickLog({ navigation }: Props) {
         }
       };
 
-      // Navigate to AI Insights if we have AI analysis
+      // Navigate to detailed log view with AI insights
       if (response.has_ai && response.ai_result) {
-          navigation.navigate('AIInsights', {
-            aiResponse: response.ai_result,
-            logId: response.log_id,
-            userId: userId, // Use the userId we already have
-          });
-          // Survey prompt will be shown after viewing AI insights (handled in AIInsights screen)
+        Alert.alert(
+          '✅ Data Saved!',
+          'Your health data has been analyzed by AI. View your personalized insights?',
+          [
+            {
+              text: 'View Insights',
+              onPress: () => {
+                navigation.navigate('LogDetail', { logId: response.log_id });
+              },
+            },
+            {
+              text: 'Go to Dashboard',
+              onPress: () => {
+                promptForSurvey(() => navigation.navigate('UserDashboard'));
+              },
+            },
+          ]
+        );
       } else {
-        Alert.alert('Success', 'Your health data has been logged!', [
-          {
-            text: 'View Data',
-            onPress: () => {
-              promptForSurvey(() => navigation.navigate('DataVisualization', {}));
+        Alert.alert(
+          '✅ Success',
+          'Your health data has been logged!',
+          [
+            {
+              text: 'View Details',
+              onPress: () => {
+                navigation.navigate('LogDetail', { logId: response.log_id });
+              },
             },
-          },
-          { 
-            text: 'OK', 
-            onPress: () => {
-              promptForSurvey(() => navigation.goBack());
+            {
+              text: 'View All Data',
+              onPress: () => {
+                promptForSurvey(() => navigation.navigate('DataVisualization', {}));
+              },
             },
-          },
-        ]);
+            { 
+              text: 'OK', 
+              onPress: () => {
+                promptForSurvey(() => navigation.goBack());
+              },
+            },
+          ]
+        );
       }
     } catch (error: any) {
       console.error('❌ Error submitting quick log:', error);
